@@ -1,0 +1,23 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <div class="mx-auto max-w-sm text-center space-y-6">
+    <.header>
+      Quiz
+      <:subtitle>Welcome.</:subtitle>
+    </.header>
+
+    <%= if @current_scope do %>
+      <.link navigate={~p"/users/settings"} class="btn btn-primary w-full">
+        Go to settings
+      </.link>
+    <% else %>
+      <div class="flex flex-col gap-2">
+        <.link navigate={~p"/users/log-in"} class="btn btn-primary w-full">
+          Log in
+        </.link>
+        <.link navigate={~p"/users/register"} class="btn btn-primary btn-soft w-full">
+          Register
+        </.link>
+      </div>
+    <% end %>
+  </div>
+</Layouts.app>
