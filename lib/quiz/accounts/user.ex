@@ -3,6 +3,7 @@ defmodule Quiz.Accounts.User do
   import Ecto.Changeset
 
   schema "users" do
+    field :name, :string
     field :email, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
@@ -27,10 +28,26 @@ defmodule Quiz.Accounts.User do
   """
   def registration_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :password])
+    |> cast(attrs, [:name, :email, :password])
+    |> validate_name()
     |> validate_email(opts)
     |> validate_password(opts)
     |> put_confirmed_at()
+  end
+
+  defp validate_name(changeset) do
+    changeset
+    |> validate_required([:name])
+    |> validate_length(:name, min: 2, max: 160)
+  end
+
+  @doc """
+  A user changeset for changing the name.
+  """
+  def name_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:name])
+    |> validate_name()
   end
 
   defp put_confirmed_at(changeset) do

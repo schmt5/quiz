@@ -44,7 +44,11 @@ defmodule QuizWeb.UserLive.RegistrationTest do
 
       form =
         form(lv, "#registration_form",
-          user: %{"email" => email, "password" => valid_user_password()}
+          user: %{
+            "name" => unique_user_name(),
+            "email" => email,
+            "password" => valid_user_password()
+          }
         )
 
       {:ok, _lv, html} =
@@ -62,7 +66,11 @@ defmodule QuizWeb.UserLive.RegistrationTest do
       result =
         lv
         |> form("#registration_form",
-          user: %{"email" => user.email, "password" => valid_user_password()}
+          user: %{
+            "name" => unique_user_name(),
+            "email" => user.email,
+            "password" => valid_user_password()
+          }
         )
         |> render_submit()
 

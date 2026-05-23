@@ -5,7 +5,7 @@ defmodule QuizWeb.StyleguideLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="space-y-10">
+      <div class="mx-auto max-w-2xl space-y-10">
         <.header>
           Styleguide
           <:subtitle>

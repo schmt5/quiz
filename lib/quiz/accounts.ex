@@ -68,6 +68,22 @@ defmodule Quiz.Accounts do
   def sudo_mode?(_user, _minutes), do: false
 
   @doc """
+  Returns an `%Ecto.Changeset{}` for changing the user name.
+  """
+  def change_user_name(user, attrs \\ %{}) do
+    User.name_changeset(user, attrs)
+  end
+
+  @doc """
+  Updates the user name.
+  """
+  def update_user_name(user, attrs) do
+    user
+    |> User.name_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Returns an `%Ecto.Changeset{}` for changing the user email.
   """
   def change_user_email(user, attrs \\ %{}, opts \\ []) do

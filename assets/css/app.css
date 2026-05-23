@@ -64,3 +64,17 @@
 }
 
 /* This file is for your main application CSS */
+
+/* Delay daisyUI tooltips by 400ms on hover-in; hover-out stays immediate. */
+.tooltip::before,
+.tooltip::after {
+    transition-delay: 0s;
+}
+.tooltip:hover::before,
+.tooltip:hover::after,
+.tooltip:focus-visible::before,
+.tooltip:focus-visible::after,
+.tooltip:has(:focus-visible)::before,
+.tooltip:has(:focus-visible)::after {
+    transition-delay: 400ms;
+}

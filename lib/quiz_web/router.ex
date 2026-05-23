@@ -52,6 +52,16 @@ defmodule QuizWeb.Router do
     live_session :require_authenticated_user,
       on_mount: [{QuizWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
+
+      live "/games", GameLive.Index, :indexs
+      live "/games/new", GameLive.Form, :new
+      live "/games/:id", GameLive.Show, :show
+      live "/games/:id/edit", GameLive.Form, :edit
+
+      live "/games/:game_id/questions", QuestionLive.Index, :index
+      live "/games/:game_id/questions/new", QuestionLive.Index, :new
+      live "/games/:game_id/questions/reorder", QuestionLive.Reorder, :index
+      live "/games/:game_id/questions/:id/edit", QuestionLive.Index, :edit
     end
 
     post "/users/update-password", UserSessionController, :update_password

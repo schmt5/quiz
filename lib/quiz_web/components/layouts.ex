@@ -31,14 +31,24 @@ defmodule QuizWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
 
+  slot :page_header,
+    doc: "optional full-width page heading rendered above the main content with a bottom border"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
-        {render_slot(@inner_block)}
-      </div>
+    <header
+      :if={@page_header != []}
+      class="h-[104px] flex items-center border-b border-base-200 px-4 sm:px-6 lg:px-8"
+    >
+      <div class="w-full">{render_slot(@page_header)}</div>
+    </header>
+    <main class={[
+      "px-4 sm:px-6 lg:px-8",
+      if(@page_header == [], do: "py-20", else: "h-[calc(100dvh-104px)]")
+    ]}>
+      {render_slot(@inner_block)}
     </main>
 
     <.flash_group flash={@flash} />

@@ -49,10 +49,11 @@ defmodule Quiz.AccountsTest do
   end
 
   describe "register_user/1" do
-    test "requires email and password to be set" do
+    test "requires name, email and password to be set" do
       {:error, changeset} = Accounts.register_user(%{})
 
       assert %{
+               name: ["can't be blank"],
                email: ["can't be blank"],
                password: ["can't be blank"]
              } = errors_on(changeset)
@@ -96,12 +97,18 @@ defmodule Quiz.AccountsTest do
       assert "has already been taken" in errors_on(changeset).email
     end
 
-    test "registers users with email and password, confirmed immediately" do
+    test "registers users with name, email and password, confirmed immediately" do
       email = unique_user_email()
+      name = unique_user_name()
 
       {:ok, user} =
-        Accounts.register_user(%{email: email, password: valid_user_password()})
+        Accounts.register_user(%{
+          name: name,
+          email: email,
+          password: valid_user_password()
+        })
 
+      assert user.name == name
       assert user.email == email
       assert is_binary(user.hashed_password)
       assert is_nil(user.password)

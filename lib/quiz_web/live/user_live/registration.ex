@@ -8,7 +8,7 @@ defmodule QuizWeb.UserLive.Registration do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm">
+      <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
             Register for an account
@@ -24,13 +24,21 @@ defmodule QuizWeb.UserLive.Registration do
 
         <.form for={@form} id="registration_form" phx-submit="save" phx-change="validate">
           <.input
+            field={@form[:name]}
+            type="text"
+            label="Name"
+            autocomplete="name"
+            required
+            phx-mounted={JS.focus()}
+          />
+
+          <.input
             field={@form[:email]}
             type="email"
             label="Email"
             autocomplete="username"
             spellcheck="false"
             required
-            phx-mounted={JS.focus()}
           />
 
           <.input
