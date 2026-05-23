@@ -4,7 +4,7 @@ defmodule QuizWeb.QuestionLive.Index do
   alias Quiz.Games
   alias Quiz.Games.Question
 
-  @valid_types ~w(single_choice text_input)
+  @valid_types ~w(single_choice text_input sequence)
 
   @impl true
   def render(assigns) do
@@ -24,17 +24,27 @@ defmodule QuizWeb.QuestionLive.Index do
               <li>Fragen</li>
             </ul>
           </div>
-          <div class="flex items-center gap-2">
-            <div class="tooltip tooltip-right" data-tip="Zurück zum Quiz">
-              <.link
-                navigate={~p"/games/#{@game}"}
-                class="btn btn-ghost btn-sm btn-square"
-                aria-label="Zurück zum Quiz"
-              >
-                <.icon name="hero-arrow-left" class="size-4" />
-              </.link>
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+              <div class="tooltip tooltip-right" data-tip="Zurück zum Quiz">
+                <.link
+                  navigate={~p"/games/#{@game}"}
+                  class="btn btn-ghost btn-sm btn-square"
+                  aria-label="Zurück zum Quiz"
+                >
+                  <.icon name="hero-arrow-left" class="size-4" />
+                </.link>
+              </div>
+              <h1 class="text-2xl font-bold">{@game.title} Fragen</h1>
             </div>
-            <h1 class="text-2xl font-bold">{@game.title} Fragen</h1>
+            <.link
+              href={~p"/games/#{@game}/preview"}
+              target="_blank"
+              rel="noopener"
+              class="btn btn-primary btn-sm"
+            >
+              <.icon name="hero-eye" /> Vorschau
+            </.link>
           </div>
         </div>
       </:page_header>
@@ -136,7 +146,7 @@ defmodule QuizWeb.QuestionLive.Index do
         Welche Art von Frage möchtest du hinzufügen?
       </h1>
 
-      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
         <.link
           patch={~p"/games/#{@game}/questions/new?type=single_choice"}
           class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
@@ -173,6 +183,31 @@ defmodule QuizWeb.QuestionLive.Index do
           <p class="text-sm text-base-content/60">Freie Eingabe</p>
           <div class="mt-8">
             <div class="h-8 w-2/3 rounded bg-base-200"></div>
+          </div>
+        </.link>
+
+        <.link
+          patch={~p"/games/#{@game}/questions/new?type=sequence"}
+          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        >
+          <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
+            R
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Reihenfolge</h2>
+          <p class="text-sm text-base-content/60">Einträge in richtiger Reihenfolge sortieren</p>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs text-base-content/60">01</span>
+              <span class="block h-2 w-2/3 rounded bg-base-200"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs text-base-content/60">02</span>
+              <span class="block h-2 w-1/2 rounded bg-base-200"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs text-base-content/60">03</span>
+              <span class="block h-2 w-2/5 rounded bg-base-200"></span>
+            </div>
           </div>
         </.link>
       </div>
@@ -461,6 +496,148 @@ defmodule QuizWeb.QuestionLive.Index do
                   {solutions_error}
                 </p>
               </fieldset>
+            <% :sequence -> %>
+              <fieldset class="mt-4 space-y-3">
+                <div role="alert" class="alert alert-info alert-soft">
+                  <.icon name="hero-information-circle" class="size-5 shrink-0" />
+                  <span class="text-sm">
+                    Die Reihenfolge ist die Lösung. Teilnehmende sehen die Einträge in zufälliger Reihenfolge und müssen sie in die richtige Ordnung bringen.
+                  </span>
+                </div>
+
+                <div class="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-base-content/60">
+                  <span>Einträge · Reihenfolge ist die Lösung</span>
+                  <span>{items_summary(@form)}</span>
+                </div>
+
+                <ul
+                  id="items-sortable"
+                  phx-hook=".SortableItems"
+                  class="space-y-2 list-none p-0"
+                >
+                  <.inputs_for :let={i} field={d[:items]}>
+                    <li
+                      id={"item-#{i.index}"}
+                      class="item-row group flex items-center gap-2 rounded-box bg-base-200 px-2 py-2 transition"
+                    >
+                      <input
+                        type="hidden"
+                        name="question[data][items_sort][]"
+                        value={i.index}
+                      />
+
+                      <button
+                        type="button"
+                        data-handle
+                        aria-label="Sortieren"
+                        class="cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 px-1 select-none touch-none"
+                      >
+                        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor">
+                          <circle cx="7" cy="5" r="1.5" />
+                          <circle cx="13" cy="5" r="1.5" />
+                          <circle cx="7" cy="10" r="1.5" />
+                          <circle cx="13" cy="10" r="1.5" />
+                          <circle cx="7" cy="15" r="1.5" />
+                          <circle cx="13" cy="15" r="1.5" />
+                        </svg>
+                      </button>
+
+                      <input
+                        type="text"
+                        name={i[:text].name}
+                        id={i[:text].id}
+                        value={i[:text].value}
+                        placeholder="Eintrag"
+                        class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-sm py-1"
+                      />
+
+                      <button
+                        type="button"
+                        name="question[data][items_drop][]"
+                        value={i.index}
+                        phx-click={JS.dispatch("change")}
+                        class="text-base-content/40 hover:text-error px-2 text-lg leading-none"
+                        aria-label="Eintrag entfernen"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  </.inputs_for>
+                </ul>
+
+                <input type="hidden" name="question[data][items_drop][]" />
+
+                <button
+                  type="button"
+                  name="question[data][items_sort][]"
+                  value="new"
+                  phx-click={JS.dispatch("change")}
+                  class="w-full rounded-box border border-dashed border-base-300 px-3 py-3 text-sm text-base-content/70 hover:border-base-content/40 hover:text-base-content transition flex items-center justify-center gap-1"
+                >
+                  <span class="text-base">+</span> Eintrag hinzufügen
+                </button>
+
+                <p :if={items_error = data_field_error(@form, :items)} class="text-error text-sm">
+                  {items_error}
+                </p>
+
+                <script :type={Phoenix.LiveView.ColocatedHook} name=".SortableItems">
+                  export default {
+                    mounted() {
+                      const el = this.el;
+                      let dragging = null;
+
+                      const bindHandles = () => {
+                        el.querySelectorAll("[data-handle]").forEach((h) => {
+                          if (h.dataset.bound) return;
+                          h.dataset.bound = "1";
+                          const li = h.closest("li");
+                          h.addEventListener("mousedown", () => li.setAttribute("draggable", "true"));
+                          h.addEventListener("mouseup", () => li.removeAttribute("draggable"));
+                          h.addEventListener("mouseleave", () => li.removeAttribute("draggable"));
+                        });
+                      };
+                      bindHandles();
+                      this.observer = new MutationObserver(bindHandles);
+                      this.observer.observe(el, { childList: true });
+
+                      el.addEventListener("dragstart", (e) => {
+                        const li = e.target.closest("li");
+                        if (!li || li.parentElement !== el) return;
+                        dragging = li;
+                        li.classList.add("opacity-40");
+                        e.dataTransfer.effectAllowed = "move";
+                        try { e.dataTransfer.setData("text/plain", ""); } catch (_) {}
+                      });
+
+                      el.addEventListener("dragover", (e) => {
+                        if (!dragging) return;
+                        e.preventDefault();
+                        const siblings = [...el.querySelectorAll("li:not(.opacity-40)")];
+                        const after = siblings.find((s) => {
+                          const r = s.getBoundingClientRect();
+                          return e.clientY < r.top + r.height / 2;
+                        });
+                        if (after) {
+                          if (after !== dragging.nextSibling) el.insertBefore(dragging, after);
+                        } else {
+                          if (el.lastElementChild !== dragging) el.appendChild(dragging);
+                        }
+                      });
+
+                      el.addEventListener("dragend", () => {
+                        if (!dragging) return;
+                        dragging.classList.remove("opacity-40");
+                        dragging.removeAttribute("draggable");
+                        const form = el.closest("form");
+                        if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
+                        dragging = null;
+                      });
+                    },
+                    destroyed() { this.observer?.disconnect(); }
+                  };
+                </script>
+              </fieldset>
           <% end %>
         </.inputs_for>
       </div>
@@ -640,10 +817,12 @@ defmodule QuizWeb.QuestionLive.Index do
 
   defp humanize_type(:single_choice), do: "Single-Choice"
   defp humanize_type(:text_input), do: "Texteingabe"
+  defp humanize_type(:sequence), do: "Reihenfolge"
   defp humanize_type(other), do: to_string(other)
 
   defp type_letter(:single_choice), do: "S"
   defp type_letter(:text_input), do: "T"
+  defp type_letter(:sequence), do: "R"
   defp type_letter(_), do: "?"
 
   defp form_eyebrow(:new), do: "Neue Frage"
@@ -685,6 +864,18 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp solutions_summary(_), do: "0 Lösungen"
+
+  defp items_summary(%{source: %Ecto.Changeset{} = cs}) do
+    items =
+      case Ecto.Changeset.get_field(cs, :data) do
+        %{items: list} when is_list(list) -> list
+        _ -> []
+      end
+
+    "#{length(items)} Einträge"
+  end
+
+  defp items_summary(_), do: "0 Einträge"
 
   defp data_field_error(form, field) do
     case form.source.changes[:data] do

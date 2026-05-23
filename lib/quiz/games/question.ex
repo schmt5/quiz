@@ -5,7 +5,7 @@ defmodule Quiz.Games.Question do
   alias Quiz.Games.Question.Data
 
   schema "questions" do
-    field :type, Ecto.Enum, values: [:single_choice, :text_input]
+    field :type, Ecto.Enum, values: [:single_choice, :text_input, :sequence]
     field :prompt, :string
     field :position, :integer
     embeds_one :data, Data, on_replace: :update
@@ -35,7 +35,7 @@ defmodule Quiz.Games.Question do
          %Data{} <- get_field(changeset, :data) do
       # Clear the existing embed in-place; on_replace: :update requires a map
       # (not a struct). cast_embed afterwards will populate from the new attrs.
-      put_embed(changeset, :data, %{choices: [], solutions: []})
+      put_embed(changeset, :data, %{choices: [], solutions: [], items: []})
     else
       _ -> changeset
     end
@@ -62,6 +62,11 @@ defmodule Quiz.Games.Question do
       %{correct: true} -> true
       _ -> false
     end
+  end
+
+  def correct_answer?(%__MODULE__{type: :sequence, data: %Data{items: items}}, submitted_ids)
+      when is_list(submitted_ids) do
+    Enum.map(items, & &1.id) == submitted_ids
   end
 
   def correct_answer?(_question, _input), do: false

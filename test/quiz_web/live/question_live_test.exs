@@ -33,6 +33,22 @@ defmodule QuizWeb.QuestionLiveTest do
     }
   }
 
+  @sequence_submit_params %{
+    "question" => %{
+      "type" => "sequence",
+      "prompt" => "some sequence prompt",
+      "position" => "44",
+      "data" => %{
+        "items_sort" => ["0", "1", "2"],
+        "items" => %{
+          "0" => %{"text" => "First"},
+          "1" => %{"text" => "Second"},
+          "2" => %{"text" => "Third"}
+        }
+      }
+    }
+  }
+
   setup :register_and_log_in_user
 
   defp create_game(%{scope: scope}) do
@@ -56,6 +72,7 @@ defmodule QuizWeb.QuestionLiveTest do
       assert html =~ "Welche Art von Frage möchtest du hinzufügen?"
       assert html =~ "Single-Choice"
       assert html =~ "Texteingabe"
+      assert html =~ "Reihenfolge"
     end
   end
 
@@ -137,6 +154,22 @@ defmodule QuizWeb.QuestionLiveTest do
       html = render(live)
       assert html =~ "Frage erfolgreich erstellt"
       assert html =~ "some updated prompt"
+    end
+
+    test "saves a new sequence question via the Reihenfolge card", %{conn: conn, game: game} do
+      {:ok, live, html} = live(conn, ~p"/games/#{game}/questions/new?type=sequence")
+
+      assert html =~ "Reihenfolge"
+      assert html =~ "Die Reihenfolge ist die Lösung"
+
+      render_submit(live, "save", @sequence_submit_params)
+
+      html = render(live)
+      assert html =~ "Frage erfolgreich erstellt"
+      assert html =~ "some sequence prompt"
+      assert html =~ "First"
+      assert html =~ "Second"
+      assert html =~ "Third"
     end
   end
 

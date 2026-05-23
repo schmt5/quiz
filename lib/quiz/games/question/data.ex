@@ -10,12 +10,13 @@ defmodule Quiz.Games.Question.Data do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Quiz.Games.Question.{Choice, Solution}
+  alias Quiz.Games.Question.{Choice, Item, Solution}
 
   @primary_key false
   embedded_schema do
     embeds_many :choices, Choice, on_replace: :delete
     embeds_many :solutions, Solution, on_replace: :delete
+    embeds_many :items, Item, on_replace: :delete
   end
 
   @doc """
@@ -25,6 +26,7 @@ defmodule Quiz.Games.Question.Data do
     data
     |> cast(attrs, [])
     |> put_embed(:solutions, [])
+    |> put_embed(:items, [])
     |> cast_embed(:choices,
       with: &Choice.changeset/2,
       sort_param: :choices_sort,
@@ -38,12 +40,26 @@ defmodule Quiz.Games.Question.Data do
     data
     |> cast(attrs, [])
     |> put_embed(:choices, [])
+    |> put_embed(:items, [])
     |> cast_embed(:solutions,
       with: &Solution.changeset/2,
       sort_param: :solutions_sort,
       drop_param: :solutions_drop
     )
     |> validate_length(:solutions, min: 1, message: "mind. eine Lösung")
+  end
+
+  def changeset(data, attrs, :sequence) do
+    data
+    |> cast(attrs, [])
+    |> put_embed(:choices, [])
+    |> put_embed(:solutions, [])
+    |> cast_embed(:items,
+      with: &Item.changeset/2,
+      sort_param: :items_sort,
+      drop_param: :items_drop
+    )
+    |> validate_length(:items, min: 2, message: "mind. zwei Einträge")
   end
 
   # No type yet (initial render before the user picked one) — no-op.

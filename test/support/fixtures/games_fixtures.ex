@@ -21,20 +21,42 @@ defmodule Quiz.GamesFixtures do
     attrs = Enum.into(attrs, %{})
     game_id = Map.get_lazy(attrs, :game_id, fn -> game_fixture(scope).id end)
 
+    defaults =
+      case Map.get(attrs, :type, :single_choice) do
+        :sequence ->
+          %{
+            type: :sequence,
+            prompt: "some prompt",
+            position: 42,
+            data: %{items: [%{text: "First"}, %{text: "Second"}, %{text: "Third"}]}
+          }
+
+        :text_input ->
+          %{
+            type: :text_input,
+            prompt: "some prompt",
+            position: 42,
+            data: %{solutions: [%{text: "Paris"}]}
+          }
+
+        _ ->
+          %{
+            type: :single_choice,
+            prompt: "some prompt",
+            position: 42,
+            data: %{
+              choices: [
+                %{text: "A", correct: true},
+                %{text: "B", correct: false}
+              ]
+            }
+          }
+      end
+
     attrs =
       attrs
       |> Map.put(:game_id, game_id)
-      |> Enum.into(%{
-        type: :single_choice,
-        prompt: "some prompt",
-        position: 42,
-        data: %{
-          choices: [
-            %{text: "A", correct: true},
-            %{text: "B", correct: false}
-          ]
-        }
-      })
+      |> Enum.into(defaults)
 
     {:ok, question} = Quiz.Games.create_question(scope, attrs)
     question

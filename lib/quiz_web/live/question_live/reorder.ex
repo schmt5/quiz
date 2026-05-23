@@ -23,17 +23,27 @@ defmodule QuizWeb.QuestionLive.Reorder do
               <li>Sortieren</li>
             </ul>
           </div>
-          <div class="flex items-center gap-2">
-            <div class="tooltip tooltip-right" data-tip="Zurück zu den Fragen">
-              <.link
-                navigate={~p"/games/#{@game}/questions"}
-                class="btn btn-ghost btn-sm btn-square"
-                aria-label="Zurück zu den Fragen"
-              >
-                <.icon name="hero-arrow-left" class="size-4" />
-              </.link>
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+              <div class="tooltip tooltip-right" data-tip="Zurück zu den Fragen">
+                <.link
+                  navigate={~p"/games/#{@game}/questions"}
+                  class="btn btn-ghost btn-sm btn-square"
+                  aria-label="Zurück zu den Fragen"
+                >
+                  <.icon name="hero-arrow-left" class="size-4" />
+                </.link>
+              </div>
+              <h1 class="text-2xl font-bold">Fragen sortieren</h1>
             </div>
-            <h1 class="text-2xl font-bold">Fragen sortieren</h1>
+            <.link
+              href={~p"/games/#{@game}/preview"}
+              target="_blank"
+              rel="noopener"
+              class="btn btn-primary btn-sm"
+            >
+              <.icon name="hero-eye" /> Vorschau
+            </.link>
           </div>
         </div>
       </:page_header>

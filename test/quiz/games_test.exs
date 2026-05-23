@@ -237,6 +237,19 @@ defmodule Quiz.GamesTest do
       refute Quiz.Games.Question.correct_answer?(q, 99)
     end
 
+    test "Question.correct_answer?/2 — sequence compares ordered item ids" do
+      scope = user_scope_fixture()
+      q = question_fixture(scope, %{type: :sequence})
+
+      ordered_ids = Enum.map(q.data.items, & &1.id)
+      [a, b, c] = ordered_ids
+
+      assert Quiz.Games.Question.correct_answer?(q, ordered_ids)
+      refute Quiz.Games.Question.correct_answer?(q, [b, a, c])
+      refute Quiz.Games.Question.correct_answer?(q, [a, b])
+      refute Quiz.Games.Question.correct_answer?(q, "not a list")
+    end
+
     test "update_question/3 with invalid scope raises" do
       scope = user_scope_fixture()
       other_scope = user_scope_fixture()

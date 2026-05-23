@@ -62,6 +62,8 @@ defmodule QuizWeb.Router do
       live "/games/:game_id/questions/new", QuestionLive.Index, :new
       live "/games/:game_id/questions/reorder", QuestionLive.Reorder, :index
       live "/games/:game_id/questions/:id/edit", QuestionLive.Index, :edit
+
+      live "/games/:game_id/preview", GameLive.Preview, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password
