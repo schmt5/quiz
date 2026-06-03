@@ -10,13 +10,15 @@ defmodule Quiz.Games.Question.Data do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Quiz.Games.Question.{Choice, Item, Solution}
+  alias Quiz.Games.Question.{Choice, Item, Pair, Pin, Solution}
 
   @primary_key false
   embedded_schema do
     embeds_many :choices, Choice, on_replace: :delete
     embeds_many :solutions, Solution, on_replace: :delete
     embeds_many :items, Item, on_replace: :delete
+    embeds_many :pairs, Pair, on_replace: :delete
+    embeds_one :pin, Pin, on_replace: :update
   end
 
   @doc """
@@ -27,6 +29,8 @@ defmodule Quiz.Games.Question.Data do
     |> cast(attrs, [])
     |> put_embed(:solutions, [])
     |> put_embed(:items, [])
+    |> put_embed(:pairs, [])
+    |> put_embed(:pin, nil)
     |> cast_embed(:choices,
       with: &Choice.changeset/2,
       sort_param: :choices_sort,
@@ -41,6 +45,8 @@ defmodule Quiz.Games.Question.Data do
     |> cast(attrs, [])
     |> put_embed(:choices, [])
     |> put_embed(:items, [])
+    |> put_embed(:pairs, [])
+    |> put_embed(:pin, nil)
     |> cast_embed(:solutions,
       with: &Solution.changeset/2,
       sort_param: :solutions_sort,
@@ -54,6 +60,8 @@ defmodule Quiz.Games.Question.Data do
     |> cast(attrs, [])
     |> put_embed(:choices, [])
     |> put_embed(:solutions, [])
+    |> put_embed(:pairs, [])
+    |> put_embed(:pin, nil)
     |> cast_embed(:items,
       with: &Item.changeset/2,
       sort_param: :items_sort,
@@ -62,8 +70,53 @@ defmodule Quiz.Games.Question.Data do
     |> validate_length(:items, min: 2, message: "mind. zwei Einträge")
   end
 
+  def changeset(data, attrs, :pin_on_image) do
+    data
+    |> cast(attrs, [])
+    |> put_embed(:choices, [])
+    |> put_embed(:solutions, [])
+    |> put_embed(:items, [])
+    |> put_embed(:pairs, [])
+    |> cast_embed(:pin, with: &Pin.changeset/2, required: true)
+  end
+
+  def changeset(data, attrs, :matching) do
+    data
+    |> cast(attrs, [])
+    |> put_embed(:choices, [])
+    |> put_embed(:solutions, [])
+    |> put_embed(:items, [])
+    |> put_embed(:pin, nil)
+    |> cast_embed(:pairs,
+      with: &Pair.changeset/2,
+      sort_param: :pairs_sort,
+      drop_param: :pairs_drop
+    )
+    |> validate_length(:pairs, min: 2, message: "mind. zwei Paare")
+    |> validate_unique_right_text()
+  end
+
   # No type yet (initial render before the user picked one) — no-op.
   def changeset(data, _attrs, _no_type_yet), do: cast(data, %{}, [])
+
+  # Each right value must be unique so a submitted match maps to exactly one
+  # pair (keeps the 1:1 bijection and scoring unambiguous). Case-insensitive,
+  # mirroring how matches are scored.
+  defp validate_unique_right_text(changeset) do
+    rights =
+      changeset
+      |> get_field(:pairs, [])
+      |> Enum.map(fn pair ->
+        pair.right_text |> to_string() |> String.trim() |> String.downcase()
+      end)
+      |> Enum.reject(&(&1 == ""))
+
+    if rights == Enum.uniq(rights) do
+      changeset
+    else
+      add_error(changeset, :pairs, "die Zuordnungen müssen eindeutig sein")
+    end
+  end
 
   defp validate_exactly_one_correct(changeset) do
     correct_count =

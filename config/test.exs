@@ -23,6 +23,9 @@ config :quiz, QuizWeb.Endpoint,
   secret_key_base: "pykL97aBfGPWIsmoONhdMk9mQ0hQyXbsVmUwdggAjzB7QMPS6YC43Ov0C9g8B7Bf",
   server: false
 
+# Store uploads in a throwaway tmp dir so tests never touch priv/static
+config :quiz, Quiz.Storage.Local, dir: Path.join(System.tmp_dir!(), "quiz_test_uploads")
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

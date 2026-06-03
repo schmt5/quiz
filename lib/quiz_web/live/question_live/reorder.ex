@@ -107,6 +107,10 @@ defmodule QuizWeb.QuestionLive.Reorder do
                 {pad(idx + 1)}
               </span>
 
+              <span class="flex items-center justify-center rounded bg-base-300 text-base-content/60 font-mono font-bold text-[10px] uppercase tracking-wider px-2 py-1 shrink-0 w-28">
+                {humanize_type(question.type)}
+              </span>
+
               <span class="truncate text-sm flex-1">{question.prompt}</span>
             </li>
           </ul>
@@ -221,7 +225,8 @@ defmodule QuizWeb.QuestionLive.Reorder do
          |> push_navigate(to: ~p"/games/#{socket.assigns.game}/questions")}
 
       {:error, :invalid} ->
-        {:noreply, put_flash(socket, :error, "Die neue Reihenfolge konnte nicht gespeichert werden.")}
+        {:noreply,
+         put_flash(socket, :error, "Die neue Reihenfolge konnte nicht gespeichert werden.")}
     end
   end
 
@@ -252,6 +257,13 @@ defmodule QuizWeb.QuestionLive.Reorder do
   end
 
   defp pad(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")
+
+  defp humanize_type(:single_choice), do: "Single-Choice"
+  defp humanize_type(:text_input), do: "Texteingabe"
+  defp humanize_type(:sequence), do: "Reihenfolge"
+  defp humanize_type(:pin_on_image), do: "Pin auf Bild"
+  defp humanize_type(:matching), do: "Zuordnung"
+  defp humanize_type(other), do: to_string(other)
 
   defp parse_id(id) when is_integer(id), do: id
 

@@ -65,6 +65,20 @@
 
 /* This file is for your main application CSS */
 
+/* Highlight colors for rich-text question descriptions. These classes appear
+   only inside runtime-rendered (sanitized) HTML, so Tailwind's source scanner
+   never sees them — they are defined as plain CSS on purpose. The same set is
+   offered by the editor toolbar and accepted by Quiz.HTML.DescriptionScrubber. */
+.hl-yellow {
+    background-color: #fef08a;
+}
+.hl-green {
+    background-color: #bbf7d0;
+}
+.hl-pink {
+    background-color: #fbcfe8;
+}
+
 /* Delay daisyUI tooltips by 400ms on hover-in; hover-out stays immediate. */
 .tooltip::before,
 .tooltip::after {

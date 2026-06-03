@@ -3,8 +3,10 @@ defmodule QuizWeb.QuestionLive.Index do
 
   alias Quiz.Games
   alias Quiz.Games.Question
+  alias Quiz.Games.Question.Pin
+  alias QuizWeb.QuestionLive.AnswerArea
 
-  @valid_types ~w(single_choice text_input sequence)
+  @valid_types ~w(single_choice text_input sequence pin_on_image matching)
 
   @impl true
   def render(assigns) do
@@ -37,20 +39,70 @@ defmodule QuizWeb.QuestionLive.Index do
               </div>
               <h1 class="text-2xl font-bold">{@game.title} Fragen</h1>
             </div>
-            <.link
-              href={~p"/games/#{@game}/preview"}
-              target="_blank"
-              rel="noopener"
-              class="btn btn-primary btn-sm"
+            <div
+              :if={@mode == :edit and @live_action in [:new, :edit]}
+              class="flex items-center gap-2"
             >
-              <.icon name="hero-eye" /> Vorschau
-            </.link>
+              <.link patch={~p"/games/#{@game}/questions"} class="btn btn-ghost btn-sm">
+                Abbrechen
+              </.link>
+              <div
+                :if={@live_action == :edit}
+                class="tooltip tooltip-bottom"
+                data-tip="Frage löschen"
+              >
+                <.link
+                  phx-click="delete"
+                  data-confirm="Diese Frage löschen?"
+                  class="btn btn-soft btn-error btn-sm btn-square"
+                  aria-label="Frage löschen"
+                >
+                  <.icon name="hero-trash" class="size-5" />
+                </.link>
+              </div>
+              <button
+                type="submit"
+                form="question-form"
+                phx-disable-with="Speichert..."
+                class="btn btn-primary btn-sm"
+              >
+                Frage speichern
+              </button>
+            </div>
           </div>
         </div>
       </:page_header>
       <div class="mx-auto max-w-7xl h-full py-6">
         <div class="flex gap-6 h-full">
-          <aside class="w-72 shrink-0 flex flex-col rounded-box bg-base-200 h-full overflow-hidden">
+          <aside class="w-80 shrink-0 flex flex-col rounded-box bg-base-200 h-full overflow-hidden">
+            <div class="p-3 border-b border-base-200">
+              <div class="flex gap-1 p-1 rounded-lg bg-base-300/60">
+                <button
+                  type="button"
+                  phx-click="set_mode"
+                  phx-value-mode="edit"
+                  class={[
+                    "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                    @mode == :edit && "bg-base-100 shadow-sm text-base-content",
+                    @mode != :edit && "text-base-content/60 hover:text-base-content"
+                  ]}
+                >
+                  <.icon name="hero-pencil-square" class="size-4" /> Bearbeiten
+                </button>
+                <button
+                  type="button"
+                  phx-click="set_mode"
+                  phx-value-mode="view"
+                  class={[
+                    "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                    @mode == :view && "bg-base-100 shadow-sm text-base-content",
+                    @mode != :view && "text-base-content/60 hover:text-base-content"
+                  ]}
+                >
+                  <.icon name="hero-eye" class="size-4" /> Ansehen
+                </button>
+              </div>
+            </div>
             <div class="flex items-center justify-between px-4 pt-4 pb-3 border-b border-base-200">
               <span class="text-xs font-mono uppercase tracking-wider text-base-content/70">
                 Fragen
@@ -83,9 +135,12 @@ defmodule QuizWeb.QuestionLive.Index do
                         "border-transparent hover:bg-base-200/60"
                     ]}
                   >
-                    <div class="flex items-baseline gap-3">
+                    <div class="flex items-center gap-2">
                       <span class="font-mono text-xs text-base-content/60">
                         {pad(idx + 1)}
+                      </span>
+                      <span class="flex items-center justify-center size-5 rounded bg-base-300 text-base-content/60 font-mono font-bold text-[10px] shrink-0">
+                        {type_letter(question.type)}
                       </span>
                       <span class="truncate text-sm">{question.prompt}</span>
                     </div>
@@ -101,32 +156,77 @@ defmodule QuizWeb.QuestionLive.Index do
               >
                 <.icon name="hero-plus" /> Frage hinzufügen
               </.link>
-              <div
-                :if={length(@questions) > 1}
-                class="tooltip tooltip-left"
-                data-tip="Fragen sortieren"
+              <button
+                type="button"
+                popovertarget="panel-actions"
+                class="btn btn-soft btn-square"
+                style="anchor-name:--panel-actions"
+                aria-label="Weitere Aktionen"
               >
-                <.link
-                  navigate={~p"/games/#{@game}/questions/reorder"}
-                  class="btn btn-soft btn-square"
-                  aria-label="Fragen sortieren"
-                >
-                  <.icon name="hero-arrows-up-down" class="size-5" />
-                </.link>
-              </div>
+                <.icon name="hero-ellipsis-vertical" class="size-5" />
+              </button>
+              <ul
+                class="dropdown dropdown-end menu w-52 rounded-box bg-base-100 shadow-sm"
+                popover
+                id="panel-actions"
+                style="position-anchor:--panel-actions"
+              >
+                <li :if={length(@questions) > 1}>
+                  <.link navigate={~p"/games/#{@game}/questions/reorder"}>
+                    <.icon name="hero-arrows-up-down" class="size-5" /> Fragen sortieren
+                  </.link>
+                </li>
+                <li>
+                  <.link href={~p"/games/#{@game}/preview"} target="_blank" rel="noopener">
+                    <.icon name="hero-device-phone-mobile" class="size-5" /> Vorschau
+                  </.link>
+                </li>
+              </ul>
             </div>
           </aside>
 
           <section class="flex-1 min-w-0 h-full overflow-y-auto">
-            <.type_picker :if={@live_action == :index} game={@game} />
-            <.question_form
-              :if={@live_action in [:new, :edit]}
-              form={@form}
-              game={@game}
-              live_action={@live_action}
-              question_type={@question_type}
-              selected_question={@selected_question}
-            />
+            <div :if={@mode == :edit}>
+              <.type_picker :if={@live_action == :index} game={@game} />
+              <.question_form
+                :if={@live_action in [:new, :edit]}
+                form={@form}
+                game={@game}
+                live_action={@live_action}
+                question_type={@question_type}
+                selected_question={@selected_question}
+                uploads={@uploads}
+              />
+            </div>
+
+            <div :if={@mode == :view} class="space-y-6 max-w-2xl">
+              <div
+                :if={@questions == []}
+                class="rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60"
+              >
+                Noch keine Fragen in diesem Quiz.
+              </div>
+              <article
+                :for={{q, idx} <- Enum.with_index(@questions)}
+                class="group relative rounded-box border border-base-300 bg-base-100 p-6 space-y-4"
+              >
+                <button
+                  type="button"
+                  phx-click="edit_question"
+                  phx-value-id={q.id}
+                  class="absolute top-3 right-3 btn btn-sm btn-square btn-soft opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+                  aria-label="Frage bearbeiten"
+                >
+                  <.icon name="hero-pencil-square" class="size-4" />
+                </button>
+                <p class="font-mono text-xs uppercase tracking-wider text-base-content/60">
+                  Frage {pad(idx + 1)}
+                </p>
+                <h2 class="text-xl font-bold">{q.prompt}</h2>
+                <.rich_text html={q.description} />
+                <AnswerArea.answer_area question={AnswerArea.prepare_question(q)} />
+              </article>
+            </div>
           </section>
         </div>
       </div>
@@ -146,7 +246,7 @@ defmodule QuizWeb.QuestionLive.Index do
         Welche Art von Frage möchtest du hinzufügen?
       </h1>
 
-      <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
         <.link
           patch={~p"/games/#{@game}/questions/new?type=single_choice"}
           class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
@@ -210,6 +310,54 @@ defmodule QuizWeb.QuestionLive.Index do
             </div>
           </div>
         </.link>
+
+        <.link
+          patch={~p"/games/#{@game}/questions/new?type=pin_on_image"}
+          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        >
+          <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
+            P
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Pin auf Bild</h2>
+          <p class="text-sm text-base-content/60">Ziel auf einem Bild markieren</p>
+          <div class="mt-4">
+            <div class="relative grid size-24 place-items-center rounded bg-base-200 overflow-hidden">
+              <.icon name="hero-photo" class="size-full text-base-content/20" />
+              <span class="absolute left-[42%] top-[60%] size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-error/30 ring-2 ring-error/50">
+              </span>
+              <span class="absolute left-[42%] top-[60%] size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-error">
+              </span>
+            </div>
+          </div>
+        </.link>
+
+        <.link
+          patch={~p"/games/#{@game}/questions/new?type=matching"}
+          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        >
+          <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
+            Z
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Zuordnung</h2>
+          <p class="text-sm text-base-content/60">Einträge einander zuordnen</p>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="block h-2 w-1/3 rounded bg-base-200"></span>
+              <span class="text-base-content/40 text-xs">↔</span>
+              <span class="block h-2 w-1/3 rounded bg-base-content/20"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="block h-2 w-2/5 rounded bg-base-200"></span>
+              <span class="text-base-content/40 text-xs">↔</span>
+              <span class="block h-2 w-1/4 rounded bg-base-content/20"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="block h-2 w-1/4 rounded bg-base-200"></span>
+              <span class="text-base-content/40 text-xs">↔</span>
+              <span class="block h-2 w-2/5 rounded bg-base-content/20"></span>
+            </div>
+          </div>
+        </.link>
       </div>
     </div>
     """
@@ -220,6 +368,7 @@ defmodule QuizWeb.QuestionLive.Index do
   attr :live_action, :atom, required: true
   attr :question_type, :atom, required: true
   attr :selected_question, :map, required: true
+  attr :uploads, :map, required: true
 
   defp question_form(assigns) do
     ~H"""
@@ -230,41 +379,168 @@ defmodule QuizWeb.QuestionLive.Index do
       phx-submit="save"
       class="rounded-box bg-base-100 p-6"
     >
-      <div class="flex items-center justify-between gap-4 pb-4 border-b border-base-200">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
-            {type_letter(@question_type)}
-          </div>
-          <div>
-            <p class="text-xs font-mono uppercase tracking-wider text-base-content/60">
-              {form_eyebrow(@live_action)}
-            </p>
-            <h1 class="text-lg font-bold">{humanize_type(@question_type)}</h1>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <.link patch={~p"/games/#{@game}/questions"} class="btn btn-ghost">
-            Abbrechen
-          </.link>
-          <div :if={@live_action == :edit} class="tooltip tooltip-bottom" data-tip="Frage löschen">
-            <.link
-              phx-click="delete"
-              data-confirm="Diese Frage löschen?"
-              class="btn btn-soft btn-error btn-square"
-              aria-label="Frage löschen"
-            >
-              <.icon name="hero-trash" class="size-5" />
-            </.link>
-          </div>
-          <.button phx-disable-with="Speichert..." variant="primary">Frage speichern</.button>
-        </div>
-      </div>
-
-      <div class="space-y-4 pt-4">
+      <div class="space-y-4">
         <input type="hidden" name="question[type]" value={Atom.to_string(@question_type)} />
         <input type="hidden" name="question[position]" value={@selected_question.position} />
 
         <.input field={@form[:prompt]} type="textarea" label="Fragetext" />
+
+        <div>
+          <label class="block text-sm font-semibold mb-1">
+            Beschreibung <span class="font-normal text-base-content/50">(optional)</span>
+          </label>
+          <div
+            id={"description-editor-#{@selected_question.id || "new"}"}
+            phx-hook=".RichText"
+            phx-update="ignore"
+            class="rounded-box border border-base-300 bg-base-100 overflow-hidden focus-within:border-base-content/40 transition"
+          >
+            <div class="flex items-center gap-1 border-b border-base-300 bg-base-200/50 px-2 py-1.5">
+              <button
+                type="button"
+                data-cmd="bold"
+                class="btn btn-ghost btn-xs btn-square font-bold"
+                title="Fett"
+                aria-label="Fett"
+              >
+                B
+              </button>
+              <button
+                type="button"
+                data-cmd="italic"
+                class="btn btn-ghost btn-xs btn-square italic"
+                title="Kursiv"
+                aria-label="Kursiv"
+              >
+                I
+              </button>
+              <span class="mx-1 h-4 w-px bg-base-300"></span>
+              <button
+                type="button"
+                data-hl="hl-yellow"
+                class="size-5 rounded border border-base-300 hl-yellow"
+                title="Gelb hervorheben"
+                aria-label="Gelb hervorheben"
+              >
+              </button>
+              <button
+                type="button"
+                data-hl="hl-green"
+                class="size-5 rounded border border-base-300 hl-green"
+                title="Grün hervorheben"
+                aria-label="Grün hervorheben"
+              >
+              </button>
+              <button
+                type="button"
+                data-hl="hl-pink"
+                class="size-5 rounded border border-base-300 hl-pink"
+                title="Pink hervorheben"
+                aria-label="Pink hervorheben"
+              >
+              </button>
+              <span class="mx-1 h-4 w-px bg-base-300"></span>
+              <button
+                type="button"
+                data-clear
+                class="btn btn-ghost btn-xs btn-square"
+                title="Formatierung entfernen"
+                aria-label="Formatierung entfernen"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
+            </div>
+            <div
+              data-editor
+              contenteditable="true"
+              class="min-h-24 px-3 py-2 text-sm outline-none prose prose-sm max-w-none"
+            >
+            </div>
+            <input
+              type="hidden"
+              name={@form[:description].name}
+              id={@form[:description].id}
+              value={@form[:description].value}
+              data-input
+            />
+          </div>
+
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".RichText">
+            export default {
+              mounted() {
+                this.editor = this.el.querySelector("[data-editor]");
+                this.input = this.el.querySelector("[data-input]");
+                this.editor.innerHTML = this.input.value || "";
+
+                this.sync = () => {
+                  this.input.value = this.editor.innerHTML;
+                  this.el.closest("form")?.dispatchEvent(new Event("change", { bubbles: true }));
+                };
+
+                this.onInput = () => this.sync();
+                this.editor.addEventListener("input", this.onInput);
+
+                // Prevent the toolbar from stealing focus / collapsing the selection.
+                this.onMouseDown = (e) => {
+                  if (e.target.closest("button")) e.preventDefault();
+                };
+                this.el.addEventListener("mousedown", this.onMouseDown);
+
+                this.onClick = (e) => {
+                  const btn = e.target.closest("button");
+                  if (!btn || !this.el.contains(btn)) return;
+                  e.preventDefault();
+                  this.editor.focus();
+                  if (btn.dataset.cmd) {
+                    document.execCommand(btn.dataset.cmd, false, null);
+                  } else if (btn.dataset.hl) {
+                    this.highlight(btn.dataset.hl);
+                  } else if (btn.hasAttribute("data-clear")) {
+                    document.execCommand("removeFormat", false, null);
+                    this.unwrapMarks();
+                  }
+                  this.sync();
+                };
+                this.el.addEventListener("click", this.onClick);
+              },
+
+              highlight(cls) {
+                const sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+                const range = sel.getRangeAt(0);
+                if (!this.editor.contains(range.commonAncestorContainer)) return;
+                const mark = document.createElement("mark");
+                mark.className = cls;
+                try {
+                  range.surroundContents(mark);
+                } catch (_) {
+                  mark.appendChild(range.extractContents());
+                  range.insertNode(mark);
+                }
+                sel.removeAllRanges();
+              },
+
+              unwrapMarks() {
+                const sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0) return;
+                const range = sel.getRangeAt(0);
+                this.editor.querySelectorAll("mark").forEach((m) => {
+                  if (range.intersectsNode(m)) {
+                    const parent = m.parentNode;
+                    while (m.firstChild) parent.insertBefore(m.firstChild, m);
+                    parent.removeChild(m);
+                  }
+                });
+              },
+
+              destroyed() {
+                this.editor?.removeEventListener("input", this.onInput);
+                this.el.removeEventListener("mousedown", this.onMouseDown);
+                this.el.removeEventListener("click", this.onClick);
+              },
+            };
+          </script>
+        </div>
 
         <.inputs_for :let={d} field={@form[:data]}>
           <%= case @question_type do %>
@@ -275,11 +551,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   <span>{choices_summary(@form)}</span>
                 </div>
 
-                <ul
-                  id="choices-sortable"
-                  phx-hook=".SortableChoices"
-                  class="space-y-2 list-none p-0"
-                >
+                <ul class="space-y-2 list-none p-0">
                   <.inputs_for :let={c} field={d[:choices]}>
                     <li
                       id={"choice-#{c.index}"}
@@ -293,22 +565,6 @@ defmodule QuizWeb.QuestionLive.Index do
                         name="question[data][choices_sort][]"
                         value={c.index}
                       />
-
-                      <button
-                        type="button"
-                        data-handle
-                        aria-label="Sortieren"
-                        class="cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 px-1 select-none touch-none"
-                      >
-                        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor">
-                          <circle cx="7" cy="5" r="1.5" />
-                          <circle cx="13" cy="5" r="1.5" />
-                          <circle cx="7" cy="10" r="1.5" />
-                          <circle cx="13" cy="10" r="1.5" />
-                          <circle cx="7" cy="15" r="1.5" />
-                          <circle cx="13" cy="15" r="1.5" />
-                        </svg>
-                      </button>
 
                       <span class={[
                         "flex items-center justify-center size-8 rounded-md font-mono font-bold text-sm shrink-0",
@@ -377,63 +633,6 @@ defmodule QuizWeb.QuestionLive.Index do
                 <p :if={choices_error = data_field_error(@form, :choices)} class="text-error text-sm">
                   {choices_error}
                 </p>
-
-                <script :type={Phoenix.LiveView.ColocatedHook} name=".SortableChoices">
-                  export default {
-                    mounted() {
-                      const el = this.el;
-                      let dragging = null;
-
-                      const bindHandles = () => {
-                        el.querySelectorAll("[data-handle]").forEach((h) => {
-                          if (h.dataset.bound) return;
-                          h.dataset.bound = "1";
-                          const li = h.closest("li");
-                          h.addEventListener("mousedown", () => li.setAttribute("draggable", "true"));
-                          h.addEventListener("mouseup", () => li.removeAttribute("draggable"));
-                          h.addEventListener("mouseleave", () => li.removeAttribute("draggable"));
-                        });
-                      };
-                      bindHandles();
-                      this.observer = new MutationObserver(bindHandles);
-                      this.observer.observe(el, { childList: true });
-
-                      el.addEventListener("dragstart", (e) => {
-                        const li = e.target.closest("li");
-                        if (!li || li.parentElement !== el) return;
-                        dragging = li;
-                        li.classList.add("opacity-40");
-                        e.dataTransfer.effectAllowed = "move";
-                        try { e.dataTransfer.setData("text/plain", ""); } catch (_) {}
-                      });
-
-                      el.addEventListener("dragover", (e) => {
-                        if (!dragging) return;
-                        e.preventDefault();
-                        const siblings = [...el.querySelectorAll("li:not(.opacity-40)")];
-                        const after = siblings.find((s) => {
-                          const r = s.getBoundingClientRect();
-                          return e.clientY < r.top + r.height / 2;
-                        });
-                        if (after) {
-                          if (after !== dragging.nextSibling) el.insertBefore(dragging, after);
-                        } else {
-                          if (el.lastElementChild !== dragging) el.appendChild(dragging);
-                        }
-                      });
-
-                      el.addEventListener("dragend", () => {
-                        if (!dragging) return;
-                        dragging.classList.remove("opacity-40");
-                        dragging.removeAttribute("draggable");
-                        const form = el.closest("form");
-                        if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
-                        dragging = null;
-                      });
-                    },
-                    destroyed() { this.observer?.disconnect(); }
-                  };
-                </script>
               </fieldset>
             <% :text_input -> %>
               <fieldset class="mt-8 space-y-3">
@@ -638,10 +837,262 @@ defmodule QuizWeb.QuestionLive.Index do
                   };
                 </script>
               </fieldset>
+            <% :pin_on_image -> %>
+              <% entry = List.first(@uploads.pin_image.entries) %>
+              <% image_key = pin_image_key(@form) %>
+              <fieldset class="mt-8 space-y-4">
+                <div class="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-base-content/60">
+                  <span>Hintergrundbild · Setze das Ziel</span>
+                  <span>{pin_summary(@form)}</span>
+                </div>
+
+                <div
+                  class="rounded-box border border-dashed border-base-300 p-4"
+                  phx-drop-target={@uploads.pin_image.ref}
+                >
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="text-sm text-base-content/70">
+                      <p class="font-semibold">
+                        {if entry || image_key, do: "Bild ersetzen", else: "Bild hochladen"}
+                      </p>
+                      <p class="text-xs text-base-content/50">
+                        JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
+                      </p>
+                    </div>
+                    <label class="btn btn-soft btn-sm">
+                      <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
+                      <.live_file_input upload={@uploads.pin_image} class="sr-only" />
+                    </label>
+                  </div>
+
+                  <p
+                    :for={err <- upload_errors(@uploads.pin_image)}
+                    class="mt-2 text-error text-sm"
+                  >
+                    {upload_error_to_string(err)}
+                  </p>
+                  <p
+                    :for={entry <- @uploads.pin_image.entries}
+                    :if={err = List.first(upload_errors(@uploads.pin_image, entry))}
+                    class="mt-2 text-error text-sm"
+                  >
+                    {upload_error_to_string(err)}
+                  </p>
+                </div>
+
+                <input
+                  type="hidden"
+                  name="question[data][pin][image_key]"
+                  value={image_key}
+                />
+
+                <div :if={entry || image_key} class="space-y-3">
+                  <p class="text-xs text-base-content/60">
+                    Klicke auf das Bild, um das Ziel zu setzen. Mit dem Regler unten passt du
+                    den Toleranzradius an.
+                  </p>
+
+                  <div
+                    id="pin-editor"
+                    phx-hook=".PinEditor"
+                    data-target-x={pin_coord(@form, :target_x)}
+                    data-target-y={pin_coord(@form, :target_y)}
+                    data-radius={pin_coord(@form, :radius)}
+                    class="relative aspect-square w-full max-w-md overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
+                  >
+                    <.live_img_preview
+                      :if={entry}
+                      entry={entry}
+                      class="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                    />
+                    <img
+                      :if={!entry && image_key}
+                      src={Quiz.Storage.url(image_key)}
+                      class="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                      alt="Hintergrundbild"
+                    />
+                    <div
+                      id="pin-editor-layer"
+                      phx-update="ignore"
+                      class="absolute inset-0 pointer-events-none"
+                    >
+                    </div>
+                  </div>
+
+                  <label class="flex items-center gap-3 text-sm max-w-md">
+                    <span class="shrink-0 text-base-content/70">Radius</span>
+                    <input
+                      type="range"
+                      name="question[data][pin][radius]"
+                      min="0.02"
+                      max="0.5"
+                      step="0.01"
+                      value={pin_coord(@form, :radius)}
+                      class="range range-primary range-sm flex-1"
+                    />
+                  </label>
+
+                  <input
+                    type="hidden"
+                    name="question[data][pin][target_x]"
+                    value={pin_coord(@form, :target_x)}
+                  />
+                  <input
+                    type="hidden"
+                    name="question[data][pin][target_y]"
+                    value={pin_coord(@form, :target_y)}
+                  />
+                </div>
+
+                <p :if={pin_error = data_field_error(@form, :pin)} class="text-error text-sm">
+                  {pin_error}
+                </p>
+
+                <script :type={Phoenix.LiveView.ColocatedHook} name=".PinEditor">
+                  export default {
+                    mounted() {
+                      this.form = this.el.closest("form");
+                      this.layer = this.el.querySelector("#pin-editor-layer");
+
+                      this.circle = document.createElement("div");
+                      this.circle.className =
+                        "absolute rounded-full bg-error/20 border-2 border-error/60 -translate-x-1/2 -translate-y-1/2";
+                      this.marker = document.createElement("div");
+                      this.marker.className =
+                        "absolute size-3 rounded-full bg-error ring-2 ring-white shadow -translate-x-1/2 -translate-y-1/2";
+                      this.layer.appendChild(this.circle);
+                      this.layer.appendChild(this.marker);
+
+                      this.onClick = (e) => {
+                        const r = this.el.getBoundingClientRect();
+                        const x = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
+                        const y = Math.min(Math.max((e.clientY - r.top) / r.height, 0), 1);
+                        this.setInput("target_x", x);
+                        this.setInput("target_y", y);
+                        this.render(x, y, this.radiusValue());
+                        this.dispatchChange();
+                      };
+                      this.el.addEventListener("click", this.onClick);
+
+                      this.radiusEl = this.input("radius");
+                      this.onRadius = () =>
+                        this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
+                      if (this.radiusEl) this.radiusEl.addEventListener("input", this.onRadius);
+
+                      this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
+                    },
+
+                    updated() {
+                      this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
+                    },
+
+                    destroyed() {
+                      this.el.removeEventListener("click", this.onClick);
+                      if (this.radiusEl) this.radiusEl.removeEventListener("input", this.onRadius);
+                    },
+
+                    input(field) {
+                      return this.form?.querySelector(
+                        `[name="question[data][pin][${field}]"]`
+                      );
+                    },
+                    setInput(field, value) {
+                      const el = this.input(field);
+                      if (el) el.value = value;
+                    },
+                    coord(field) {
+                      const el = this.input(field);
+                      const v = el ? parseFloat(el.value) : NaN;
+                      return Number.isFinite(v) ? v : parseFloat(this.el.dataset[field === "target_x" ? "targetX" : "targetY"]) || 0.5;
+                    },
+                    radiusValue() {
+                      const v = this.radiusEl ? parseFloat(this.radiusEl.value) : NaN;
+                      return Number.isFinite(v) ? v : parseFloat(this.el.dataset.radius) || 0.1;
+                    },
+                    render(x, y, radius) {
+                      this.marker.style.left = x * 100 + "%";
+                      this.marker.style.top = y * 100 + "%";
+                      this.circle.style.left = x * 100 + "%";
+                      this.circle.style.top = y * 100 + "%";
+                      this.circle.style.width = radius * 200 + "%";
+                      this.circle.style.height = radius * 200 + "%";
+                    },
+                    dispatchChange() {
+                      this.form?.dispatchEvent(new Event("change", { bubbles: true }));
+                    },
+                  };
+                </script>
+              </fieldset>
+            <% :matching -> %>
+              <fieldset class="mt-4 space-y-3">
+                <div role="alert" class="alert alert-info alert-soft">
+                  <.icon name="hero-information-circle" class="size-5 shrink-0" />
+                  <span class="text-sm">
+                    Die linke Spalte wird in dieser Reihenfolge angezeigt. Die Zuordnungen rechts werden gemischt — Teilnehmende ziehen sie an die passende Stelle.
+                  </span>
+                </div>
+
+                <ul class="space-y-2 list-none p-0">
+                  <.inputs_for :let={p} field={d[:pairs]}>
+                    <li
+                      id={"pair-#{p.index}"}
+                      class="flex items-center gap-2 rounded-box bg-base-200 px-2 py-2"
+                    >
+                      <input type="hidden" name="question[data][pairs_sort][]" value={p.index} />
+
+                      <input
+                        type="text"
+                        name={p[:left_text].name}
+                        id={p[:left_text].id}
+                        value={p[:left_text].value}
+                        placeholder="Eintrag"
+                        class="flex-1 min-w-0 bg-base-100 rounded-md border-none outline-none focus:ring-0 text-sm px-3 py-2"
+                      />
+
+                      <span class="text-base-content/40 shrink-0">↔</span>
+
+                      <input
+                        type="text"
+                        name={p[:right_text].name}
+                        id={p[:right_text].id}
+                        value={p[:right_text].value}
+                        placeholder="Zuordnung"
+                        class="flex-1 min-w-0 bg-base-100 rounded-md border-none outline-none focus:ring-0 text-sm px-3 py-2"
+                      />
+
+                      <button
+                        type="button"
+                        name="question[data][pairs_drop][]"
+                        value={p.index}
+                        phx-click={JS.dispatch("change")}
+                        class="text-base-content/40 hover:text-error px-2 text-lg leading-none shrink-0"
+                        aria-label="Paar entfernen"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  </.inputs_for>
+                </ul>
+
+                <input type="hidden" name="question[data][pairs_drop][]" />
+
+                <button
+                  type="button"
+                  name="question[data][pairs_sort][]"
+                  value="new"
+                  phx-click={JS.dispatch("change")}
+                  class="w-full rounded-box border border-dashed border-base-300 px-3 py-3 text-sm text-base-content/70 hover:border-base-content/40 hover:text-base-content transition flex items-center justify-center gap-1"
+                >
+                  <span class="text-base">+</span> Paar hinzufügen
+                </button>
+
+                <p :if={pairs_error = data_field_error(@form, :pairs)} class="text-error text-sm">
+                  {pairs_error}
+                </p>
+              </fieldset>
           <% end %>
         </.inputs_for>
       </div>
-
     </.form>
     """
   end
@@ -659,9 +1110,15 @@ defmodule QuizWeb.QuestionLive.Index do
      socket
      |> assign(:game, game)
      |> assign(:questions, questions)
+     |> assign(:mode, :edit)
      |> assign(:selected_question, nil)
      |> assign(:question_type, nil)
-     |> assign(:form, nil)}
+     |> assign(:form, nil)
+     |> allow_upload(:pin_image,
+       accept: ~w(.jpg .jpeg .png .webp),
+       max_entries: 1,
+       max_file_size: 5_000_000
+     )}
   end
 
   @impl true
@@ -714,6 +1171,21 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   @impl true
+  def handle_event("set_mode", %{"mode" => "view"}, socket) do
+    {:noreply, assign(socket, :mode, :view)}
+  end
+
+  def handle_event("set_mode", %{"mode" => _}, socket) do
+    {:noreply, assign(socket, :mode, :edit)}
+  end
+
+  def handle_event("edit_question", %{"id" => id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:mode, :edit)
+     |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{id}/edit")}
+  end
+
   def handle_event("validate", %{"question" => question_params}, socket) do
     changeset =
       Games.change_question(
@@ -740,6 +1212,8 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp save_question(socket, :edit, question_params) do
+    question_params = consume_pin_image(socket, question_params)
+
     case Games.update_question(
            socket.assigns.current_scope,
            socket.assigns.selected_question,
@@ -757,7 +1231,10 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp save_question(socket, :new, question_params) do
-    question_params = Map.put(question_params, "game_id", socket.assigns.game.id)
+    question_params =
+      question_params
+      |> Map.put("game_id", socket.assigns.game.id)
+      |> then(&consume_pin_image(socket, &1))
 
     case Games.create_question(socket.assigns.current_scope, question_params) do
       {:ok, question} ->
@@ -769,6 +1246,30 @@ defmodule QuizWeb.QuestionLive.Index do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
+  end
+
+  # Persists a freshly uploaded background image via the storage adapter and
+  # injects the returned key into the embedded pin params. A no-op when no new
+  # file was staged (e.g. editing without re-uploading, or non-pin types).
+  defp consume_pin_image(socket, question_params) do
+    consumed =
+      consume_uploaded_entries(socket, :pin_image, fn %{path: path}, entry ->
+        Quiz.Storage.put(socket.assigns.current_scope, path,
+          content_type: entry.client_type,
+          filename: entry.client_name
+        )
+      end)
+
+    case consumed do
+      [key | _] -> put_pin_image_key(question_params, key)
+      [] -> question_params
+    end
+  end
+
+  defp put_pin_image_key(params, key) do
+    data = Map.get(params, "data", %{})
+    pin = data |> Map.get("pin", %{}) |> Map.put("image_key", key)
+    Map.put(params, "data", Map.put(data, "pin", pin))
   end
 
   @impl true
@@ -815,18 +1316,12 @@ defmodule QuizWeb.QuestionLive.Index do
   defp selected?(%{id: id}, %{id: id}), do: true
   defp selected?(_, _), do: false
 
-  defp humanize_type(:single_choice), do: "Single-Choice"
-  defp humanize_type(:text_input), do: "Texteingabe"
-  defp humanize_type(:sequence), do: "Reihenfolge"
-  defp humanize_type(other), do: to_string(other)
-
   defp type_letter(:single_choice), do: "S"
   defp type_letter(:text_input), do: "T"
   defp type_letter(:sequence), do: "R"
+  defp type_letter(:pin_on_image), do: "P"
+  defp type_letter(:matching), do: "Z"
   defp type_letter(_), do: "?"
-
-  defp form_eyebrow(:new), do: "Neue Frage"
-  defp form_eyebrow(:edit), do: "Bearbeiten"
 
   defp choice_letter(index) when index in 0..25, do: <<?A + index>>
   defp choice_letter(_), do: "?"
@@ -876,6 +1371,46 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp items_summary(_), do: "0 Einträge"
+
+  defp pin_struct(%{source: %Ecto.Changeset{} = cs}) do
+    case Ecto.Changeset.get_field(cs, :data) do
+      %{pin: %Pin{} = pin} -> pin
+      _ -> nil
+    end
+  end
+
+  defp pin_struct(_), do: nil
+
+  defp pin_image_key(form) do
+    case pin_struct(form) do
+      %Pin{image_key: key} when is_binary(key) and key != "" -> key
+      _ -> nil
+    end
+  end
+
+  @pin_defaults %{target_x: 0.5, target_y: 0.5, radius: 0.1}
+
+  defp pin_coord(form, field) do
+    case pin_struct(form) do
+      %Pin{} = pin -> Map.get(pin, field) || @pin_defaults[field]
+      _ -> @pin_defaults[field]
+    end
+  end
+
+  defp pin_summary(form) do
+    case pin_struct(form) do
+      %Pin{image_key: key} = pin when is_binary(key) and key != "" ->
+        "Ziel gesetzt · Radius #{round((pin.radius || 0.1) * 100)}%"
+
+      _ ->
+        "Kein Bild"
+    end
+  end
+
+  defp upload_error_to_string(:too_large), do: "Datei ist zu groß (max. 5 MB)."
+  defp upload_error_to_string(:too_many_files), do: "Nur eine Datei erlaubt."
+  defp upload_error_to_string(:not_accepted), do: "Nur JPG, PNG oder WEBP."
+  defp upload_error_to_string(_), do: "Upload fehlgeschlagen."
 
   defp data_field_error(form, field) do
     case form.source.changes[:data] do

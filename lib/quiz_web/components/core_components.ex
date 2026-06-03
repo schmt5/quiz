@@ -452,6 +452,31 @@ defmodule QuizWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders sanitized rich-text HTML (e.g. a question description).
+
+  The HTML is expected to be already sanitized on write by
+  `Quiz.HTML.sanitize_description/1`, so it is safe to emit with `raw/1`.
+  Renders nothing for blank content.
+
+  ## Examples
+
+      <.rich_text html={@question.description} />
+  """
+  attr :html, :string, default: nil
+  attr :class, :any, default: nil
+
+  def rich_text(assigns) do
+    ~H"""
+    <div
+      :if={@html not in [nil, ""]}
+      class={["prose prose-sm max-w-none text-base-content/80", @class]}
+    >
+      {Phoenix.HTML.raw(@html)}
+    </div>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

@@ -15,6 +15,14 @@ defmodule QuizWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # Serve user-uploaded files written by Quiz.Storage.Local. Kept separate from
+  # the digested asset pipeline below (these files are not part of the app's
+  # static_paths and must not be digested).
+  plug Plug.Static,
+    at: "/uploads",
+    from: Path.join(["priv", "static", "uploads"]),
+    gzip: false
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

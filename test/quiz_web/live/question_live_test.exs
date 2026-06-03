@@ -49,6 +49,22 @@ defmodule QuizWeb.QuestionLiveTest do
     }
   }
 
+  @pin_submit_params %{
+    "question" => %{
+      "type" => "pin_on_image",
+      "prompt" => "Wo liegt Paris?",
+      "position" => "45",
+      "data" => %{
+        "pin" => %{
+          "image_key" => "",
+          "target_x" => "0.5",
+          "target_y" => "0.5",
+          "radius" => "0.1"
+        }
+      }
+    }
+  }
+
   setup :register_and_log_in_user
 
   defp create_game(%{scope: scope}) do
@@ -73,6 +89,7 @@ defmodule QuizWeb.QuestionLiveTest do
       assert html =~ "Single-Choice"
       assert html =~ "Texteingabe"
       assert html =~ "Reihenfolge"
+      assert html =~ "Pin auf Bild"
     end
   end
 
@@ -100,7 +117,61 @@ defmodule QuizWeb.QuestionLiveTest do
 
       assert_patched(live, ~p"/games/#{game}/questions/#{question}/edit")
       assert render(live) =~ "Bearbeiten"
-      assert render(live) =~ "Single-Choice"
+      assert render(live) =~ "Antwortoptionen"
+    end
+  end
+
+  describe "Index — view mode (Ansehen)" do
+    setup %{scope: scope} do
+      game = game_fixture(scope)
+      q1 = question_fixture(scope, %{game_id: game.id, position: 1, prompt: "Erste Frage"})
+      q2 = question_fixture(scope, %{game_id: game.id, position: 2, prompt: "Zweite Frage"})
+      %{game: game, q1: q1, q2: q2}
+    end
+
+    test "toggling to Ansehen renders the participant view of all questions", %{
+      conn: conn,
+      game: game,
+      q1: q1,
+      q2: q2
+    } do
+      {:ok, live, html} = live(conn, ~p"/games/#{game}/questions")
+
+      # Edit mode by default: type picker visible, no participant radios.
+      assert html =~ "Welche Art von Frage möchtest du hinzufügen?"
+
+      view_html = live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
+
+      # Type picker gone; every question's prompt rendered participant-style.
+      refute view_html =~ "Welche Art von Frage möchtest du hinzufügen?"
+      assert view_html =~ q1.prompt
+      assert view_html =~ q2.prompt
+      # single_choice fixture renders selectable radio inputs.
+      assert view_html =~ ~s|type="radio"|
+
+      # Switching back restores edit mode.
+      edit_html = live |> element(~s|button[phx-value-mode="edit"]|) |> render_click()
+      assert edit_html =~ "Welche Art von Frage möchtest du hinzufügen?"
+    end
+
+    test "clicking a card's edit button opens that question's form in edit mode", %{
+      conn: conn,
+      game: game,
+      q2: q2
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+
+      live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
+
+      live
+      |> element(~s|button[phx-click="edit_question"][phx-value-id="#{q2.id}"]|)
+      |> render_click()
+
+      assert_patched(live, ~p"/games/#{game}/questions/#{q2}/edit")
+      html = render(live)
+      # Back in edit mode: the form for q2 is shown, not the participant stack.
+      assert html =~ "Fragetext"
+      assert html =~ q2.prompt
     end
   end
 
@@ -121,7 +192,7 @@ defmodule QuizWeb.QuestionLiveTest do
       {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions/new?type=single_choice")
 
       assert html =~ "Neue Frage"
-      assert html =~ "Single-Choice"
+      assert html =~ ~s|value="single_choice"|
       # The type select must not be present anymore
       refute html =~ ~s|name="question[type]" type="select"|
       refute html =~ ~s|<select id="question_type"|
@@ -171,6 +242,52 @@ defmodule QuizWeb.QuestionLiveTest do
       assert html =~ "Second"
       assert html =~ "Third"
     end
+
+    test "shows the pin_on_image form with an upload drop zone", %{conn: conn, game: game} do
+      {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions/new?type=pin_on_image")
+
+      assert html =~ ~s|value="pin_on_image"|
+      assert html =~ "Hintergrundbild"
+      assert html =~ "Bild hochladen"
+      assert html =~ ~s|name="question[data][pin][image_key]"|
+    end
+
+    test "uploads a background image and saves a pin_on_image question", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/new?type=pin_on_image")
+
+      image =
+        file_input(live, "#question-form", :pin_image, [
+          %{
+            last_modified: 1_700_000_000_000,
+            name: "paris.png",
+            content: File.read!("test/support/fixtures/files/pin.png"),
+            type: "image/png"
+          }
+        ])
+
+      render_upload(image, "paris.png")
+      render_submit(live, "save", @pin_submit_params)
+
+      assert render(live) =~ "Frage erfolgreich erstellt"
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.type == :pin_on_image
+      assert question.data.pin.target_x == 0.5
+
+      image_key = question.data.pin.image_key
+      assert String.starts_with?(image_key, "uploads/#{scope.user.id}/")
+      assert String.ends_with?(image_key, ".png")
+
+      dir = Application.fetch_env!(:quiz, Quiz.Storage.Local)[:dir]
+      stored_path = Path.join(dir, Path.relative_to(image_key, "uploads"))
+      assert File.exists?(stored_path)
+
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+    end
   end
 
   describe "Editing a question" do
@@ -198,6 +315,33 @@ defmodule QuizWeb.QuestionLiveTest do
       html = render(live)
       assert html =~ "Frage erfolgreich aktualisiert"
       assert html =~ "renamed prompt"
+    end
+
+    test "saves a sanitized description and renders it in view mode", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      params =
+        put_in(
+          @single_choice_submit_params,
+          ["question", "description"],
+          "<strong>Hinweis</strong><script>alert(1)</script>"
+        )
+
+      render_submit(live, "save", params)
+      assert render(live) =~ "Frage erfolgreich aktualisiert"
+
+      # The stored HTML keeps allowed formatting and drops the script.
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.description == "<strong>Hinweis</strong>alert(1)"
+
+      # The participant ("Ansehen") view renders the formatted description.
+      view_html = live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
+      assert view_html =~ "<strong>Hinweis</strong>"
     end
 
     test "deletes the current question and returns to the type picker", %{

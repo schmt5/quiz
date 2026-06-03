@@ -39,6 +39,35 @@ defmodule Quiz.GamesFixtures do
             data: %{solutions: [%{text: "Paris"}]}
           }
 
+        :pin_on_image ->
+          %{
+            type: :pin_on_image,
+            prompt: "some prompt",
+            position: 42,
+            data: %{
+              pin: %{
+                image_key: "uploads/test/fixture.png",
+                target_x: 0.5,
+                target_y: 0.5,
+                radius: 0.1
+              }
+            }
+          }
+
+        :matching ->
+          %{
+            type: :matching,
+            prompt: "some prompt",
+            position: 42,
+            data: %{
+              pairs: [
+                %{left_text: "France", right_text: "Paris"},
+                %{left_text: "Japan", right_text: "Tokyo"},
+                %{left_text: "Brazil", right_text: "Brasília"}
+              ]
+            }
+          }
+
         _ ->
           %{
             type: :single_choice,

@@ -146,6 +146,40 @@ defmodule Quiz.GamesTest do
       assert question.data.solutions == []
     end
 
+    test "create_question/2 stores a sanitized description" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      attrs = %{
+        type: :single_choice,
+        prompt: "some prompt",
+        position: 1,
+        game_id: game.id,
+        description:
+          ~s|<strong>bold</strong> <em>it</em> <mark class="hl-yellow">hi</mark>| <>
+            ~s|<a href="x" onclick="evil()">link</a><script>alert(1)</script>|,
+        data: %{choices: [%{text: "A", correct: true}, %{text: "B", correct: false}]}
+      }
+
+      assert {:ok, %Question{} = question} = Games.create_question(scope, attrs)
+      # Allowed formatting survives...
+      assert question.description =~ "<strong>bold</strong>"
+      assert question.description =~ "<em>it</em>"
+      assert question.description =~ ~s(<mark class="hl-yellow">hi</mark>)
+      # ...dangerous markup is stripped (only inner text remains).
+      refute question.description =~ "<script"
+      refute question.description =~ "onclick"
+      refute question.description =~ "<a "
+      assert question.description =~ "link"
+    end
+
+    test "create_question/2 leaves a blank description untouched" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+      question = question_fixture(scope, game_id: game.id)
+      assert question.description == nil
+    end
+
     test "create_question/2 with text_input trims and stores multiple solutions" do
       scope = user_scope_fixture()
       game = game_fixture(scope)
@@ -248,6 +282,200 @@ defmodule Quiz.GamesTest do
       refute Quiz.Games.Question.correct_answer?(q, [b, a, c])
       refute Quiz.Games.Question.correct_answer?(q, [a, b])
       refute Quiz.Games.Question.correct_answer?(q, "not a list")
+    end
+
+    test "create_question/2 with valid matching data stores pairs and clears others" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      attrs = %{
+        type: :matching,
+        prompt: "Match countries to capitals",
+        position: 1,
+        game_id: game.id,
+        data: %{
+          pairs: [
+            %{left_text: "France", right_text: "Paris"},
+            %{left_text: "  Japan ", right_text: "  Tokyo "}
+          ]
+        }
+      }
+
+      assert {:ok, %Question{} = question} = Games.create_question(scope, attrs)
+      assert question.type == :matching
+      assert Enum.map(question.data.pairs, & &1.left_text) == ["France", "Japan"]
+      assert Enum.map(question.data.pairs, & &1.right_text) == ["Paris", "Tokyo"]
+      assert question.data.choices == []
+      assert question.data.pin == nil
+    end
+
+    test "create_question/2 requires at least two pairs for matching" do
+      scope = user_scope_fixture()
+
+      attrs = %{
+        type: :matching,
+        prompt: "?",
+        position: 1,
+        data: %{pairs: [%{left_text: "France", right_text: "Paris"}]}
+      }
+
+      assert {:error, changeset} = Games.create_question(scope, attrs)
+      assert %{data: %{pairs: [_ | _]}} = errors_on(changeset)
+    end
+
+    test "create_question/2 rejects duplicate right_text in matching" do
+      scope = user_scope_fixture()
+
+      attrs = %{
+        type: :matching,
+        prompt: "?",
+        position: 1,
+        data: %{
+          pairs: [
+            %{left_text: "France", right_text: "Paris"},
+            %{left_text: "Frankreich", right_text: "paris"}
+          ]
+        }
+      }
+
+      assert {:error, changeset} = Games.create_question(scope, attrs)
+      assert %{data: %{pairs: [_ | _]}} = errors_on(changeset)
+    end
+
+    test "update_question/3 switching to matching clears other embeds" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+      assert length(question.data.choices) == 2
+
+      update_attrs = %{
+        type: :matching,
+        prompt: "now matching",
+        position: 43,
+        data: %{
+          pairs: [
+            %{left_text: "France", right_text: "Paris"},
+            %{left_text: "Japan", right_text: "Tokyo"}
+          ]
+        }
+      }
+
+      assert {:ok, %Question{} = updated} = Games.update_question(scope, question, update_attrs)
+      assert updated.type == :matching
+      assert updated.data.choices == []
+      assert Enum.map(updated.data.pairs, & &1.left_text) == ["France", "Japan"]
+    end
+
+    test "Question.correct_answer?/2 and score_answer/2 — matching scores per pair" do
+      scope = user_scope_fixture()
+      q = question_fixture(scope, %{type: :matching})
+      [france, japan, brazil] = q.data.pairs
+
+      all_correct = %{
+        france.id => "Paris",
+        japan.id => "Tokyo",
+        brazil.id => "Brasília"
+      }
+
+      assert Quiz.Games.Question.score_answer(q, all_correct) == {3, 3}
+      assert Quiz.Games.Question.correct_answer?(q, all_correct)
+
+      # case-insensitive + trimmed, one wrong
+      partial = %{
+        france.id => "  paris ",
+        japan.id => "Kyoto",
+        brazil.id => "Brasília"
+      }
+
+      assert Quiz.Games.Question.score_answer(q, partial) == {2, 3}
+      refute Quiz.Games.Question.correct_answer?(q, partial)
+
+      assert Quiz.Games.Question.score_answer(q, %{}) == {0, 3}
+      refute Quiz.Games.Question.correct_answer?(q, "not a map")
+    end
+
+    test "create_question/2 with pin_on_image stores and clamps the pin" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      attrs = %{
+        type: :pin_on_image,
+        prompt: "Wo liegt Paris?",
+        position: 1,
+        game_id: game.id,
+        data: %{
+          pin: %{image_key: "uploads/u/map.png", target_x: 1.4, target_y: -0.2, radius: 0.1}
+        }
+      }
+
+      assert {:ok, %Question{} = question} = Games.create_question(scope, attrs)
+      assert question.type == :pin_on_image
+      assert question.data.pin.image_key == "uploads/u/map.png"
+      assert question.data.pin.target_x == 1.0
+      assert question.data.pin.target_y == 0.0
+      assert question.data.choices == []
+    end
+
+    test "create_question/2 requires an image_key for pin_on_image" do
+      scope = user_scope_fixture()
+
+      attrs = %{
+        type: :pin_on_image,
+        prompt: "?",
+        position: 1,
+        data: %{pin: %{target_x: 0.5, target_y: 0.5, radius: 0.1}}
+      }
+
+      assert {:error, changeset} = Games.create_question(scope, attrs)
+      assert %{data: %{pin: %{image_key: [_ | _]}}} = errors_on(changeset)
+    end
+
+    test "update_question/3 switching to pin_on_image clears other embeds" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+      assert length(question.data.choices) == 2
+
+      update_attrs = %{
+        type: :pin_on_image,
+        prompt: "now pin",
+        position: 43,
+        data: %{pin: %{image_key: "uploads/u/x.png", target_x: 0.3, target_y: 0.7, radius: 0.2}}
+      }
+
+      assert {:ok, %Question{} = updated} = Games.update_question(scope, question, update_attrs)
+      assert updated.type == :pin_on_image
+      assert updated.data.choices == []
+      assert updated.data.pin.target_x == 0.3
+    end
+
+    test "update_question/3 switching away from pin_on_image clears the pin" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope, %{type: :pin_on_image})
+      assert question.data.pin
+
+      update_attrs = %{
+        type: :text_input,
+        prompt: "now text",
+        position: 1,
+        data: %{solutions: [%{text: "Paris"}]}
+      }
+
+      assert {:ok, %Question{} = updated} = Games.update_question(scope, question, update_attrs)
+      assert updated.type == :text_input
+      assert updated.data.pin == nil
+    end
+
+    test "Question.correct_answer?/2 — pin_on_image scores by distance to the target" do
+      scope = user_scope_fixture()
+      q = question_fixture(scope, %{type: :pin_on_image})
+      # fixture target is 0.5/0.5 with radius 0.1
+
+      assert Quiz.Games.Question.correct_answer?(q, %{"x" => 0.5, "y" => 0.5})
+      assert Quiz.Games.Question.correct_answer?(q, %{"x" => 0.52, "y" => 0.48})
+      # exactly on the boundary (distance == radius) counts as correct
+      assert Quiz.Games.Question.correct_answer?(q, %{"x" => 0.6, "y" => 0.5})
+      refute Quiz.Games.Question.correct_answer?(q, %{"x" => 0.7, "y" => 0.7})
+      refute Quiz.Games.Question.correct_answer?(q, %{"x" => 0.5})
+      refute Quiz.Games.Question.correct_answer?(q, "not a map")
     end
 
     test "update_question/3 with invalid scope raises" do

@@ -20,6 +20,29 @@ if System.get_env("PHX_SERVER") do
   config :quiz, QuizWeb.Endpoint, server: true
 end
 
+# Use Cloudflare R2 for uploads when credentials are present; otherwise fall
+# back to the local-disk adapter configured in config/config.exs. This keeps
+# the R2 path dormant until the bucket and tokens are provisioned.
+if r2_key = System.get_env("R2_ACCESS_KEY_ID") do
+  config :quiz, Quiz.Storage, adapter: Quiz.Storage.R2
+
+  config :quiz, Quiz.Storage.R2,
+    bucket: System.fetch_env!("R2_BUCKET"),
+    public_base_url: System.fetch_env!("R2_PUBLIC_BASE_URL")
+
+  config :ex_aws, :s3,
+    access_key_id: r2_key,
+    secret_access_key: System.fetch_env!("R2_SECRET_ACCESS_KEY"),
+    region: "auto",
+    scheme: "https://",
+    host: System.fetch_env!("R2_ENDPOINT")
+
+  config :ex_aws,
+    json_codec: Jason,
+    access_key_id: r2_key,
+    secret_access_key: System.fetch_env!("R2_SECRET_ACCESS_KEY")
+end
+
 config :quiz, QuizWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do

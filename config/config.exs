@@ -24,6 +24,11 @@ config :quiz,
   ecto_repos: [Quiz.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# User-upload storage. Defaults to local disk everywhere; prod swaps in the
+# Cloudflare R2 adapter via config/runtime.exs when credentials are present.
+config :quiz, Quiz.Storage, adapter: Quiz.Storage.Local
+config :quiz, Quiz.Storage.Local, dir: Path.join(["priv", "static", "uploads"])
+
 # Configure the endpoint
 config :quiz, QuizWeb.Endpoint,
   url: [host: "localhost"],

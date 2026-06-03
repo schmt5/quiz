@@ -25,6 +25,9 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 quiz-*.tar
 
+# Ignore user-uploaded files (served at /uploads by Quiz.Storage.Local).
+/priv/static/uploads/
+
 # Ignore assets that are produced by build tools.
 /priv/static/assets/
 

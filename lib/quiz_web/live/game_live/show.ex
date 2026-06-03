@@ -33,12 +33,27 @@ defmodule QuizWeb.GameLive.Show do
               </div>
               <h1 class="text-2xl font-bold">{@game.title}</h1>
             </div>
-            <.link
-              navigate={~p"/games/#{@game}/edit?return_to=show"}
-              class="btn btn-soft btn-sm"
+            <button
+              type="button"
+              popovertarget="game-actions"
+              class="btn btn-soft btn-sm btn-square"
+              style="anchor-name:--game-actions"
+              aria-label="Weitere Aktionen"
             >
-              <.icon name="hero-pencil-square" /> Quiz bearbeiten
-            </.link>
+              <.icon name="hero-ellipsis-vertical" class="size-5" />
+            </button>
+            <ul
+              class="dropdown dropdown-end menu w-52 rounded-box bg-base-100 shadow-sm"
+              popover
+              id="game-actions"
+              style="position-anchor:--game-actions"
+            >
+              <li>
+                <.link navigate={~p"/games/#{@game}/edit?return_to=show"}>
+                  <.icon name="hero-pencil-square" class="size-5" /> Quiz bearbeiten
+                </.link>
+              </li>
+            </ul>
           </div>
         </div>
       </:page_header>
