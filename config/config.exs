@@ -29,6 +29,10 @@ config :quiz,
 config :quiz, Quiz.Storage, adapter: Quiz.Storage.Local
 config :quiz, Quiz.Storage.Local, dir: Path.join(["priv", "static", "uploads"])
 
+# ex_aws uses Req (built on Finch) as its HTTP client instead of the default
+# hackney, keeping the app on a single, modern HTTP stack.
+config :ex_aws, http_client: ExAws.Request.Req
+
 # Configure the endpoint
 config :quiz, QuizWeb.Endpoint,
   url: [host: "localhost"],

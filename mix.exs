@@ -68,10 +68,13 @@ defmodule Quiz.MixProject do
       {:bandit, "~> 1.5"},
       # Object storage for user uploads. Only exercised by the Cloudflare R2
       # adapter (prod); the default Local adapter has no third-party deps.
+      # `req` is ex_aws's HTTP client (see `config :ex_aws, http_client`).
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
       {:sweet_xml, "~> 0.7"},
-      {:hackney, "~> 1.20"}
+      {:req, "~> 0.5"},
+      # Server-side QR code (SVG) for the run lobby join link.
+      {:eqrcode, "~> 0.2"}
     ]
   end
 

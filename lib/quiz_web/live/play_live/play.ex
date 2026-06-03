@@ -1,0 +1,182 @@
+defmodule QuizWeb.PlayLive.Play do
+  @moduledoc """
+  Participant runtime: waiting room, then the current question once the operator
+  starts the quiz.
+
+  Identity is held client-side: on enrollment a signed token is written to
+  `localStorage`, and here the colocated `.RestoreParticipant` hook reads it back
+  on (re)mount and rebinds the team. Because `localStorage` is unavailable during
+  the dead render and the first connected render, we mount in a `:restoring`
+  state and only resolve the participant from the hook's event — never redirect
+  for a "missing" participant in `mount/3`.
+  """
+  use QuizWeb, :live_view
+
+  alias Quiz.Play
+  alias QuizWeb.QuestionLive.AnswerArea
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <div id="play-root" phx-hook=".RestoreParticipant" data-code={@join_code} class="min-h-screen bg-base-200">
+      <div
+        :if={@restoring}
+        class="min-h-screen flex flex-col items-center justify-center gap-3 text-base-content/60"
+      >
+        <span class="loading loading-spinner loading-lg"></span>
+        <p class="text-sm">Verbinde …</p>
+      </div>
+
+      <div
+        :if={!@restoring && @game.status == :open}
+        class="min-h-screen flex flex-col items-center p-4 pt-10 sm:pt-16"
+      >
+        <div class="w-full max-w-sm text-center">
+          <div class="text-6xl">⏳</div>
+          <h1 class="mt-4 text-3xl font-extrabold text-primary">Warteraum</h1>
+          <p class="mt-3 text-lg leading-snug text-base-content/55">
+            Das Quiz startet, sobald die Quizmaster:in loslegt.
+          </p>
+          <div class="mt-6 flex justify-center">
+            <span class="inline-flex items-center gap-2 rounded-full border border-base-300 bg-base-100 px-4 py-1.5 text-sm text-base-content/60 shadow-sm">
+              <span class="size-2.5 translate-y-px rounded-full bg-success animate-pulse"></span>
+              verbunden als <span class="font-semibold text-base-content">{@participant.name}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div :if={!@restoring && @game.status == :running} class="flex flex-col items-center">
+        <div class="w-full bg-primary px-6 py-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-sm font-bold uppercase tracking-[0.15em] text-secondary">
+            Frage {@q_number}
+          </span>
+          <span class="shrink-0 max-w-[55%] truncate rounded-full border border-secondary/60 px-3 py-1 text-sm font-medium text-secondary">
+            {@participant.name}
+          </span>
+        </div>
+
+        <div :if={@question} class="w-full max-w-sm px-4 flex flex-col">
+          <div class="py-6 border-b border-base-300">
+            <p class="flex items-end gap-1 leading-none">
+              <span class="text-7xl font-extrabold text-secondary">{@q_number}</span>
+              <span class="mb-2 text-xl font-medium text-base-content/40">/ {@q_total}</span>
+            </p>
+            <h1 class="mt-5 text-3xl font-extrabold leading-tight text-primary">
+              {@question.prompt}
+            </h1>
+            <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
+          </div>
+
+          <div class="py-6 flex flex-col gap-4">
+            <fieldset class="m-0 min-w-0 border-0 p-0">
+              <legend class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+                Eure Antwort
+              </legend>
+              <AnswerArea.answer_area question={@question} />
+            </fieldset>
+            <button
+              type="button"
+              disabled
+              class="mt-6 w-full h-14 rounded-2xl bg-primary text-secondary text-lg font-bold tracking-wide shadow-sm"
+            >
+              Abschicken <span aria-hidden="true">→</span>
+            </button>
+            <p class="text-center text-sm text-base-content/50">
+              Antworten folgt in Kürze.
+            </p>
+          </div>
+        </div>
+
+        <div :if={!@question} class="py-8 text-center text-sm text-base-content/60">
+          Keine Frage verfügbar.
+        </div>
+      </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".RestoreParticipant">
+        export default {
+          mounted() {
+            const code = this.el.dataset.code;
+            let token = null;
+            try { token = window.localStorage.getItem("quiz:" + code); } catch (_e) {}
+            if (token) {
+              this.pushEvent("restore_participant", { token });
+            } else {
+              this.pushEvent("no_participant", {});
+            }
+          },
+        };
+      </script>
+    </div>
+    """
+  end
+
+  @impl true
+  def mount(%{"join_code" => join_code}, _session, socket) do
+    case Play.get_game_by_join_code(join_code) do
+      {:ok, game} ->
+        {:ok,
+         socket
+         |> assign(:page_title, game.title)
+         |> assign(:join_code, game.join_code)
+         |> assign(:game, game)
+         |> assign(:participant, nil)
+         |> assign(:question, nil)
+         |> assign(:q_number, 0)
+         |> assign(:q_total, 0)
+         |> assign(:restoring, true)}
+
+      {:error, :not_found} ->
+        {:ok, push_navigate(socket, to: ~p"/join?code=#{String.upcase(join_code)}")}
+    end
+  end
+
+  @impl true
+  def handle_event("restore_participant", %{"token" => token}, socket) do
+    case Play.restore_participant(socket.assigns.game, token) do
+      {:ok, participant} ->
+        if connected?(socket), do: Play.subscribe(socket.assigns.game)
+
+        {:noreply,
+         socket
+         |> assign(:participant, participant)
+         |> assign(:restoring, false)
+         |> load_question()}
+
+      {:error, _} ->
+        {:noreply, to_join(socket)}
+    end
+  end
+
+  def handle_event("no_participant", _params, socket) do
+    {:noreply, to_join(socket)}
+  end
+
+  @impl true
+  def handle_info({:status_changed, game}, socket) do
+    {:noreply, socket |> assign(:game, game) |> load_question()}
+  end
+
+  def handle_info({:participant_joined, _participant}, socket) do
+    {:noreply, socket}
+  end
+
+  defp load_question(socket) do
+    question =
+      case Play.current_question(socket.assigns.game) do
+        nil -> nil
+        question -> AnswerArea.prepare_question(question)
+      end
+
+    {number, total} = Play.question_numbering(socket.assigns.game)
+
+    socket
+    |> assign(:question, question)
+    |> assign(:q_number, number)
+    |> assign(:q_total, total)
+  end
+
+  defp to_join(socket) do
+    push_navigate(socket, to: ~p"/join?code=#{socket.assigns.join_code}")
+  end
+end

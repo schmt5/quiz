@@ -15,8 +15,9 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     ~H"""
     <input
       type="text"
-      placeholder="Deine Antwort"
-      class="input input-bordered w-full"
+      name="answer"
+      placeholder="Antwort eintippen …"
+      class={["w-full h-14 text-lg", field_base_class(), field_state_class([])]}
     />
     """
   end

@@ -181,7 +181,7 @@ defmodule QuizWeb.CoreComponents do
   attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
   attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
   attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
-  attr :class, :any, default: nil, doc: "the input class to use over defaults"
+  attr :class, :any, default: nil, doc: "additional classes appended to the default input styling"
   attr :error_class, :any, default: nil, doc: "the input error class to use over defaults"
 
   attr :rest, :global,
@@ -242,11 +242,11 @@ defmodule QuizWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-2">
       <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class={label_class()}>{@label}</span>
         <select
           id={@id}
           name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
+          class={["w-full h-14 text-lg", field_base_class(), field_state_class(@errors), @class]}
           multiple={@multiple}
           {@rest}
         >
@@ -263,14 +263,11 @@ defmodule QuizWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-2">
       <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class={label_class()}>{@label}</span>
         <textarea
           id={@id}
           name={@name}
-          class={[
-            @class || "w-full textarea",
-            @errors != [] && (@error_class || "textarea-error")
-          ]}
+          class={["w-full text-lg py-3", field_base_class(), field_state_class(@errors), @class]}
           {@rest}
         >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
       </label>
@@ -284,22 +281,37 @@ defmodule QuizWeb.CoreComponents do
     ~H"""
     <div class="fieldset mb-2">
       <label for={@id}>
-        <span :if={@label} class="label mb-1">{@label}</span>
+        <span :if={@label} class={label_class()}>{@label}</span>
         <input
           type={@type}
           name={@name}
           id={@id}
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-          class={[
-            @class || "w-full input",
-            @errors != [] && (@error_class || "input-error")
-          ]}
+          class={["w-full h-14 text-lg", field_base_class(), field_state_class(@errors), @class]}
           {@rest}
         />
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
+  end
+
+  @doc false
+  # Shared field styling so every `<.input>` (text, select, textarea) looks
+  # identical across the app. `border`/`ring` colors are set by
+  # `field_state_class/1` (not here) so the error/normal state is a single
+  # color utility — avoids Tailwind same-property conflicts.
+  def field_base_class do
+    "bg-white border rounded-2xl px-5 text-primary font-medium shadow-sm transition " <>
+      "placeholder:text-base-content/30 focus:outline-none focus:ring-4 " <>
+      "disabled:bg-base-200/60 disabled:text-base-content/50 disabled:shadow-none disabled:cursor-not-allowed"
+  end
+
+  def field_state_class([]), do: "border-base-300/70 focus:border-primary focus:ring-primary/15"
+  def field_state_class(_errors), do: "border-error focus:border-error focus:ring-error/20"
+
+  def label_class do
+    "block mb-2 ml-1 text-xs font-bold uppercase tracking-[0.18em] text-base-content/45"
   end
 
   # Helper used by inputs to generate form errors

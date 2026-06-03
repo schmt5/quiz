@@ -33,15 +33,32 @@ defmodule QuizWeb.GameLive.Show do
               </div>
               <h1 class="text-2xl font-bold">{@game.title}</h1>
             </div>
-            <button
-              type="button"
-              popovertarget="game-actions"
-              class="btn btn-soft btn-sm btn-square"
-              style="anchor-name:--game-actions"
-              aria-label="Weitere Aktionen"
-            >
-              <.icon name="hero-ellipsis-vertical" class="size-5" />
-            </button>
+            <div class="flex items-center gap-2">
+              <.link
+                :if={@questions != [] and @game.status in [:open, :running]}
+                navigate={~p"/games/#{@game}/run"}
+                class="btn btn-primary btn-sm"
+              >
+                <.icon name="hero-arrow-right" class="size-4" /> Zur Durchführung
+              </.link>
+              <button
+                :if={@questions != [] and @game.status in [:draft, :closed]}
+                type="button"
+                phx-click="open_run"
+                class="btn btn-primary btn-sm"
+              >
+                <.icon name="hero-play" class="size-4" /> Durchführung eröffnen
+              </button>
+              <button
+                type="button"
+                popovertarget="game-actions"
+                class="btn btn-soft btn-sm btn-square"
+                style="anchor-name:--game-actions"
+                aria-label="Weitere Aktionen"
+              >
+                <.icon name="hero-ellipsis-vertical" class="size-5" />
+              </button>
+            </div>
             <ul
               class="dropdown dropdown-end menu w-52 rounded-box bg-base-100 shadow-sm"
               popover
@@ -122,6 +139,17 @@ defmodule QuizWeb.GameLive.Show do
      |> assign(:page_title, game.title)
      |> assign(:game, game)
      |> assign(:questions, Games.list_questions_for_game(socket.assigns.current_scope, game))}
+  end
+
+  @impl true
+  def handle_event("open_run", _params, socket) do
+    case Quiz.Play.open_run(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, game} ->
+        {:noreply, push_navigate(socket, to: ~p"/games/#{game}/run")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Durchführung konnte nicht eröffnet werden.")}
+    end
   end
 
   @impl true
