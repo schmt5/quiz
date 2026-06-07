@@ -93,6 +93,71 @@ defmodule Quiz.GamesTest do
       game = game_fixture(scope)
       assert %Ecto.Changeset{} = Games.change_game(scope, game)
     end
+
+    test "duplicate_game/2 copies the game and all questions into a fresh draft" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{title: "Original", status: :finished})
+
+      q1 =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 1,
+          type: :text_input,
+          prompt: "Hauptstadt von Frankreich?",
+          data: %{solutions: [%{text: "Paris"}]}
+        })
+
+      q2 =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 2,
+          type: :matching,
+          prompt: "Ordne zu",
+          data: %{
+            pairs: [
+              %{left_text: "Frankreich", right_text: "Paris"},
+              %{left_text: "Japan", right_text: "Tokio"}
+            ]
+          }
+        })
+
+      assert {:ok, copy} = Games.duplicate_game(scope, game)
+
+      # Fresh draft with a new identity but a copied title.
+      assert copy.id != game.id
+      assert copy.title == "Original (Kopie)"
+      assert copy.status == :draft
+      assert copy.grading_published == false
+      assert copy.join_code != game.join_code
+      assert copy.user_id == scope.user.id
+
+      # All questions copied, in order, with their answer payload intact.
+      copied = Games.list_questions_for_game(scope, copy)
+      assert length(copied) == 2
+      [c1, c2] = copied
+
+      assert c1.id != q1.id
+      assert c1.prompt == "Hauptstadt von Frankreich?"
+      assert c1.type == :text_input
+      assert Enum.map(c1.data.solutions, & &1.text) == ["Paris"]
+
+      assert c2.id != q2.id
+      assert c2.type == :matching
+
+      assert Enum.map(c2.data.pairs, &{&1.left_text, &1.right_text}) ==
+               [{"Frankreich", "Paris"}, {"Japan", "Tokio"}]
+
+      # The original is untouched.
+      assert length(Games.list_questions_for_game(scope, game)) == 2
+    end
+
+    test "duplicate_game/2 refuses a game owned by someone else" do
+      scope = user_scope_fixture()
+      other_scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      assert_raise MatchError, fn -> Games.duplicate_game(other_scope, game) end
+    end
   end
 
   describe "questions" do

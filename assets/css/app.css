@@ -22,17 +22,18 @@
     default: true;
     prefersdark: false;
     color-scheme: "light";
-    /* Warm cream base surfaces (was cool near-white). base-100 ≈ #f4efe5. */
-    --color-base-100: oklch(95.2% 0.012 95);
-    --color-base-200: oklch(92.3% 0.013 95);
-    --color-base-300: oklch(87.5% 0.015 95);
-    --color-base-content: oklch(21% 0.006 285.885);
-    --color-primary: oklch(43.7% 0.078 188.216);
-    --color-primary-content: oklch(98.4% 0.014 180.72);
-    --color-secondary: oklch(79.5% 0.184 86.047);
-    --color-secondary-content: oklch(98.7% 0.022 95.277);
-    --color-accent: oklch(0% 0 0);
-    --color-accent-content: oklch(100% 0 0);
+    /* "was das?" Corporate Design v1.0 — 60/30/10 palette.
+       Warm White surfaces (60%), Teal structure (30%), Mimosa accents (10%). */
+    --color-base-100: #f5f0e8; /* Warm White — backgrounds / surfaces */
+    --color-base-200: #efe8db; /* subtle warm elevation */
+    --color-base-300: #d8d0c0; /* the guide's border tone */
+    --color-base-content: #1f2b2b; /* near-teal-black body text on cream */
+    --color-primary: #00555a; /* Teal — header, buttons, structure */
+    --color-primary-content: #ffc94b; /* Mimosa — primary button text */
+    --color-secondary: #ffc94b; /* Mimosa — accents, numbers, CTAs */
+    --color-secondary-content: #00555a;
+    --color-accent: #ffc94b; /* CD's single accent (Mimosa) */
+    --color-accent-content: #00555a;
     --color-neutral: oklch(44% 0.017 285.786);
     --color-neutral-content: oklch(98% 0 0);
     --color-info: oklch(62% 0.214 259.815);
@@ -48,9 +49,17 @@
     --radius-box: 0.5rem;
     --size-selector: 0.21875rem;
     --size-field: 0.21875rem;
-    --border: 1.5px;
-    --depth: 1;
+    --border: 1px; /* hairline borders */
+    --depth: 0; /* flat surfaces — no glossy gradient/noise (CD is flat & clean) */
     --noise: 0;
+}
+
+/* Corporate Design typography — registered as Tailwind theme tokens so the
+   default body font is Space Grotesk and `font-display` exposes Manrope for
+   question numbers. Fonts are loaded in root.html.heex. */
+@theme {
+    --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Add variants based on LiveView classes */
@@ -65,6 +74,15 @@
 }
 
 /* This file is for your main application CSS */
+
+/* Buttons use Space Grotesk Medium (500) rather than daisyUI's default 600 —
+   keeps Mimosa-on-Teal CTA labels crisp and legible instead of heavy. The
+   noise/grain texture daisyUI bakes into .btn is removed: it muddies bright
+   Mimosa text on the teal primary button and isn't part of the flat CD look. */
+.btn {
+    font-weight: 500;
+    background-image: none;
+}
 
 /* Highlight colors for rich-text question descriptions. These classes appear
    only inside runtime-rendered (sanitized) HTML, so Tailwind's source scanner

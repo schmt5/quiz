@@ -101,7 +101,12 @@ defmodule QuizWeb.CoreComponents do
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    # Per the corporate design: primary = Teal bg / Mimosa text (theme tokens),
+    # default = ghost with the cream border tone and muted green-grey text.
+    variants = %{
+      "primary" => "btn-primary",
+      nil => "btn-ghost border border-base-300 text-[#7a8878]"
+    }
 
     assigns =
       assign_new(assigns, :class, fn ->
@@ -302,7 +307,7 @@ defmodule QuizWeb.CoreComponents do
   # `field_state_class/1` (not here) so the error/normal state is a single
   # color utility — avoids Tailwind same-property conflicts.
   def field_base_class do
-    "bg-white border rounded-2xl px-5 text-primary font-medium shadow-sm transition " <>
+    "bg-white border rounded-field px-5 text-primary font-medium shadow-sm transition " <>
       "placeholder:text-base-content/30 focus:outline-none focus:ring-4 " <>
       "disabled:bg-base-200/60 disabled:text-base-content/50 disabled:shadow-none disabled:cursor-not-allowed"
   end
@@ -311,7 +316,8 @@ defmodule QuizWeb.CoreComponents do
   def field_state_class(_errors), do: "border-error focus:border-error focus:ring-error/20"
 
   def label_class do
-    "block mb-2 ml-1 text-xs font-bold uppercase tracking-[0.18em] text-base-content/45"
+    # Labels/Meta — Space Grotesk 700, 11px uppercase per the corporate design.
+    "block mb-2 ml-1 text-[11px] font-bold uppercase tracking-[0.18em] text-base-content/45"
   end
 
   # Helper used by inputs to generate form errors

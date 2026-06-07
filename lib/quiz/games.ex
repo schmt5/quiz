@@ -196,6 +196,42 @@ defmodule Quiz.Games do
   end
 
   @doc """
+  Duplicates a game and all its questions into a fresh **draft** copy owned by
+  the same user.
+
+  Each question is copied with its prompt, description, position and the full
+  answer payload (`data`: choices, solutions, items, pairs, pin). Runtime and
+  participant data is intentionally *not* copied — the copy starts a clean run,
+  so there are no enrollments, submitted answers or corrections, the
+  `current_position` is empty, `grading_published` is `false`, and a brand-new
+  `join_code` is generated. The whole copy is atomic. Returns `{:ok, new_game}`.
+  """
+  def duplicate_game(%Scope{} = scope, %Game{} = game) do
+    true = game.user_id == scope.user.id
+
+    questions = list_questions_for_game(scope, game)
+
+    Repo.transaction(fn ->
+      {:ok, copy} =
+        create_game(scope, %{title: game.title <> " (Kopie)", status: :draft})
+
+      for question <- questions do
+        Repo.insert!(%Question{
+          type: question.type,
+          prompt: question.prompt,
+          description: question.description,
+          position: question.position,
+          data: question.data,
+          game_id: copy.id,
+          user_id: scope.user.id
+        })
+      end
+
+      copy
+    end)
+  end
+
+  @doc """
   Gets a single question.
 
   Raises `Ecto.NoResultsError` if the Question does not exist.

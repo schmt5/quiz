@@ -49,6 +49,20 @@ defmodule QuizWeb.GameLive.Show do
               >
                 <.icon name="hero-play" class="size-4" /> Durchführung eröffnen
               </button>
+              <.link
+                :if={@game.status in [:running, :finished, :closed]}
+                navigate={~p"/games/#{@game}/correction"}
+                class="btn btn-soft btn-sm"
+              >
+                <.icon name="hero-check-circle" class="size-4" /> Korrigieren
+              </.link>
+              <.link
+                :if={@game.status in [:running, :finished, :closed]}
+                navigate={~p"/games/#{@game}/leaderboard"}
+                class="btn btn-soft btn-sm"
+              >
+                <.icon name="hero-trophy" class="size-4" /> Rangliste
+              </.link>
               <button
                 type="button"
                 popovertarget="game-actions"
@@ -69,6 +83,11 @@ defmodule QuizWeb.GameLive.Show do
                 <.link navigate={~p"/games/#{@game}/edit?return_to=show"}>
                   <.icon name="hero-pencil-square" class="size-5" /> Quiz bearbeiten
                 </.link>
+              </li>
+              <li>
+                <button type="button" phx-click="duplicate">
+                  <.icon name="hero-document-duplicate" class="size-5" /> Quiz duplizieren
+                </button>
               </li>
             </ul>
           </div>
@@ -142,6 +161,19 @@ defmodule QuizWeb.GameLive.Show do
   end
 
   @impl true
+  def handle_event("duplicate", _params, socket) do
+    case Games.duplicate_game(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, copy} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Quiz dupliziert.")
+         |> push_navigate(to: ~p"/games/#{copy}")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Quiz konnte nicht dupliziert werden.")}
+    end
+  end
+
   def handle_event("open_run", _params, socket) do
     case Quiz.Play.open_run(socket.assigns.current_scope, socket.assigns.game) do
       {:ok, game} ->

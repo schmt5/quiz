@@ -66,6 +66,9 @@ defmodule QuizWeb.Router do
       live "/games/:game_id/preview", GameLive.Preview, :show
 
       live "/games/:id/run", RunLive.Host, :show
+      live "/games/:id/correction", CorrectionLive.Index, :index
+      live "/games/:id/correction/:position", CorrectionLive.Question, :show
+      live "/games/:id/leaderboard", LeaderboardLive.Show, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password

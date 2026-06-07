@@ -22,6 +22,7 @@ defmodule Quiz.Games.Game do
     field :status, Ecto.Enum, values: [:draft, :open, :running, :finished, :closed]
     field :join_code, :string
     field :current_position, :integer
+    field :grading_published, :boolean, default: false
     field :user_id, :id
 
     timestamps(type: :utc_datetime)

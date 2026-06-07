@@ -29,7 +29,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         <label class="flex items-center gap-3 rounded-box bg-base-200 px-3 py-2 cursor-pointer hover:bg-base-300 transition">
           <input
             type="radio"
-            name={"choice-#{@question.id}"}
+            name="answer"
             value={idx}
             class="radio radio-primary"
           />
@@ -42,43 +42,50 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
 
   def answer_area(%{question: %{type: :sequence}} = assigns) do
     ~H"""
-    <ul
-      id={"preview-sequence-#{@question.id}"}
-      phx-hook=".PreviewSortable"
-      phx-update="ignore"
-      class="space-y-2 list-none p-0"
-    >
-      <li
-        :for={item <- @question.data.items}
-        class="flex items-center gap-2 rounded-box bg-base-200 px-3 py-2"
-      >
-        <button
-          type="button"
-          data-handle
-          aria-label="Sortieren"
-          class="cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 px-1 select-none touch-none"
+    <div id={"preview-sequence-#{@question.id}"} phx-hook=".PreviewSortable" phx-update="ignore">
+      <input type="hidden" name="answer" data-answer />
+      <ul data-list class="space-y-2 list-none p-0">
+        <li
+          :for={item <- @question.data.items}
+          data-id={item.id}
+          class="flex items-center gap-2 rounded-box bg-base-200 px-3 py-2"
         >
-          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor">
-            <circle cx="7" cy="5" r="1.5" />
-            <circle cx="13" cy="5" r="1.5" />
-            <circle cx="7" cy="10" r="1.5" />
-            <circle cx="13" cy="10" r="1.5" />
-            <circle cx="7" cy="15" r="1.5" />
-            <circle cx="13" cy="15" r="1.5" />
-          </svg>
-        </button>
-        <span class="text-sm">{item.text}</span>
-      </li>
-    </ul>
+          <button
+            type="button"
+            data-handle
+            aria-label="Sortieren"
+            class="cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 px-1 select-none touch-none"
+          >
+            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor">
+              <circle cx="7" cy="5" r="1.5" />
+              <circle cx="13" cy="5" r="1.5" />
+              <circle cx="7" cy="10" r="1.5" />
+              <circle cx="13" cy="10" r="1.5" />
+              <circle cx="7" cy="15" r="1.5" />
+              <circle cx="13" cy="15" r="1.5" />
+            </svg>
+          </button>
+          <span class="text-sm">{item.text}</span>
+        </li>
+      </ul>
+    </div>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".PreviewSortable">
       export default {
         mounted() {
           const el = this.el;
+          const list = el.querySelector("[data-list]");
+          const input = el.querySelector("[data-answer]");
           let dragging = null;
 
+          const sync = () => {
+            const ids = [...list.querySelectorAll("li")].map((li) => li.dataset.id);
+            if (input) input.value = ids.join(",");
+          };
+          sync();
+
           const bindHandles = () => {
-            el.querySelectorAll("[data-handle]").forEach((h) => {
+            list.querySelectorAll("[data-handle]").forEach((h) => {
               if (h.dataset.bound) return;
               h.dataset.bound = "1";
               const li = h.closest("li");
@@ -89,37 +96,38 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           };
           bindHandles();
           this.observer = new MutationObserver(bindHandles);
-          this.observer.observe(el, { childList: true });
+          this.observer.observe(list, { childList: true });
 
-          el.addEventListener("dragstart", (e) => {
+          list.addEventListener("dragstart", (e) => {
             const li = e.target.closest("li");
-            if (!li || li.parentElement !== el) return;
+            if (!li || li.parentElement !== list) return;
             dragging = li;
             li.classList.add("opacity-40");
             e.dataTransfer.effectAllowed = "move";
             try { e.dataTransfer.setData("text/plain", ""); } catch (_) {}
           });
 
-          el.addEventListener("dragover", (e) => {
+          list.addEventListener("dragover", (e) => {
             if (!dragging) return;
             e.preventDefault();
-            const siblings = [...el.querySelectorAll("li:not(.opacity-40)")];
+            const siblings = [...list.querySelectorAll("li:not(.opacity-40)")];
             const after = siblings.find((s) => {
               const r = s.getBoundingClientRect();
               return e.clientY < r.top + r.height / 2;
             });
             if (after) {
-              if (after !== dragging.nextSibling) el.insertBefore(dragging, after);
+              if (after !== dragging.nextSibling) list.insertBefore(dragging, after);
             } else {
-              if (el.lastElementChild !== dragging) el.appendChild(dragging);
+              if (list.lastElementChild !== dragging) list.appendChild(dragging);
             }
           });
 
-          el.addEventListener("dragend", () => {
+          list.addEventListener("dragend", () => {
             if (!dragging) return;
             dragging.classList.remove("opacity-40");
             dragging.removeAttribute("draggable");
             dragging = null;
+            sync();
           });
         },
         destroyed() { this.observer?.disconnect(); }
@@ -131,6 +139,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   def answer_area(%{question: %{type: :matching}} = assigns) do
     ~H"""
     <div id={"preview-match-#{@question.id}"} phx-hook=".PreviewMatch" phx-update="ignore">
+      <input type="hidden" name="answer" data-answer />
       <ul class="space-y-2.5 list-none p-0">
         <li
           :for={pair <- @question.data.pairs}
@@ -142,6 +151,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           <.icon name="hero-arrow-right" class="size-4 text-base-content/30 shrink-0" />
           <div
             data-slot
+            data-pair-id={pair.id}
             class="flex-1 min-w-0 h-11 flex items-stretch rounded-box border-2 border-dashed border-base-300 p-1 transition-colors"
           >
             <span data-placeholder class="flex-1 grid place-items-center text-xs text-base-content/40">
@@ -182,7 +192,19 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         mounted() {
           const el = this.el;
           const pool = el.querySelector("[data-pool]");
+          const input = el.querySelector("[data-answer]");
           let dragging = null;
+
+          // Serialize the current slot assignments into the hidden input as a
+          // { pair_id: chosen_right_text } JSON map for the form submit.
+          const sync = () => {
+            const map = {};
+            el.querySelectorAll("[data-slot]").forEach((slot) => {
+              const chip = slot.querySelector("[data-chip] [data-value]");
+              if (chip) map[slot.dataset.pairId] = chip.textContent;
+            });
+            if (input) input.value = JSON.stringify(map);
+          };
 
           // Styling that differs between a chip resting in the pool vs. dropped
           // into a slot (where it fills the row and gets the "filled" accent).
@@ -220,6 +242,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           };
 
           el.querySelectorAll("[data-chip]").forEach(styleChip);
+          sync();
 
           el.addEventListener("dragstart", (e) => {
             const chip = e.target.closest("[data-chip]");
@@ -261,6 +284,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             styleChip(dragging);
             if (fromSlot && fromSlot !== slot) refreshPlaceholder(fromSlot);
             if (slot) refreshPlaceholder(slot);
+            sync();
           });
 
           el.addEventListener("click", (e) => {
@@ -270,6 +294,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             const slot = chip.closest("[data-slot]");
             returnToPool(chip);
             if (slot) refreshPlaceholder(slot);
+            sync();
           });
         },
       };
@@ -291,12 +316,16 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         class="absolute inset-0 w-full h-full object-cover pointer-events-none"
         alt="Bild"
       />
+      <input type="hidden" name="answer[x]" data-answer-x />
+      <input type="hidden" name="answer[y]" data-answer-y />
     </div>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".PreviewPin">
       export default {
         mounted() {
           const el = this.el;
+          const inputX = el.querySelector("[data-answer-x]");
+          const inputY = el.querySelector("[data-answer-y]");
           const marker = document.createElement("div");
           marker.className =
             "absolute size-4 rounded-full bg-primary ring-2 ring-white shadow -translate-x-1/2 -translate-y-1/2 hidden";
@@ -309,10 +338,10 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             marker.style.left = x * 100 + "%";
             marker.style.top = y * 100 + "%";
             marker.classList.remove("hidden");
-            // Preview is read-only: the placed pin is visual only. In a live
-            // game, push the coordinates to the server here, e.g.
-            //   this.pushEvent("answer", { x, y })
-            // and score them with Question.correct_answer?(question, %{"x"=>x,"y"=>y}).
+            // Mirror the placed pin into the hidden inputs so the surrounding
+            // form submits the normalized 0..1 coordinates.
+            if (inputX) inputX.value = x;
+            if (inputY) inputY.value = y;
           });
         },
       };
@@ -325,6 +354,94 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     <p class="text-sm text-base-content/60">Unbekannter Fragetyp.</p>
     """
   end
+
+  @doc """
+  Read-only summary of a submitted answer, for the confirmation card. `answer` is
+  the canonical value stored on `Answer` (`payload["value"]`).
+  """
+  attr :question, :map, required: true
+  attr :answer, :any, required: true
+
+  def answer_summary(%{question: %{type: :text_input}} = assigns) do
+    ~H"""
+    <p class="text-2xl font-display font-extrabold text-primary break-words">
+      {to_string(@answer)}
+    </p>
+    """
+  end
+
+  def answer_summary(%{question: %{type: :single_choice}} = assigns) do
+    assigns = assign(assigns, :choice, choice_at(assigns.question, assigns.answer))
+
+    ~H"""
+    <p class="text-xl font-bold text-primary break-words">
+      {@choice || "—"}
+    </p>
+    """
+  end
+
+  def answer_summary(%{question: %{type: :sequence}} = assigns) do
+    assigns = assign(assigns, :ordered, sequence_texts(assigns.question, assigns.answer))
+
+    ~H"""
+    <ol class="list-none p-0 space-y-1">
+      <li :for={{text, idx} <- Enum.with_index(@ordered, 1)} class="flex items-baseline gap-2">
+        <span class="font-display font-bold text-primary/50 tabular-nums">{idx}.</span>
+        <span class="font-medium text-primary break-words">{text}</span>
+      </li>
+    </ol>
+    """
+  end
+
+  def answer_summary(%{question: %{type: :matching}} = assigns) do
+    assigns = assign(assigns, :rows, matching_rows(assigns.question, assigns.answer))
+
+    ~H"""
+    <ul class="list-none p-0 space-y-1.5">
+      <li :for={{left, right} <- @rows} class="flex items-center gap-2 text-sm">
+        <span class="font-semibold text-primary break-words">{left}</span>
+        <.icon name="hero-arrow-right" class="size-4 text-base-content/30 shrink-0" />
+        <span class="text-primary/80 break-words">{right || "—"}</span>
+      </li>
+    </ul>
+    """
+  end
+
+  def answer_summary(%{question: %{type: :pin_on_image}} = assigns) do
+    ~H"""
+    <p class="text-base font-semibold text-primary">Position markiert</p>
+    """
+  end
+
+  def answer_summary(assigns) do
+    ~H"""
+    <p class="text-base text-primary">Antwort gespeichert</p>
+    """
+  end
+
+  defp choice_at(%{data: %{choices: choices}}, index) when is_integer(index) do
+    case Enum.at(choices, index) do
+      %{text: text} -> text
+      _ -> nil
+    end
+  end
+
+  defp choice_at(_question, _index), do: nil
+
+  defp sequence_texts(%{data: %{items: items}}, ids) when is_list(ids) do
+    by_id = Map.new(items, &{&1.id, &1.text})
+    Enum.map(ids, &Map.get(by_id, &1, "?"))
+  end
+
+  defp sequence_texts(_question, _ids), do: []
+
+  defp matching_rows(%{data: %{pairs: pairs}}, answer) when is_map(answer) do
+    Enum.map(pairs, fn pair ->
+      {pair.left_text, Map.get(answer, pair.id) || Map.get(answer, to_string(pair.id))}
+    end)
+  end
+
+  defp matching_rows(_question, _answer), do: []
 
   @doc """
   Prepares a question for participant display. Sequence items are shuffled so

@@ -97,6 +97,47 @@ defmodule QuizWeb.GameLiveTest do
       assert html =~ game.title
     end
 
+    test "a finished game links to correction and leaderboard", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :finished})
+      {:ok, _show_live, html} = live(conn, ~p"/games/#{game}")
+
+      assert html =~ ~p"/games/#{game}/correction"
+      assert html =~ ~p"/games/#{game}/leaderboard"
+    end
+
+    test "an open game shows no correction/leaderboard links yet", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      {:ok, _show_live, html} = live(conn, ~p"/games/#{game}")
+
+      refute html =~ ~p"/games/#{game}/correction"
+      refute html =~ ~p"/games/#{game}/leaderboard"
+    end
+
+    test "duplicates the game from the dropdown", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{title: "Original", status: :finished})
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        type: :text_input,
+        prompt: "Hauptstadt von Frankreich?",
+        data: %{solutions: [%{text: "Paris"}]}
+      })
+
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+
+      assert {:ok, copy_live, html} =
+               show_live
+               |> element("button", "Quiz duplizieren")
+               |> render_click()
+               |> follow_redirect(conn)
+
+      assert html =~ "Quiz dupliziert"
+      assert html =~ "Original (Kopie)"
+      # The copy carries the question over.
+      assert render(copy_live) =~ "Hauptstadt von Frankreich?"
+    end
+
     test "updates game and returns to show", %{conn: conn, game: game} do
       {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
 

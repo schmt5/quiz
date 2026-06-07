@@ -16,6 +16,7 @@ defmodule Quiz.Play do
 
     * `{:participant_joined, %Participant{}}`
     * `{:status_changed, %Game{}}`
+    * `{:answer_submitted, position}`
 
   """
 
@@ -24,7 +25,7 @@ defmodule Quiz.Play do
   alias Quiz.Repo
   alias Quiz.Games
   alias Quiz.Games.{Game, Question}
-  alias Quiz.Play.Participant
+  alias Quiz.Play.{Participant, Answer, Correction}
   alias Quiz.Accounts.Scope
 
   @token_salt "participant"
@@ -68,6 +69,29 @@ defmodule Quiz.Play do
     end
   end
 
+  @doc """
+  Advances the run to the next question (`running` stays, `current_position`
+  bumps to the next question's position). When already on the last question,
+  finishes the run (`:running` -> `:finished`). Operator only.
+  """
+  def advance_run(%Scope{} = scope, %Game{current_position: position} = game) do
+    case next_position(game, position) do
+      nil -> transition(scope, game, %{status: :finished})
+      next -> transition(scope, game, %{current_position: next})
+    end
+  end
+
+  defp next_position(%Game{}, nil), do: nil
+
+  defp next_position(%Game{id: game_id}, position) do
+    Question
+    |> where([q], q.game_id == ^game_id and q.position > ^position)
+    |> order_by([q], asc: q.position)
+    |> limit(1)
+    |> select([q], q.position)
+    |> Repo.one()
+  end
+
   defp transition(%Scope{} = scope, %Game{} = game, attrs) do
     true = game.user_id == scope.user.id
 
@@ -105,6 +129,26 @@ defmodule Quiz.Play do
   end
 
   def get_game_by_join_code(_), do: {:error, :not_found}
+
+  @doc """
+  Looks up a game for the *play* view by its (case-insensitive) join code.
+
+  Unlike `get_game_by_join_code/1`, this also resolves a game whose run has
+  already finished (`:finished`/`:closed`), so a team that reloads or reconnects
+  after the quiz ends still lands on the finished screen (and the published
+  leaderboard) rather than being bounced back to the join page. Only a `:draft`
+  game — which has no run yet — returns `{:error, :not_found}`.
+  """
+  def get_game_for_play(code) when is_binary(code) do
+    normalized = code |> String.trim() |> String.upcase()
+
+    case Repo.get_by(Game, join_code: normalized) do
+      %Game{status: status} = game when status != :draft -> {:ok, game}
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def get_game_for_play(_), do: {:error, :not_found}
 
   @doc "Returns a changeset for the enrollment form."
   def change_enrollment(attrs \\ %{}) do
@@ -156,6 +200,287 @@ defmodule Quiz.Play do
     Phoenix.Token.sign(QuizWeb.Endpoint, @token_salt, id)
   end
 
+  ## Answers ---------------------------------------------------------------
+
+  @doc """
+  Records a team's answer to a question (latest wins). The raw form params are
+  normalized to the canonical shape `Question.correct_answer?/2` expects, scored,
+  and upserted. Broadcasts `{:answer_submitted, question.position}`.
+  """
+  def submit_answer(%Game{} = game, %Participant{} = participant, %Question{} = question, params) do
+    canonical = canonicalize(question, params)
+    grade = auto_grade(question, canonical)
+
+    attrs = %{
+      payload: %{"value" => canonical},
+      grade: grade,
+      participant_id: participant.id,
+      question_id: question.id
+    }
+
+    with {:ok, answer} <-
+           %Answer{}
+           |> Answer.changeset(attrs)
+           |> Repo.insert(
+             on_conflict: {:replace, [:payload, :grade, :updated_at]},
+             conflict_target: [:participant_id, :question_id]
+           ) do
+      broadcast(game, {:answer_submitted, question.position})
+      {:ok, answer}
+    end
+  end
+
+  @doc """
+  The automatic verdict for an answer: `:matching` earns `:half` for a partial
+  match, otherwise `:full`/`:zero` from `Question.correct_answer?/2`.
+  """
+  def auto_grade(%Question{type: :matching} = question, canonical) do
+    case Question.score_answer(question, canonical) do
+      {n, total} when total > 0 and n == total -> :full
+      {n, _total} when n > 0 -> :half
+      _ -> :zero
+    end
+  end
+
+  def auto_grade(%Question{} = question, canonical) do
+    if Question.correct_answer?(question, canonical), do: :full, else: :zero
+  end
+
+  @doc "Returns this team's stored answer for a question, or `nil`."
+  def get_answer(%Participant{id: pid}, %Question{id: qid}) do
+    Repo.get_by(Answer, participant_id: pid, question_id: qid)
+  end
+
+  @doc "Counts how many teams have answered the question at `position`."
+  def count_answers(%Game{id: game_id}, position) when is_integer(position) do
+    Answer
+    |> join(:inner, [a], q in Question, on: q.id == a.question_id)
+    |> where([a, q], q.game_id == ^game_id and q.position == ^position)
+    |> select([a], count(a.id))
+    |> Repo.one()
+  end
+
+  def count_answers(%Game{}, _position), do: 0
+
+  ## Correction ------------------------------------------------------------
+
+  @doc "All answers for a question, each paired with its participant."
+  def list_answers_for_question(%Question{id: qid}) do
+    Answer
+    |> join(:inner, [a], p in Participant, on: p.id == a.participant_id)
+    |> where([a], a.question_id == ^qid)
+    |> order_by([a], asc: a.inserted_at)
+    |> select([a, p], {a, p})
+    |> Repo.all()
+  end
+
+  @doc """
+  Buckets a question's answers for bulk correction: identical answers grouped,
+  most common first, the "no answer" group last. Each group carries the shared
+  `grade`, the `count`, the participant names, and the underlying `answer_ids`.
+  Only `:text_input` is grouped; other types return `[]`.
+  """
+  def group_answers(%Question{type: :text_input} = question, pairs) do
+    pairs
+    |> Enum.group_by(fn {answer, _p} -> group_key(question, answer) end)
+    |> Enum.map(fn {key, members} ->
+      {answer, _p} = hd(members)
+
+      %{
+        key: key,
+        label: group_label(question, key, answer),
+        blank: key == :blank,
+        grade: answer.grade,
+        count: length(members),
+        participants: Enum.map(members, fn {_a, p} -> p.name end),
+        answer_ids: Enum.map(members, fn {a, _p} -> a.id end)
+      }
+    end)
+    |> Enum.sort_by(fn g -> {(g.blank && 1) || 0, -g.count} end)
+  end
+
+  def group_answers(_question, _pairs), do: []
+
+  defp group_key(%Question{type: :text_input}, %Answer{payload: %{"value" => value}}) do
+    case normalize_text(value) do
+      "" -> :blank
+      norm -> norm
+    end
+  end
+
+  defp group_label(_question, :blank, _answer), do: nil
+
+  defp group_label(%Question{type: :text_input}, _key, %Answer{payload: %{"value" => value}}) do
+    to_string(value)
+  end
+
+  defp normalize_text(value), do: value |> to_string() |> String.trim() |> String.downcase()
+
+  @doc "Sets the grade for every answer in a group (the corrector judging once)."
+  def grade_group(answer_ids, grade)
+      when is_list(answer_ids) and grade in [:full, :half, :zero] do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {count, _} =
+      Answer
+      |> where([a], a.id in ^answer_ids)
+      |> Repo.update_all(set: [grade: grade, updated_at: now])
+
+    {:ok, count}
+  end
+
+  @doc """
+  Marks a question's correction as finalised ("Fertig").
+  """
+  def mark_question_done(%Question{id: qid}) do
+    %Correction{}
+    |> Correction.changeset(%{question_id: qid, done: true})
+    |> Repo.insert(on_conflict: {:replace, [:done, :updated_at]}, conflict_target: :question_id)
+  end
+
+  @doc "Whether a question's correction has been finalised."
+  def correction_done?(%Question{id: qid}) do
+    case Repo.get_by(Correction, question_id: qid) do
+      %Correction{done: done} -> done
+      _ -> false
+    end
+  end
+
+  @doc """
+  Per-question correction status for a game's overview: the question, its answer
+  count, whether it is `done`, and whether it supports grouped grading.
+  """
+  def correction_overview(%Game{} = game) do
+    questions =
+      Question
+      |> where([q], q.game_id == ^game.id)
+      |> order_by([q], asc: q.position)
+      |> Repo.all()
+
+    counts =
+      Answer
+      |> join(:inner, [a], q in Question, on: q.id == a.question_id)
+      |> where([_a, q], q.game_id == ^game.id)
+      |> group_by([a], a.question_id)
+      |> select([a], {a.question_id, count(a.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    done =
+      Correction
+      |> join(:inner, [c], q in Question, on: q.id == c.question_id)
+      |> where([c, q], q.game_id == ^game.id and c.done == true)
+      |> select([c], c.question_id)
+      |> Repo.all()
+      |> MapSet.new()
+
+    Enum.map(questions, fn q ->
+      %{
+        question: q,
+        answer_count: Map.get(counts, q.id, 0),
+        done: MapSet.member?(done, q.id),
+        gradable: q.type == :text_input
+      }
+    end)
+  end
+
+  @doc "Publishes the grading, revealing the leaderboard. Operator only."
+  def publish_grading(%Scope{} = scope, %Game{} = game) do
+    true = game.user_id == scope.user.id
+
+    with {:ok, game} <-
+           game |> Ecto.Changeset.change(grading_published: true) |> Repo.update() do
+      broadcast(game, {:grading_published, game})
+      {:ok, game}
+    end
+  end
+
+  @doc """
+  Final standings: each participant with their summed points (full = 1, half =
+  0.5, zero = 0), ordered high to low, with tie-aware ranks.
+  """
+  def leaderboard(%Game{} = game) do
+    scores =
+      Answer
+      |> join(:inner, [a], q in Question, on: q.id == a.question_id)
+      |> where([_a, q], q.game_id == ^game.id)
+      |> select([a], {a.participant_id, a.grade})
+      |> Repo.all()
+      |> Enum.group_by(fn {pid, _g} -> pid end, fn {_pid, g} -> g end)
+      |> Map.new(fn {pid, grades} ->
+        {pid, Enum.reduce(grades, 0.0, &(Answer.points(&1) + &2))}
+      end)
+
+    list_participants(game)
+    |> Enum.map(fn p -> %{participant: p, score: Map.get(scores, p.id, 0.0)} end)
+    |> Enum.sort_by(& &1.score, :desc)
+    |> with_ranks()
+  end
+
+  defp with_ranks(rows) do
+    rows
+    |> Enum.with_index(1)
+    |> Enum.map_reduce(nil, fn {row, idx}, prev ->
+      rank =
+        case prev do
+          {score, rank} when score == row.score -> rank
+          _ -> idx
+        end
+
+      {Map.put(row, :rank, rank), {row.score, rank}}
+    end)
+    |> elem(0)
+  end
+
+  # Turns the per-type form params into the canonical answer value.
+  defp canonicalize(%Question{type: :text_input}, params) do
+    to_string(params["answer"] || "")
+  end
+
+  defp canonicalize(%Question{type: :single_choice}, params) do
+    case params["answer"] do
+      v when is_binary(v) ->
+        case Integer.parse(v) do
+          {i, _} -> i
+          :error -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp canonicalize(%Question{type: :sequence}, params) do
+    (params["answer"] || "") |> String.split(",", trim: true)
+  end
+
+  defp canonicalize(%Question{type: :matching}, params) do
+    with v when is_binary(v) and v != "" <- params["answer"],
+         {:ok, map} when is_map(map) <- Jason.decode(v) do
+      map
+    else
+      _ -> %{}
+    end
+  end
+
+  defp canonicalize(%Question{type: :pin_on_image}, params) do
+    ans = params["answer"] || %{}
+    %{"x" => parse_float(ans["x"]), "y" => parse_float(ans["y"])}
+  end
+
+  defp canonicalize(_question, _params), do: nil
+
+  defp parse_float(v) when is_number(v), do: v / 1
+
+  defp parse_float(v) when is_binary(v) do
+    case Float.parse(v) do
+      {f, _} -> f
+      :error -> nil
+    end
+  end
+
+  defp parse_float(_), do: nil
+
   ## Questions -------------------------------------------------------------
 
   @doc """
@@ -165,6 +490,14 @@ defmodule Quiz.Play do
   def current_question(%Game{current_position: nil}), do: nil
 
   def current_question(%Game{id: game_id, current_position: position}) do
+    Question
+    |> where([q], q.game_id == ^game_id and q.position == ^position)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc "Fetches a game's question at a given position (for the corrector view)."
+  def get_question(%Game{id: game_id}, position) when is_integer(position) do
     Question
     |> where([q], q.game_id == ^game_id and q.position == ^position)
     |> limit(1)
