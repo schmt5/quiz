@@ -4,9 +4,9 @@ defmodule QuizWeb.GameLiveTest do
   import Phoenix.LiveViewTest
   import Quiz.GamesFixtures
 
-  @create_attrs %{status: :draft, title: "some title"}
-  @update_attrs %{status: :open, title: "some updated title"}
-  @invalid_attrs %{status: nil, title: nil}
+  @create_attrs %{title: "some title"}
+  @update_attrs %{title: "some updated title"}
+  @invalid_attrs %{title: nil}
 
   setup :register_and_log_in_user
 
@@ -22,7 +22,7 @@ defmodule QuizWeb.GameLiveTest do
     test "lists all games", %{conn: conn, game: game} do
       {:ok, _index_live, html} = live(conn, ~p"/games")
 
-      assert html =~ "Listing Games"
+      assert html =~ "Games"
       assert html =~ game.title
     end
 
@@ -114,7 +114,7 @@ defmodule QuizWeb.GameLiveTest do
     end
 
     test "duplicates the game from the dropdown", %{conn: conn, scope: scope} do
-      game = game_fixture(scope, %{title: "Original", status: :finished})
+      game = game_fixture(scope, %{title: "Original"})
 
       question_fixture(scope, %{
         game_id: game.id,
@@ -123,6 +123,8 @@ defmodule QuizWeb.GameLiveTest do
         prompt: "Hauptstadt von Frankreich?",
         data: %{solutions: [%{text: "Paris"}]}
       })
+
+      _game = set_game_status(game, :finished)
 
       {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
 

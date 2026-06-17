@@ -1,12 +1,8 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
-  <div class="mx-auto max-w-sm text-center space-y-6">
-    <%= if @current_scope do %>
+  <%= if @current_scope do %>
+    <div class="mx-auto max-w-sm text-center space-y-6">
       <h1 class="text-4xl font-bold">Welcome, {@current_scope.user.name}.</h1>
-    <% else %>
-      <h1 class="text-4xl font-bold">Welcome.</h1>
-    <% end %>
 
-    <%= if @current_scope do %>
       <div class="flex flex-col gap-2">
         <.link navigate={~p"/games"} class="btn btn-primary w-full">
           Go to games
@@ -18,15 +14,46 @@
           Log out
         </.link>
       </div>
-    <% else %>
-      <div class="flex flex-col gap-2">
-        <.link navigate={~p"/users/log-in"} class="btn btn-primary w-full">
-          Log in
-        </.link>
-        <.link navigate={~p"/users/register"} class="btn btn-primary btn-soft w-full">
-          Register
-        </.link>
+    </div>
+  <% else %>
+    <div class="mx-auto flex max-w-sm flex-col items-center text-center">
+      <div class="inline-flex items-baseline text-5xl font-extrabold tracking-tight">
+        <span class="text-primary">Pub</span>
+        <span class="bg-primary text-secondary rounded-xl px-2.5 py-0.5">Quiz</span>
       </div>
-    <% end %>
-  </div>
+
+      <p class="mt-5 text-lg leading-snug text-base-content/55">
+        Gib den Code vom Quizmaster ein, um deinem Team beizutreten.
+      </p>
+
+      <form action={~p"/join"} method="get" class="mt-8 w-full">
+        <label for="join-code" class="sr-only">Quiz-Code</label>
+        <input
+          id="join-code"
+          name="code"
+          type="text"
+          required
+          autocomplete="off"
+          autocapitalize="characters"
+          autofocus
+          placeholder="CODE"
+          class="input input-bordered w-full text-center text-2xl font-bold uppercase tracking-[0.4em] h-16"
+        />
+
+        <button
+          type="submit"
+          class="mt-4 w-full h-14 rounded-2xl bg-primary text-secondary text-lg font-bold tracking-wide shadow-sm hover:brightness-110 active:brightness-95 transition"
+        >
+          Beitreten <span aria-hidden="true">→</span>
+        </button>
+      </form>
+
+      <p class="mt-10 text-sm text-base-content/50">
+        Bist du Quizmaster?
+        <.link navigate={~p"/users/log-in"} class="link link-primary font-medium">
+          Anmelden
+        </.link>
+      </p>
+    </div>
+  <% end %>
 </Layouts.app>

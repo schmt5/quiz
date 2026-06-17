@@ -49,6 +49,11 @@ defmodule QuizWeb.PlayLive.Join do
             class="uppercase tracking-widest"
           />
 
+          <div :if={@error} class="alert alert-error mt-4" role="alert">
+            <.icon name="hero-exclamation-circle" class="size-5 shrink-0" />
+            <span>{@error}</span>
+          </div>
+
           <button
             type="submit"
             phx-disable-with="Anmelden …"
@@ -81,13 +86,15 @@ defmodule QuizWeb.PlayLive.Join do
      |> assign(:page_title, "Beitreten")
      |> assign(:code, code)
      |> assign(:code_locked, code != "")
+     |> assign(:error, nil)
      |> assign_form(Play.change_enrollment())}
   end
 
   @impl true
   def handle_event("validate", %{"participant" => params}, socket) do
     changeset = Play.change_enrollment(params) |> Map.put(:action, :validate)
-    {:noreply, assign_form(socket, changeset)}
+    # Clear any prior join error as soon as the participant edits the form.
+    {:noreply, socket |> assign(:error, nil) |> assign_form(changeset)}
   end
 
   def handle_event("join", %{"participant" => params}, socket) do
@@ -105,13 +112,22 @@ defmodule QuizWeb.PlayLive.Join do
        |> push_navigate(to: ~p"/play/#{game.join_code}")}
     else
       {:error, :not_found} ->
-        {:noreply,
-         socket
-         |> assign(:code, code)
-         |> put_flash(:error, "Kein Quiz mit diesem Code gefunden.")}
+        message =
+          if code == "" do
+            "Bitte gib den Quiz-Code ein, den du vom Quizmaster bekommen hast."
+          else
+            "Kein Quiz mit dem Code „#{code}“ gefunden. Bitte überprüfe den Code und versuch es nochmals."
+          end
+
+        {:noreply, socket |> assign(:code, code) |> assign(:error, message)}
 
       {:error, :not_joinable} ->
-        {:noreply, put_flash(socket, :error, "Dieses Quiz nimmt gerade keine Teams auf.")}
+        {:noreply,
+         assign(
+           socket,
+           :error,
+           "Dieses Quiz nimmt gerade keine neuen Teams auf. Frag den Quizmaster, ob es schon gestartet wurde."
+         )}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}

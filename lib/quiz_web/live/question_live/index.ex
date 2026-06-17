@@ -8,6 +8,8 @@ defmodule QuizWeb.QuestionLive.Index do
 
   @valid_types ~w(single_choice text_input sequence pin_on_image matching)
 
+  @run_locked_message "Dieses Quiz ist abgeschlossen – Fragen können nicht mehr bearbeitet werden."
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -75,7 +77,7 @@ defmodule QuizWeb.QuestionLive.Index do
       <div class="mx-auto max-w-7xl h-full py-6">
         <div class="flex gap-6 h-full">
           <aside class="w-80 shrink-0 flex flex-col rounded-box bg-base-200 h-full overflow-hidden">
-            <div class="p-3 border-b border-base-200">
+            <div :if={!@locked} class="p-3 border-b border-base-200">
               <div class="flex gap-1 p-1 rounded-lg bg-base-300/60">
                 <button
                   type="button"
@@ -103,6 +105,15 @@ defmodule QuizWeb.QuestionLive.Index do
                 </button>
               </div>
             </div>
+            <div
+              :if={@locked}
+              class="m-3 flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-sm"
+            >
+              <.icon name="hero-lock-closed" class="size-5 shrink-0 text-warning" />
+              <span>
+                Dieses Quiz ist abgeschlossen. Fragen können nicht mehr bearbeitet werden, damit die Auswertung gültig bleibt.
+              </span>
+            </div>
             <div class="flex items-center justify-between px-4 pt-4 pb-3 border-b border-base-200">
               <span class="text-xs font-mono uppercase tracking-wider text-base-content/70">
                 Fragen
@@ -126,6 +137,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   id={"questions-#{question.id}"}
                 >
                   <.link
+                    :if={!@locked}
                     patch={~p"/games/#{@game}/questions/#{question}/edit"}
                     class={[
                       "block rounded-md px-3 py-2 transition border",
@@ -145,12 +157,27 @@ defmodule QuizWeb.QuestionLive.Index do
                       <span class="truncate text-sm">{question.prompt}</span>
                     </div>
                   </.link>
+                  <div
+                    :if={@locked}
+                    class="block rounded-md px-3 py-2 border border-transparent"
+                  >
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-xs text-base-content/60">
+                        {pad(idx + 1)}
+                      </span>
+                      <span class="flex items-center justify-center size-5 rounded bg-base-300 text-base-content/60 font-mono font-bold text-[10px] shrink-0">
+                        {type_letter(question.type)}
+                      </span>
+                      <span class="truncate text-sm">{question.prompt}</span>
+                    </div>
+                  </div>
                 </li>
               </ul>
             </div>
 
             <div class="p-3 border-t border-base-200 flex items-center gap-2">
               <.link
+                :if={!@locked}
                 patch={~p"/games/#{@game}/questions"}
                 class="btn btn-soft flex-1"
               >
@@ -159,7 +186,7 @@ defmodule QuizWeb.QuestionLive.Index do
               <button
                 type="button"
                 popovertarget="panel-actions"
-                class="btn btn-soft btn-square"
+                class={["btn btn-soft btn-square", @locked && "flex-1"]}
                 style="anchor-name:--panel-actions"
                 aria-label="Weitere Aktionen"
               >
@@ -171,7 +198,7 @@ defmodule QuizWeb.QuestionLive.Index do
                 id="panel-actions"
                 style="position-anchor:--panel-actions"
               >
-                <li :if={length(@questions) > 1}>
+                <li :if={!@locked and length(@questions) > 1}>
                   <.link navigate={~p"/games/#{@game}/questions/reorder"}>
                     <.icon name="hero-arrows-up-down" class="size-5" /> Fragen sortieren
                   </.link>
@@ -211,6 +238,7 @@ defmodule QuizWeb.QuestionLive.Index do
                 class="group relative rounded-box border border-base-300 bg-base-100 p-6 space-y-4"
               >
                 <button
+                  :if={!@locked}
                   type="button"
                   phx-click="edit_question"
                   phx-value-id={q.id}
@@ -1105,12 +1133,14 @@ defmodule QuizWeb.QuestionLive.Index do
 
     game = Games.get_game!(socket.assigns.current_scope, game_id)
     questions = Games.list_questions_for_game(socket.assigns.current_scope, game)
+    locked = Games.questions_locked?(game)
 
     {:ok,
      socket
      |> assign(:game, game)
      |> assign(:questions, questions)
-     |> assign(:mode, :edit)
+     |> assign(:locked, locked)
+     |> assign(:mode, if(locked, do: :view, else: :edit))
      |> assign(:selected_question, nil)
      |> assign(:question_type, nil)
      |> assign(:form, nil)
@@ -1134,7 +1164,17 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:form, nil)
   end
 
-  defp apply_action(socket, :new, params) do
+  defp apply_action(socket, action, params) when action in [:new, :edit] do
+    if Games.questions_locked?(socket.assigns.game) do
+      socket
+      |> put_flash(:error, @run_locked_message)
+      |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")
+    else
+      authoring_action(socket, action, params)
+    end
+  end
+
+  defp authoring_action(socket, :new, params) do
     case parse_type(params["type"]) do
       nil ->
         socket
@@ -1159,7 +1199,7 @@ defmodule QuizWeb.QuestionLive.Index do
     end
   end
 
-  defp apply_action(socket, :edit, %{"id" => id}) do
+  defp authoring_action(socket, :edit, %{"id" => id}) do
     question = Games.get_question!(socket.assigns.current_scope, id)
     changeset = Games.change_question(socket.assigns.current_scope, question)
 
@@ -1176,7 +1216,7 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   def handle_event("set_mode", %{"mode" => _}, socket) do
-    {:noreply, assign(socket, :mode, :edit)}
+    {:noreply, assign(socket, :mode, if(socket.assigns.locked, do: :view, else: :edit))}
   end
 
   def handle_event("edit_question", %{"id" => id}, socket) do
@@ -1203,12 +1243,20 @@ defmodule QuizWeb.QuestionLive.Index do
 
   def handle_event("delete", _params, socket) do
     question = socket.assigns.selected_question
-    {:ok, _} = Games.delete_question(socket.assigns.current_scope, question)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Frage gelöscht")
-     |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
+    case Games.delete_question(socket.assigns.current_scope, question) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Frage gelöscht")
+         |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
+
+      {:error, :run_locked} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, @run_locked_message)
+         |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
+    end
   end
 
   defp save_question(socket, :edit, question_params) do
@@ -1224,6 +1272,12 @@ defmodule QuizWeb.QuestionLive.Index do
          socket
          |> put_flash(:info, "Frage erfolgreich aktualisiert")
          |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{question}/edit")}
+
+      {:error, :run_locked} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, @run_locked_message)
+         |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
@@ -1242,6 +1296,12 @@ defmodule QuizWeb.QuestionLive.Index do
          socket
          |> put_flash(:info, "Frage erfolgreich erstellt")
          |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{question}/edit")}
+
+      {:error, :run_locked} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, @run_locked_message)
+         |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}

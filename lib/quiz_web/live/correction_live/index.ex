@@ -14,7 +14,7 @@ defmodule QuizWeb.CorrectionLive.Index do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <:page_header>
-        <div class="mx-auto max-w-3xl">
+        <div class="mx-auto max-w-7xl">
           <div class="breadcrumbs text-xs">
             <ul>
               <li>
@@ -39,11 +39,14 @@ defmodule QuizWeb.CorrectionLive.Index do
                 </.link>
               </div>
               <h1 class="text-2xl font-bold">Korrektur</h1>
+              <span
+                :if={@game.grading_published}
+                class="badge badge-soft badge-primary shrink-0 font-semibold border! border-primary!"
+              >
+                veröffentlicht
+              </span>
             </div>
             <div class="flex items-center gap-2">
-              <.link navigate={~p"/games/#{@game}/leaderboard"} class="btn btn-ghost btn-sm">
-                <.icon name="hero-trophy" class="size-4" /> Rangliste
-              </.link>
               <button
                 type="button"
                 phx-click="publish"
@@ -56,15 +59,15 @@ defmodule QuizWeb.CorrectionLive.Index do
               >
                 <.icon name="hero-check-circle" class="size-4" /> Veröffentlichen
               </button>
+              <.link navigate={~p"/games/#{@game}/leaderboard"} class="btn btn-ghost btn-sm">
+                <.icon name="hero-trophy" class="size-4" /> Rangliste
+              </.link>
             </div>
           </div>
         </div>
       </:page_header>
 
       <div class="mx-auto max-w-3xl py-6 space-y-4">
-        <p :if={@game.grading_published} class="text-sm text-success font-medium">
-          <.icon name="hero-check-circle" class="size-5" /> Wertung veröffentlicht
-        </p>
         <p :if={!@game.grading_published} class="text-sm text-base-content/60">
           {@done_count} von {@gradable_count} Fragen geprüft.
         </p>
@@ -105,7 +108,12 @@ defmodule QuizWeb.CorrectionLive.Index do
         {type_label(@row.question.type)} · {@row.answer_count} Antworten
       </p>
     </div>
-    <span :if={@row.gradable && @row.done} class="badge badge-success">fertig</span>
+    <span
+      :if={@row.gradable && @row.done}
+      class="badge badge-soft badge-primary font-semibold border! border-primary!"
+    >
+      korrigiert
+    </span>
     <span :if={@row.gradable && !@row.done} class="badge badge-warning">zu prüfen</span>
     """
   end

@@ -16,7 +16,7 @@ defmodule QuizWeb.CorrectionLive.Question do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <:page_header>
-        <div class="mx-auto max-w-2xl">
+        <div class="mx-auto max-w-7xl">
           <div class="breadcrumbs text-xs">
             <ul>
               <li>
@@ -42,10 +42,29 @@ defmodule QuizWeb.CorrectionLive.Question do
                 </.link>
               </div>
               <h1 class="text-2xl font-bold truncate">{@question.prompt}</h1>
+              <span :if={@done} class="badge badge-soft badge-primary shrink-0 font-semibold border! border-primary!">
+                korrigiert
+              </span>
             </div>
-            <button type="button" phx-click="done" class="btn btn-primary btn-sm shrink-0">
-              <.icon name="hero-check" class="size-4" /> Fertig
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button type="button" phx-click="done" disabled={@done} class="btn btn-soft btn-sm">
+                <.icon name="hero-check" class="size-4" /> Als korrigiert markieren
+              </button>
+              <.link
+                :if={@next_position}
+                navigate={~p"/games/#{@game}/correction/#{@next_position}"}
+                class="btn btn-primary btn-sm"
+              >
+                Nächste Frage <.icon name="hero-arrow-right" class="size-4" />
+              </.link>
+              <.link
+                :if={!@next_position}
+                navigate={~p"/games/#{@game}/correction"}
+                class="btn btn-primary btn-sm"
+              >
+                Zur Übersicht <.icon name="hero-arrow-right" class="size-4" />
+              </.link>
+            </div>
           </div>
         </div>
       </:page_header>
@@ -58,16 +77,12 @@ defmodule QuizWeb.CorrectionLive.Question do
             halb · <kbd class="kbd kbd-sm">L</kbd>
             falsch · <kbd class="kbd kbd-sm">Tab</kbd>
             nächste · <kbd class="kbd kbd-sm">⏎</kbd>
-            fertig
+            korrigiert
           </p>
           <p :if={@solution} class="text-sm text-base-content/60">
             Lösung: <span class="font-medium text-base-content">{@solution}</span>
           </p>
         </div>
-
-        <p :if={@done} class="text-sm text-success font-medium">
-          <.icon name="hero-check-circle" class="size-5" /> Als geprüft markiert
-        </p>
 
         <p :if={@groups == []} class="rounded-box bg-base-200 p-6 text-center text-base-content/60">
           Noch keine Antworten.
@@ -175,6 +190,7 @@ defmodule QuizWeb.CorrectionLive.Question do
          |> assign(:total, total)
          |> assign(:solution, solution_hint(question))
          |> assign(:done, Play.correction_done?(question))
+         |> assign(:next_position, next_position(game, position))
          |> assign_groups()}
     end
   end
@@ -199,17 +215,7 @@ defmodule QuizWeb.CorrectionLive.Question do
   def handle_event("done", _params, socket) do
     {:ok, _} = Play.mark_question_done(socket.assigns.question)
 
-    case next_position(socket.assigns.game, socket.assigns.question.position) do
-      nil ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Frage geprüft.")
-         |> push_navigate(to: ~p"/games/#{socket.assigns.game}/correction")}
-
-      position ->
-        {:noreply,
-         push_navigate(socket, to: ~p"/games/#{socket.assigns.game}/correction/#{position}")}
-    end
+    {:noreply, assign(socket, :done, true)}
   end
 
   @impl true

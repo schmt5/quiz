@@ -30,7 +30,7 @@ defmodule Quiz.GamesTest do
     end
 
     test "create_game/2 with valid data creates a game with an auto-generated join_code" do
-      valid_attrs = %{status: :draft, title: "some title"}
+      valid_attrs = %{title: "some title"}
       scope = user_scope_fixture()
 
       assert {:ok, %Game{} = game} = Games.create_game(scope, valid_attrs)
@@ -40,19 +40,42 @@ defmodule Quiz.GamesTest do
       assert game.user_id == scope.user.id
     end
 
+    test "create_game/2 always starts in :draft and ignores a supplied status" do
+      scope = user_scope_fixture()
+
+      assert {:ok, %Game{} = game} =
+               Games.create_game(scope, %{title: "some title", status: :running})
+
+      assert game.status == :draft
+    end
+
     test "create_game/2 with invalid data returns error changeset" do
       scope = user_scope_fixture()
       assert {:error, %Ecto.Changeset{}} = Games.create_game(scope, @invalid_attrs)
+    end
+
+    test "create_game/2 generates distinct join codes across many games" do
+      scope = user_scope_fixture()
+
+      codes =
+        for _ <- 1..25 do
+          assert {:ok, %Game{join_code: code}} =
+                   Games.create_game(scope, %{title: "t"})
+
+          code
+        end
+
+      assert length(Enum.uniq(codes)) == length(codes)
     end
 
     test "update_game/3 with valid data updates the game and preserves join_code" do
       scope = user_scope_fixture()
       game = game_fixture(scope)
       original_join_code = game.join_code
-      update_attrs = %{status: :open, title: "some updated title"}
+      update_attrs = %{title: "some updated title"}
 
       assert {:ok, %Game{} = updated_game} = Games.update_game(scope, game, update_attrs)
-      assert updated_game.status == :open
+      assert updated_game.status == :draft
       assert updated_game.title == "some updated title"
       assert updated_game.join_code == original_join_code
     end
@@ -96,7 +119,7 @@ defmodule Quiz.GamesTest do
 
     test "duplicate_game/2 copies the game and all questions into a fresh draft" do
       scope = user_scope_fixture()
-      game = game_fixture(scope, %{title: "Original", status: :finished})
+      game = game_fixture(scope, %{title: "Original"})
 
       q1 =
         question_fixture(scope, %{
@@ -120,6 +143,10 @@ defmodule Quiz.GamesTest do
             ]
           }
         })
+
+      # Questions are authored while the game is a draft; only then is the run
+      # finished (questions can no longer be edited once it is).
+      game = set_game_status(game, :finished)
 
       assert {:ok, copy} = Games.duplicate_game(scope, game)
 
@@ -644,6 +671,75 @@ defmodule Quiz.GamesTest do
 
       assert_raise MatchError, fn ->
         Games.reposition_questions(other_scope, game, [q2.id, q1.id])
+      end
+    end
+
+    for status <- [:finished, :closed] do
+      @tag status: status
+      test "create_question/2 is rejected once the run is #{status}", %{status: status} do
+        scope = user_scope_fixture()
+        game = game_fixture(scope) |> set_game_status(status)
+
+        attrs = %{
+          game_id: game.id,
+          type: :single_choice,
+          prompt: "Neue Frage",
+          position: 1,
+          data: %{choices: [%{text: "A", correct: true}, %{text: "B", correct: false}]}
+        }
+
+        assert {:error, :run_locked} = Games.create_question(scope, attrs)
+      end
+
+      @tag status: status
+      test "update_question/3 is rejected once the run is #{status}", %{status: status} do
+        scope = user_scope_fixture()
+        game = game_fixture(scope)
+        question = question_fixture(scope, %{game_id: game.id, position: 1})
+        set_game_status(game, status)
+
+        assert {:error, :run_locked} =
+                 Games.update_question(scope, question, %{prompt: "geändert"})
+      end
+
+      @tag status: status
+      test "delete_question/2 is rejected once the run is #{status}", %{status: status} do
+        scope = user_scope_fixture()
+        game = game_fixture(scope)
+        question = question_fixture(scope, %{game_id: game.id, position: 1})
+        set_game_status(game, status)
+
+        assert {:error, :run_locked} = Games.delete_question(scope, question)
+        assert %Question{} = Games.get_question!(scope, question.id)
+      end
+
+      @tag status: status
+      test "reposition_questions/3 is rejected once the run is #{status}", %{status: status} do
+        scope = user_scope_fixture()
+        game = game_fixture(scope)
+        q1 = question_fixture(scope, %{game_id: game.id, position: 1})
+        q2 = question_fixture(scope, %{game_id: game.id, position: 2})
+        game = set_game_status(game, status)
+
+        assert {:error, :run_locked} =
+                 Games.reposition_questions(scope, game, [q2.id, q1.id])
+      end
+    end
+
+    test "questions can still be edited while the run is open or running" do
+      scope = user_scope_fixture()
+
+      for status <- [:draft, :open, :running] do
+        game = game_fixture(scope)
+        question = question_fixture(scope, %{game_id: game.id, position: 1})
+        set_game_status(game, status)
+
+        new_prompt = "ok-#{status}"
+
+        assert {:ok, %Question{} = updated} =
+                 Games.update_question(scope, question, %{prompt: new_prompt})
+
+        assert updated.prompt == new_prompt
       end
     end
   end

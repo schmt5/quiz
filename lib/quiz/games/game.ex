@@ -19,7 +19,7 @@ defmodule Quiz.Games.Game do
 
   schema "games" do
     field :title, :string
-    field :status, Ecto.Enum, values: [:draft, :open, :running, :finished, :closed]
+    field :status, Ecto.Enum, values: [:draft, :open, :running, :finished, :closed], default: :draft
     field :join_code, :string
     field :current_position, :integer
     field :grading_published, :boolean, default: false
@@ -28,11 +28,18 @@ defmodule Quiz.Games.Game do
     timestamps(type: :utc_datetime)
   end
 
-  @doc false
+  @doc """
+  Authoring changeset for creating and editing a game's content.
+
+  Status is deliberately *not* castable here: a new game always starts in
+  `:draft` (the schema default) and every later status change goes through
+  `transition_changeset/2`, which enforces the state machine. The user can
+  never pick a status directly.
+  """
   def changeset(game, attrs, user_scope) do
     game
-    |> cast(attrs, [:title, :status])
-    |> validate_required([:title, :status])
+    |> cast(attrs, [:title])
+    |> validate_required([:title])
     |> maybe_put_join_code()
     |> unique_constraint(:join_code)
     |> put_change(:user_id, user_scope.user.id)

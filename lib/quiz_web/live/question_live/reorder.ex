@@ -224,6 +224,15 @@ defmodule QuizWeb.QuestionLive.Reorder do
          |> put_flash(:info, "Reihenfolge der Fragen gespeichert")
          |> push_navigate(to: ~p"/games/#{socket.assigns.game}/questions")}
 
+      {:error, :run_locked} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           "Dieses Quiz ist abgeschlossen – Fragen können nicht mehr bearbeitet werden."
+         )
+         |> push_navigate(to: ~p"/games/#{socket.assigns.game}/questions")}
+
       {:error, :invalid} ->
         {:noreply,
          put_flash(socket, :error, "Die neue Reihenfolge konnte nicht gespeichert werden.")}

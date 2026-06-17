@@ -9,7 +9,7 @@ defmodule QuizWeb.GameLive.Index do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-2xl space-y-4">
         <.header>
-          Listing Games
+          Games
           <:actions>
             <.button variant="primary" navigate={~p"/games/new"}>
               <.icon name="hero-plus" /> New Game
@@ -53,7 +53,7 @@ defmodule QuizWeb.GameLive.Index do
 
     {:ok,
      socket
-     |> assign(:page_title, "Listing Games")
+     |> assign(:page_title, "Games")
      |> stream(:games, list_games(socket.assigns.current_scope))}
   end
 

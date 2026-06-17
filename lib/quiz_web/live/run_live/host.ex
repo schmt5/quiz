@@ -11,88 +11,185 @@ defmodule QuizWeb.RunLive.Host do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden bg-base-100">
-      <%!-- Left 2/3: title, QR + code, primary action --%>
-      <div class="lg:w-2/3 flex flex-col items-center justify-center gap-8 p-8 lg:overflow-y-auto">
-        <div class="text-center space-y-1">
-          <p class="text-xs uppercase tracking-wider text-base-content/60">
-            Mach mit beim Quiz
+    <%!-- Lobby (:open): two-pane presenter view matching the "wasdas?" mockup. --%>
+    <div :if={@game.status == :open} class="flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden">
+      <%!-- Left: brand, live team count, connected teams, start action --%>
+      <div class="lg:w-3/5 flex flex-col gap-8 bg-primary text-base-100 p-8 sm:p-12 lg:overflow-y-auto">
+        <div class="flex items-start justify-between gap-6">
+          <div>
+            <p class="font-display text-5xl sm:text-6xl font-extrabold leading-none">
+              was<span class="text-secondary">das?</span>
+            </p>
+            <p class="mt-2 text-base-100/55 truncate max-w-xs sm:max-w-sm">{@game.title}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="font-display text-5xl sm:text-6xl font-extrabold leading-none text-secondary tabular-nums">
+              {length(@participants)}
+            </p>
+            <p class="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-base-100/55">
+              Teams bereit
+            </p>
+          </div>
+        </div>
+
+        <div class="flex-1 min-h-0 flex flex-col gap-4">
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-100/55">
+            Verbundene Teams
           </p>
-          <h1 class="text-3xl sm:text-4xl font-bold">{@game.title}</h1>
+
+          <p :if={@participants == []} class="text-base-100/55">
+            Warte auf die ersten Teams …
+          </p>
+
+          <ul
+            id="participants"
+            class="grid grid-cols-1 sm:grid-cols-2 gap-3 list-none lg:overflow-y-auto"
+          >
+            <li
+              :for={participant <- @participants}
+              id={"participant-#{participant.id}"}
+              class="flex items-center gap-3 rounded-box bg-white/10 px-4 py-3"
+            >
+              <span class="size-2.5 shrink-0 rounded-full bg-success"></span>
+              <span class="font-medium truncate">{participant.name}</span>
+            </li>
+          </ul>
         </div>
 
-        <div :if={@game.status == :open} class="flex flex-col items-center gap-4">
-          <div class="bg-white rounded-3xl shadow-xl ring-1 ring-base-300 p-6">
-            <div class="size-56 sm:size-64">{raw(@qr_svg)}</div>
-          </div>
-          <div class="text-center">
-            <p class="text-sm text-base-content/60">Code</p>
-            <p class="font-display text-5xl font-extrabold tracking-[0.2em] pl-[0.2em]">
-              {@game.join_code}
-            </p>
-          </div>
-        </div>
-
-        <div :if={@game.status == :running} class="w-full max-w-2xl space-y-6">
-          <div :if={@question} class="space-y-4">
-            <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
-              Frage {@q_number} / {@q_total}
-            </p>
-            <h2 class="text-3xl sm:text-4xl font-extrabold leading-tight text-primary">
-              {@question.prompt}
-            </h2>
-            <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
-
-            <div class="flex items-center gap-2 text-sm text-base-content/60">
-              <.icon name="hero-user-group" class="size-4" />
-              <span>
-                {@answered_count} / {length(@participants)} Teams haben geantwortet
-              </span>
-            </div>
-          </div>
-
-          <p :if={!@question} class="text-base-content/60">Keine Frage verfügbar.</p>
-        </div>
-
-        <div :if={@game.status in [:finished, :closed]} class="text-center space-y-3">
-          <.icon name="hero-flag" class="size-12 text-primary" />
-          <p class="text-xl font-bold">Quiz beendet.</p>
-          <.link navigate={~p"/games/#{@game}/leaderboard"} class="btn btn-primary">
-            <.icon name="hero-trophy" /> Zur Rangliste
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            phx-click="start"
+            disabled={@participants == []}
+            class="btn btn-secondary btn-lg"
+          >
+            <.icon name="hero-play" /> Quiz starten
+          </button>
+          <.link navigate={~p"/games/#{@game}"} class="btn btn-ghost btn-sm text-base-100/70">
+            <.icon name="hero-arrow-left" class="size-4" /> Zurück zum Quiz
           </.link>
         </div>
+      </div>
 
-        <button
-          :if={@game.status == :open}
-          type="button"
-          phx-click="start"
-          disabled={@participants == []}
-          class="btn btn-primary btn-lg"
-        >
-          <.icon name="hero-play" /> Quiz starten
-        </button>
+      <%!-- Right: how to join — QR, alternative URL, per-character code tiles --%>
+      <aside class="lg:w-2/5 flex flex-col items-center justify-center gap-8 bg-base-100 p-8 sm:p-12">
+        <p class="text-sm font-bold uppercase tracking-[0.22em] text-primary">
+          Jetzt beitreten
+        </p>
 
-        <button
-          :if={@game.status == :running}
-          type="button"
-          phx-click="advance"
-          class="btn btn-primary btn-lg"
-        >
-          <%= if @q_number >= @q_total and @q_total > 0 do %>
-            <.icon name="hero-flag" /> Quiz beenden
-          <% else %>
-            Nächste Frage <.icon name="hero-arrow-right" />
-          <% end %>
-        </button>
+        <div class="bg-white rounded-3xl shadow-sm ring-1 ring-base-300 p-6">
+          <div class="size-56 sm:size-64">{raw(@qr_svg)}</div>
+        </div>
 
-        <.link navigate={~p"/games/#{@game}"} class="btn btn-ghost btn-sm">
-          <.icon name="hero-arrow-left" class="size-4" /> Zurück zum Quiz
-        </.link>
+        <div class="flex w-full max-w-xs items-center gap-3 text-base-content/45">
+          <span class="h-px flex-1 bg-base-300"></span>
+          <span class="text-xs font-bold uppercase tracking-[0.2em]">oder</span>
+          <span class="h-px flex-1 bg-base-300"></span>
+        </div>
+
+        <div class="text-center space-y-4">
+          <p class="text-base-content/60">
+            Gehe auf <span class="font-bold text-primary">{join_host()}</span> · Code eingeben
+          </p>
+          <div class="flex justify-center gap-2">
+            <span
+              :for={char <- String.graphemes(@game.join_code)}
+              class="grid size-12 sm:size-14 place-items-center rounded-box bg-base-200 ring-1 ring-base-300 font-display text-2xl sm:text-3xl font-extrabold text-primary"
+            >
+              {char}
+            </span>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <%!-- Running / finished: unchanged single-column operator view. --%>
+    <div
+      :if={@game.status != :open}
+      class="flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden bg-base-100"
+    >
+      <%!-- Left 2/3: header (brand · title · primary action), then question / result --%>
+      <div class="lg:w-2/3 flex flex-col min-h-0 lg:overflow-hidden">
+        <div class="shrink-0 flex items-center justify-between gap-4 h-[84px] px-6 border-b border-base-300">
+          <div class="flex items-center gap-4 min-w-0">
+            <.link
+              navigate={~p"/"}
+              class="inline-flex items-baseline text-2xl font-extrabold tracking-tight shrink-0"
+            >
+              <span class="text-primary">Pub</span>
+              <span class="bg-primary text-secondary rounded-xl px-2 py-0.5">Quiz</span>
+            </.link>
+            <h1 class="text-lg font-bold truncate">{@game.title}</h1>
+          </div>
+
+          <button
+            :if={@game.status == :running}
+            type="button"
+            phx-click="advance"
+            class="btn btn-primary shrink-0"
+          >
+            <%= if @q_number >= @q_total and @q_total > 0 do %>
+              <.icon name="hero-flag" /> Quiz beenden
+            <% else %>
+              Nächste Frage <.icon name="hero-arrow-right" />
+            <% end %>
+          </button>
+
+          <div
+            :if={@game.status in [:finished, :closed]}
+            class="flex items-center gap-2 shrink-0"
+          >
+            <.link
+              :if={@review_position}
+              navigate={~p"/games/#{@game}/review/#{@review_position}"}
+              class="btn btn-primary"
+            >
+              <.icon name="hero-light-bulb" /> Lösungen besprechen
+            </.link>
+            <.link
+              navigate={~p"/games/#{@game}/leaderboard"}
+              class={["btn", (@review_position && "btn-ghost") || "btn-primary"]}
+            >
+              <.icon name="hero-trophy" /> Zur Rangliste
+            </.link>
+          </div>
+        </div>
+
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-8 p-8 lg:overflow-y-auto">
+          <div :if={@game.status == :running} class="w-full max-w-3xl space-y-8">
+            <div :if={@question} class="space-y-6">
+              <p class="text-sm font-bold uppercase tracking-[0.18em] text-base-content/45">
+                Frage {@q_number} / {@q_total}
+              </p>
+              <h2 class="text-4xl sm:text-5xl font-extrabold leading-tight text-primary">
+                {@question.prompt}
+              </h2>
+              <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
+
+              <div class="flex items-center gap-2 text-lg text-base-content/60">
+                <.icon name="hero-user-group" class="size-5" />
+                <span>
+                  {@answered_count} / {length(@participants)} Teams haben geantwortet
+                </span>
+              </div>
+            </div>
+
+            <p :if={!@question} class="text-lg text-base-content/60">Keine Frage verfügbar.</p>
+          </div>
+
+          <div :if={@game.status in [:finished, :closed]} class="text-center space-y-4">
+            <.icon name="hero-flag" class="size-16 text-primary" />
+            <p class="text-3xl font-bold">Quiz beendet.</p>
+            <p :if={@review_position} class="text-lg text-base-content/60">
+              Geh die Lösungen mit allen durch – danach geht's zur Rangliste.
+            </p>
+          </div>
+        </div>
       </div>
 
       <%!-- Right 1/3: full-height, self-scrolling team roster --%>
       <aside class="lg:w-1/3 flex flex-col min-h-0 bg-base-200 border-t lg:border-t-0 lg:border-l border-base-300">
-        <div class="shrink-0 flex items-baseline justify-between p-6 border-b border-base-300">
+        <div class="shrink-0 flex items-center justify-between h-[84px] px-6 border-b border-base-300">
           <h2 class="text-lg font-bold">Teams</h2>
           <span class="badge badge-primary badge-lg font-display font-extrabold">
             {length(@participants)}
@@ -106,7 +203,7 @@ defmodule QuizWeb.RunLive.Host do
           Warte auf die ersten Teams …
         </p>
 
-        <ul id="participants" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-2 list-none">
+        <ul id="participants-roster" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-2 list-none">
           <li
             :for={participant <- @participants}
             id={"participant-#{participant.id}"}
@@ -133,6 +230,7 @@ defmodule QuizWeb.RunLive.Host do
      |> assign(:game, game)
      |> assign(:qr_svg, qr_svg(game))
      |> assign(:participants, Play.list_participants(game))
+     |> assign(:review_position, first_review_position(socket.assigns.current_scope, game))
      |> load_question()}
   end
 
@@ -189,9 +287,30 @@ defmodule QuizWeb.RunLive.Host do
     assign(socket, :answered_count, Play.count_answers(game, game.current_position))
   end
 
+  # Position of the first question, where the solution walkthrough starts, or nil
+  # when the quiz has no questions (then there is nothing to review).
+  defp first_review_position(scope, game) do
+    case Games.list_questions_for_game(scope, game) do
+      [] -> nil
+      [first | _] -> first.position
+    end
+  end
+
   defp qr_svg(game) do
     (QuizWeb.Endpoint.url() <> ~p"/join?code=#{game.join_code}")
     |> EQRCode.encode()
-    |> EQRCode.svg(viewbox: true, class: "w-full h-full", color: "#000000")
+    |> EQRCode.svg(viewbox: true, class: "w-full h-full", color: "#00555a")
+  end
+
+  # The bare host (no scheme) participants type into their browser, derived from
+  # the configured endpoint URL — e.g. "wasdas.app" or "localhost:4000".
+  defp join_host do
+    QuizWeb.Endpoint.url()
+    |> URI.parse()
+    |> then(&[&1.host, &1.port])
+    |> case do
+      [host, port] when port in [nil, 80, 443] -> host
+      [host, port] -> "#{host}:#{port}"
+    end
   end
 end

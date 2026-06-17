@@ -53,7 +53,7 @@ defmodule QuizWeb.Router do
       on_mount: [{QuizWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
 
-      live "/games", GameLive.Index, :indexs
+      live "/games", GameLive.Index, :index
       live "/games/new", GameLive.Form, :new
       live "/games/:id", GameLive.Show, :show
       live "/games/:id/edit", GameLive.Form, :edit
@@ -66,6 +66,7 @@ defmodule QuizWeb.Router do
       live "/games/:game_id/preview", GameLive.Preview, :show
 
       live "/games/:id/run", RunLive.Host, :show
+      live "/games/:id/review/:position", RunLive.Review, :show
       live "/games/:id/correction", CorrectionLive.Index, :index
       live "/games/:id/correction/:position", CorrectionLive.Question, :show
       live "/games/:id/leaderboard", LeaderboardLive.Show, :show

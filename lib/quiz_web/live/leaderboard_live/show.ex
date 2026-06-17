@@ -12,25 +12,45 @@ defmodule QuizWeb.LeaderboardLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-base-100 flex flex-col items-center p-6 sm:p-10">
-      <div class="w-full max-w-xl space-y-8">
-        <div class="text-center space-y-1">
-          <p class="text-xs uppercase tracking-wider text-base-content/60">Rangliste</p>
-          <h1 class="text-3xl sm:text-4xl font-bold">{@game.title}</h1>
+    <div class="flex flex-col h-screen overflow-hidden bg-base-100">
+      <%!-- Header (brand · title · primary action), mirroring the run view. --%>
+      <div class="shrink-0 flex items-center justify-between gap-4 h-[84px] px-6 border-b border-base-300">
+        <div class="flex items-center gap-4 min-w-0">
+          <.link
+            navigate={~p"/"}
+            class="inline-flex items-baseline text-2xl font-extrabold tracking-tight shrink-0"
+          >
+            <span class="text-primary">Pub</span>
+            <span class="bg-primary text-secondary rounded-xl px-2 py-0.5">Quiz</span>
+          </.link>
+          <div class="min-w-0">
+            <h1 class="text-lg font-bold truncate">{@game.title}</h1>
+            <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+              Rangliste
+            </p>
+          </div>
         </div>
 
-        <div
-          :if={!@game.grading_published}
-          class="flex flex-col items-center gap-4 rounded-3xl bg-base-200 p-10 text-center"
-        >
-          <span class="loading loading-dots loading-lg text-primary"></span>
-          <p class="text-xl font-bold">Korrektur in Bearbeitung</p>
-          <p class="text-base-content/60">
-            Die Rangliste erscheint, sobald die Wertung veröffentlicht ist.
-          </p>
-        </div>
+        <.link navigate={~p"/games/#{@game}"} class="btn btn-primary shrink-0">
+          <.icon name="hero-arrow-left" /> Zurück zum Quiz
+        </.link>
+      </div>
 
-        <LeaderboardComponent.standings :if={@game.grading_published} rows={@rows} />
+      <div class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center p-6 sm:p-10">
+        <div class="w-full max-w-xl space-y-8">
+          <div
+            :if={!@game.grading_published}
+            class="flex flex-col items-center gap-4 rounded-3xl bg-base-200 p-10 text-center"
+          >
+            <span class="loading loading-dots loading-lg text-primary"></span>
+            <p class="text-xl font-bold">Korrektur in Bearbeitung</p>
+            <p class="text-base-content/60">
+              Die Rangliste erscheint, sobald die Wertung veröffentlicht ist.
+            </p>
+          </div>
+
+          <LeaderboardComponent.standings :if={@game.grading_published} rows={@rows} />
+        </div>
       </div>
     </div>
     """

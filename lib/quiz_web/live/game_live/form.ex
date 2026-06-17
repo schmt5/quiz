@@ -11,18 +11,10 @@ defmodule QuizWeb.GameLive.Form do
       <div class="mx-auto max-w-2xl space-y-4">
         <.header>
           {@page_title}
-          <:subtitle>Use this form to manage game records in your database.</:subtitle>
         </.header>
 
         <.form for={@form} id="game-form" phx-change="validate" phx-submit="save">
           <.input field={@form[:title]} type="text" label="Title" />
-          <.input
-            field={@form[:status]}
-            type="select"
-            label="Status"
-            prompt="Choose a value"
-            options={Ecto.Enum.values(Quiz.Games.Game, :status)}
-          />
           <footer>
             <.button phx-disable-with="Saving..." variant="primary">Save Game</.button>
             <.button navigate={return_path(@current_scope, @return_to, @game)}>Cancel</.button>
