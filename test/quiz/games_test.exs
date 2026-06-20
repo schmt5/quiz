@@ -10,7 +10,7 @@ defmodule Quiz.GamesTest do
     import Quiz.GamesFixtures
 
     @invalid_attrs %{status: nil, title: nil}
-    @join_code_format ~r/^[A-HJ-NP-Z2-9]{6}$/
+    @join_code_format ~r/^[1-9]\d{3}$/
 
     test "list_games/1 returns all scoped games" do
       scope = user_scope_fixture()

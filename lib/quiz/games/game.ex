@@ -2,8 +2,10 @@ defmodule Quiz.Games.Game do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @join_code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  @join_code_length 6
+  # Join codes are 4-digit PINs in the range 1000–9999 (no leading zeros, so
+  # they always render as four visible digits). Uniqueness is enforced by the
+  # `join_code` unique index; `Quiz.Games.insert_game/3` retries on collision.
+  @join_code_range 1000..9999
 
   # Allowed `status` transitions for a quiz run. The authoring `changeset/3`
   # owns the initial `:draft` state; every runtime transition goes through
@@ -19,7 +21,11 @@ defmodule Quiz.Games.Game do
 
   schema "games" do
     field :title, :string
-    field :status, Ecto.Enum, values: [:draft, :open, :running, :finished, :closed], default: :draft
+
+    field :status, Ecto.Enum,
+      values: [:draft, :open, :running, :finished, :closed],
+      default: :draft
+
     field :join_code, :string
     field :current_position, :integer
     field :grading_published, :boolean, default: false
@@ -79,6 +85,6 @@ defmodule Quiz.Games.Game do
   end
 
   defp generate_join_code do
-    for _ <- 1..@join_code_length, into: "", do: <<Enum.random(@join_code_alphabet)>>
+    @join_code_range |> Enum.random() |> Integer.to_string()
   end
 end

@@ -23,21 +23,23 @@
       </div>
 
       <p class="mt-5 text-lg leading-snug text-base-content/55">
-        Gib den Code vom Quizmaster ein, um deinem Team beizutreten.
+        Gib die PIN vom Quizmaster ein, um deinem Team beizutreten.
       </p>
 
       <form action={~p"/join"} method="get" class="mt-8 w-full">
-        <label for="join-code" class="sr-only">Quiz-Code</label>
+        <label for="join-code" class="sr-only">PIN</label>
         <input
           id="join-code"
           name="code"
           type="text"
           required
           autocomplete="off"
-          autocapitalize="characters"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="4"
           autofocus
-          placeholder="CODE"
-          class="input input-bordered w-full text-center text-2xl font-bold uppercase tracking-[0.4em] h-16"
+          placeholder="PIN"
+          class="input input-bordered w-full text-center text-2xl font-bold tracking-[0.4em] h-16"
         />
 
         <button

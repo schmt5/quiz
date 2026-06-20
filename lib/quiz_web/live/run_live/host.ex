@@ -89,7 +89,7 @@ defmodule QuizWeb.RunLive.Host do
 
         <div class="text-center space-y-4">
           <p class="text-base-content/60">
-            Gehe auf <span class="font-bold text-primary">{join_host()}</span> · Code eingeben
+            Gehe auf <span class="font-bold text-primary">{join_host()}</span> · PIN eingeben
           </p>
           <div class="flex justify-center gap-2">
             <span

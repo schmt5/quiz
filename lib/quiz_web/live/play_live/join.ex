@@ -20,7 +20,7 @@ defmodule QuizWeb.PlayLive.Join do
         </div>
 
         <p class="mt-5 text-lg leading-snug text-base-content/55">
-          Gebt euren Teamnamen ein{if @code_locked, do: ".", else: " und den Code vom Quizmaster."}
+          Gebt euren Teamnamen ein{if @code_locked, do: ".", else: " und die PIN vom Quizmaster."}
         </p>
 
         <.form
@@ -42,11 +42,14 @@ defmodule QuizWeb.PlayLive.Join do
           <.input
             field={@form[:code]}
             type="text"
-            label="Quiz-Code"
+            label="PIN"
             value={@code}
             disabled={@code_locked}
             autocomplete="off"
-            class="uppercase tracking-widest"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="4"
+            class="tracking-widest"
           />
 
           <div :if={@error} class="alert alert-error mt-4" role="alert">
@@ -114,9 +117,9 @@ defmodule QuizWeb.PlayLive.Join do
       {:error, :not_found} ->
         message =
           if code == "" do
-            "Bitte gib den Quiz-Code ein, den du vom Quizmaster bekommen hast."
+            "Bitte gib die PIN ein, die du vom Quizmaster bekommen hast."
           else
-            "Kein Quiz mit dem Code „#{code}“ gefunden. Bitte überprüfe den Code und versuch es nochmals."
+            "Kein Quiz mit der PIN „#{code}“ gefunden. Bitte überprüfe die PIN und versuch es nochmals."
           end
 
         {:noreply, socket |> assign(:code, code) |> assign(:error, message)}

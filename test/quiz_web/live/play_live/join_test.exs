@@ -18,11 +18,11 @@ defmodule QuizWeb.PlayLive.JoinTest do
 
       html =
         lv
-        |> form("#join-form", participant: %{name: "Team A", code: "ZZZZZZ"})
+        |> form("#join-form", participant: %{name: "Team A", code: "0000"})
         |> render_submit()
 
-      assert html =~ "Kein Quiz mit dem Code"
-      assert html =~ "ZZZZZZ"
+      assert html =~ "Kein Quiz mit der PIN"
+      assert html =~ "0000"
     end
 
     test "an empty code asks for the code", %{conn: conn} do
@@ -33,7 +33,7 @@ defmodule QuizWeb.PlayLive.JoinTest do
         |> form("#join-form", participant: %{name: "Team A", code: ""})
         |> render_submit()
 
-      assert html =~ "Bitte gib den Quiz-Code ein"
+      assert html =~ "Bitte gib die PIN ein"
     end
 
     test "the error clears once the participant edits the form", %{conn: conn} do
@@ -41,17 +41,17 @@ defmodule QuizWeb.PlayLive.JoinTest do
 
       html =
         lv
-        |> form("#join-form", participant: %{name: "Team A", code: "ZZZZZZ"})
+        |> form("#join-form", participant: %{name: "Team A", code: "0000"})
         |> render_submit()
 
-      assert html =~ "Kein Quiz mit dem Code"
+      assert html =~ "Kein Quiz mit der PIN"
 
       html =
         lv
-        |> form("#join-form", participant: %{name: "Team A", code: "ZZZZZ"})
+        |> form("#join-form", participant: %{name: "Team A", code: "000"})
         |> render_change()
 
-      refute html =~ "Kein Quiz mit dem Code"
+      refute html =~ "Kein Quiz mit der PIN"
     end
 
     test "a valid code enrols and moves to the waiting room", %{conn: conn, game: game} do

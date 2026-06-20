@@ -24,7 +24,7 @@ defmodule QuizWeb.GameLive.Index do
         >
           <:col :let={{_id, game}} label="Title">{game.title}</:col>
           <:col :let={{_id, game}} label="Status">{game.status}</:col>
-          <:col :let={{_id, game}} label="Join code">{game.join_code}</:col>
+          <:col :let={{_id, game}} label="PIN">{game.join_code}</:col>
           <:action :let={{_id, game}}>
             <div class="sr-only">
               <.link navigate={~p"/games/#{game}"}>Show</.link>
