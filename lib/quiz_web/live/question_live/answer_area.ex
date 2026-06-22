@@ -44,28 +44,24 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     ~H"""
     <div id={"preview-sequence-#{@question.id}"} phx-hook=".PreviewSortable" phx-update="ignore">
       <input type="hidden" name="answer" data-answer />
+      <p class="mb-2 flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-base-content/50">
+        <.drag_grip class="size-3" /> Ziehen zum Sortieren
+      </p>
       <ul data-list class="space-y-2 list-none p-0">
         <li
           :for={item <- @question.data.items}
           data-id={item.id}
-          class="flex items-center gap-2 rounded-box bg-base-200 px-3 py-2"
+          class="flex items-center gap-2 rounded-box bg-base-200 px-3 py-2 ring-1 ring-inset ring-base-300/60"
         >
           <button
             type="button"
             data-handle
             aria-label="Sortieren"
-            class="grid place-items-center min-w-11 min-h-11 -my-1.5 cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 select-none touch-none"
+            class="grid place-items-center min-w-11 min-h-11 -my-1.5 cursor-grab active:cursor-grabbing text-base-content/50 hover:text-base-content/80 select-none touch-none"
           >
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor">
-              <circle cx="7" cy="5" r="1.5" />
-              <circle cx="13" cy="5" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" />
-              <circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="15" r="1.5" />
-              <circle cx="13" cy="15" r="1.5" />
-            </svg>
+            <.drag_grip class="size-4" />
           </button>
-          <span class="text-sm">{item.text}</span>
+          <span class="flex-1 text-sm">{item.text}</span>
         </li>
       </ul>
     </div>
@@ -208,8 +204,8 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         </li>
       </ul>
 
-      <p class="mt-5 mb-2 text-[11px] font-mono uppercase tracking-wider text-base-content/50">
-        Zuordnungen
+      <p class="mt-5 mb-2 flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-base-content/50">
+        <.drag_grip class="size-3" /> Ziehen zum Zuordnen
       </p>
       <div
         data-pool
@@ -218,9 +214,12 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         <div
           :for={value <- Enum.shuffle(Enum.map(@question.data.pairs, & &1.right_text))}
           data-chip
-          class="match-chip inline-flex items-center justify-between gap-1.5 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium shadow-sm cursor-grab active:cursor-grabbing select-none touch-none transition hover:shadow-md hover:-translate-y-px"
+          class="match-chip inline-flex items-center justify-between gap-1.5 rounded-box border border-base-300 bg-base-100 pl-1.5 pr-3 py-2 text-sm font-medium shadow-sm cursor-grab active:cursor-grabbing select-none touch-none transition hover:shadow-md hover:-translate-y-px"
         >
-          <span data-value>{value}</span>
+          <span class="inline-flex min-w-0 items-center gap-1.5">
+            <.drag_grip class="size-3.5 opacity-50" />
+            <span data-value class="truncate">{value}</span>
+          </span>
           <button
             type="button"
             data-remove
@@ -548,4 +547,21 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   end
 
   def prepare_question(question), do: question
+
+  # Six-dot "grip" glyph signalling a draggable element. Shared by the sequence
+  # handle and the matching chips so the drag affordance reads the same way.
+  attr :class, :string, default: nil
+
+  defp drag_grip(assigns) do
+    ~H"""
+    <svg class={["shrink-0", @class]} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <circle cx="7" cy="5" r="1.5" />
+      <circle cx="13" cy="5" r="1.5" />
+      <circle cx="7" cy="10" r="1.5" />
+      <circle cx="13" cy="10" r="1.5" />
+      <circle cx="7" cy="15" r="1.5" />
+      <circle cx="13" cy="15" r="1.5" />
+    </svg>
+    """
+  end
 end
