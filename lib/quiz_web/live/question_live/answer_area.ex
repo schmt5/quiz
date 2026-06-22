@@ -54,7 +54,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             type="button"
             data-handle
             aria-label="Sortieren"
-            class="cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 px-1 select-none touch-none"
+            class="grid place-items-center min-w-11 min-h-11 -my-1.5 cursor-grab active:cursor-grabbing text-base-content/40 hover:text-base-content/70 select-none touch-none"
           >
             <svg class="size-4" viewBox="0 0 20 20" fill="currentColor">
               <circle cx="7" cy="5" r="1.5" />
@@ -76,7 +76,6 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           const el = this.el;
           const list = el.querySelector("[data-list]");
           const input = el.querySelector("[data-answer]");
-          let dragging = null;
 
           const sync = () => {
             const ids = [...list.querySelectorAll("li")].map((li) => li.dataset.id);
@@ -84,53 +83,101 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           };
           sync();
 
-          const bindHandles = () => {
-            list.querySelectorAll("[data-handle]").forEach((h) => {
-              if (h.dataset.bound) return;
-              h.dataset.bound = "1";
-              const li = h.closest("li");
-              h.addEventListener("mousedown", () => li.setAttribute("draggable", "true"));
-              h.addEventListener("mouseup", () => li.removeAttribute("draggable"));
-              h.addEventListener("mouseleave", () => li.removeAttribute("draggable"));
-            });
+          // Pointer-driven drag (works for mouse, touch and pen). Native HTML5
+          // drag-and-drop never fires from touch on mobile Firefox/iOS Safari,
+          // so we reorder manually based on the pointer's Y position.
+          const THRESHOLD = 6;   // px of movement before a drag actually starts
+          const EDGE = 60;       // px band near the viewport edge that auto-scrolls
+          let start = null;      // { id, li, x, y } captured on pointerdown
+          let dragging = null;   // the <li> currently being dragged
+          let ghost = null;      // floating clone that follows the finger
+
+          const makeGhost = (li) => {
+            const r = li.getBoundingClientRect();
+            const g = li.cloneNode(true);
+            g.style.position = "fixed";
+            g.style.left = r.left + "px";
+            g.style.top = r.top + "px";
+            g.style.width = r.width + "px";
+            g.style.margin = "0";
+            g.style.pointerEvents = "none";
+            g.style.zIndex = "9999";
+            g.classList.add("opacity-90", "shadow-lg", "rotate-1");
+            document.body.appendChild(g);
+            return g;
           };
-          bindHandles();
-          this.observer = new MutationObserver(bindHandles);
-          this.observer.observe(list, { childList: true });
 
-          list.addEventListener("dragstart", (e) => {
-            const li = e.target.closest("li");
-            if (!li || li.parentElement !== list) return;
-            dragging = li;
-            li.classList.add("opacity-40");
-            e.dataTransfer.effectAllowed = "move";
-            try { e.dataTransfer.setData("text/plain", ""); } catch (_) {}
-          });
+          const moveGhost = (x, y) => {
+            if (!ghost || !start) return;
+            ghost.style.left = x - start.dx + "px";
+            ghost.style.top = y - start.dy + "px";
+          };
 
-          list.addEventListener("dragover", (e) => {
-            if (!dragging) return;
-            e.preventDefault();
+          const reorder = (y) => {
             const siblings = [...list.querySelectorAll("li:not(.opacity-40)")];
             const after = siblings.find((s) => {
               const r = s.getBoundingClientRect();
-              return e.clientY < r.top + r.height / 2;
+              return y < r.top + r.height / 2;
             });
             if (after) {
               if (after !== dragging.nextSibling) list.insertBefore(dragging, after);
-            } else {
-              if (list.lastElementChild !== dragging) list.appendChild(dragging);
+            } else if (list.lastElementChild !== dragging) {
+              list.appendChild(dragging);
             }
-          });
+          };
 
-          list.addEventListener("dragend", () => {
-            if (!dragging) return;
-            dragging.classList.remove("opacity-40");
-            dragging.removeAttribute("draggable");
-            dragging = null;
-            sync();
-          });
+          const autoScroll = (y) => {
+            if (y < EDGE) window.scrollBy(0, -10);
+            else if (y > window.innerHeight - EDGE) window.scrollBy(0, 10);
+          };
+
+          const onDown = (e) => {
+            const handle = e.target.closest("[data-handle]");
+            if (!handle) return;
+            const li = handle.closest("li");
+            if (!li || li.parentElement !== list) return;
+            const r = li.getBoundingClientRect();
+            start = { li, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top };
+            handle.setPointerCapture(e.pointerId);
+            e.preventDefault();
+          };
+
+          const begin = () => {
+            dragging = start.li;
+            dragging.classList.add("opacity-40");
+            ghost = makeGhost(dragging);
+            if (navigator.vibrate) navigator.vibrate(10);
+          };
+
+          const onMove = (e) => {
+            if (!start) return;
+            if (!dragging) {
+              if (Math.abs(e.clientX - start.x) < THRESHOLD &&
+                  Math.abs(e.clientY - start.y) < THRESHOLD) return;
+              begin();
+            }
+            e.preventDefault();
+            moveGhost(e.clientX, e.clientY);
+            reorder(e.clientY);
+            autoScroll(e.clientY);
+          };
+
+          const onUp = () => {
+            if (dragging) {
+              dragging.classList.remove("opacity-40");
+              dragging = null;
+              ghost?.remove();
+              ghost = null;
+              sync();
+            }
+            start = null;
+          };
+
+          list.addEventListener("pointerdown", onDown);
+          list.addEventListener("pointermove", onMove);
+          list.addEventListener("pointerup", onUp);
+          list.addEventListener("pointercancel", onUp);
         },
-        destroyed() { this.observer?.disconnect(); }
       };
     </script>
     """
@@ -171,7 +218,6 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         <div
           :for={value <- Enum.shuffle(Enum.map(@question.data.pairs, & &1.right_text))}
           data-chip
-          draggable="true"
           class="match-chip inline-flex items-center justify-between gap-1.5 rounded-box border border-base-300 bg-base-100 px-3 py-2 text-sm font-medium shadow-sm cursor-grab active:cursor-grabbing select-none touch-none transition hover:shadow-md hover:-translate-y-px"
         >
           <span data-value>{value}</span>
@@ -234,58 +280,108 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             el.querySelectorAll("[data-slot]").forEach((s) => s.classList.remove(...HILITE));
             pool.classList.remove("bg-primary/5");
           };
-          const highlight = (e) => {
-            clearHighlights();
-            const slot = e.target.closest("[data-slot]");
-            if (slot) slot.classList.add(...HILITE);
-            else if (e.target.closest("[data-pool]")) pool.classList.add("bg-primary/5");
-          };
 
           el.querySelectorAll("[data-chip]").forEach(styleChip);
           sync();
 
-          el.addEventListener("dragstart", (e) => {
+          // Pointer-driven drag (mouse, touch and pen). Native HTML5 drag-and-drop
+          // never fires from touch on mobile Firefox/iOS Safari, so we move a
+          // floating clone and resolve the drop target via elementFromPoint.
+          const THRESHOLD = 6;   // px of movement before a drag actually starts
+          const EDGE = 60;       // px band near the viewport edge that auto-scrolls
+          let start = null;      // { chip, x, y, dx, dy } captured on pointerdown
+          let ghost = null;      // floating clone that follows the finger
+
+          // elementFromPoint would hit the ghost (it sits on top); pointer-events:
+          // none keeps it transparent to hit-testing, but guard anyway.
+          const targetAt = (x, y) => {
+            const node = document.elementFromPoint(x, y);
+            return node ? (node.closest("[data-slot]") || node.closest("[data-pool]")) : null;
+          };
+
+          const moveGhost = (x, y) => {
+            if (!ghost || !start) return;
+            ghost.style.left = x - start.dx + "px";
+            ghost.style.top = y - start.dy + "px";
+          };
+
+          const autoScroll = (y) => {
+            if (y < EDGE) window.scrollBy(0, -10);
+            else if (y > window.innerHeight - EDGE) window.scrollBy(0, 10);
+          };
+
+          const begin = () => {
+            dragging = start.chip;
+            dragging.classList.add("opacity-40");
+            const r = dragging.getBoundingClientRect();
+            ghost = dragging.cloneNode(true);
+            ghost.style.position = "fixed";
+            ghost.style.left = r.left + "px";
+            ghost.style.top = r.top + "px";
+            ghost.style.width = r.width + "px";
+            ghost.style.margin = "0";
+            ghost.style.pointerEvents = "none";
+            ghost.style.zIndex = "9999";
+            ghost.classList.add("opacity-90", "shadow-lg", "rotate-2");
+            document.body.appendChild(ghost);
+            if (navigator.vibrate) navigator.vibrate(10);
+          };
+
+          el.addEventListener("pointerdown", (e) => {
+            // Ignore the remove button so tap-to-remove still works.
+            if (e.target.closest("[data-remove]")) return;
             const chip = e.target.closest("[data-chip]");
             if (!chip) return;
-            dragging = chip;
-            chip.classList.add("opacity-40");
-            e.dataTransfer.effectAllowed = "move";
-            try { e.dataTransfer.setData("text/plain", ""); } catch (_) {}
-          });
-
-          el.addEventListener("dragend", () => {
-            if (dragging) dragging.classList.remove("opacity-40");
-            clearHighlights();
-            dragging = null;
-          });
-
-          el.addEventListener("dragover", (e) => {
-            if (dragging && (e.target.closest("[data-slot]") || e.target.closest("[data-pool]"))) {
-              e.preventDefault();
-              highlight(e);
-            }
-          });
-
-          el.addEventListener("drop", (e) => {
-            if (!dragging) return;
+            const r = chip.getBoundingClientRect();
+            start = { chip, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top };
+            chip.setPointerCapture(e.pointerId);
             e.preventDefault();
-            clearHighlights();
-            const slot = e.target.closest("[data-slot]");
-            const fromSlot = dragging.closest("[data-slot]");
-
-            if (slot) {
-              const occupant = slot.querySelector("[data-chip]");
-              if (occupant && occupant !== dragging) returnToPool(occupant);
-              slot.appendChild(dragging);
-            } else {
-              pool.appendChild(dragging);
-            }
-
-            styleChip(dragging);
-            if (fromSlot && fromSlot !== slot) refreshPlaceholder(fromSlot);
-            if (slot) refreshPlaceholder(slot);
-            sync();
           });
+
+          el.addEventListener("pointermove", (e) => {
+            if (!start) return;
+            if (!dragging) {
+              if (Math.abs(e.clientX - start.x) < THRESHOLD &&
+                  Math.abs(e.clientY - start.y) < THRESHOLD) return;
+              begin();
+            }
+            e.preventDefault();
+            moveGhost(e.clientX, e.clientY);
+            autoScroll(e.clientY);
+            const target = targetAt(e.clientX, e.clientY);
+            clearHighlights();
+            if (target?.matches("[data-slot]")) target.classList.add(...HILITE);
+            else if (target?.matches("[data-pool]")) pool.classList.add("bg-primary/5");
+          });
+
+          const onUp = (e) => {
+            if (dragging) {
+              const target = targetAt(e.clientX, e.clientY);
+              const slot = target?.matches("[data-slot]") ? target : null;
+              const fromSlot = dragging.closest("[data-slot]");
+
+              if (slot) {
+                const occupant = slot.querySelector("[data-chip]");
+                if (occupant && occupant !== dragging) returnToPool(occupant);
+                slot.appendChild(dragging);
+              } else if (target?.matches("[data-pool]")) {
+                pool.appendChild(dragging);
+              }
+
+              styleChip(dragging);
+              if (fromSlot && fromSlot !== slot) refreshPlaceholder(fromSlot);
+              if (slot) refreshPlaceholder(slot);
+              clearHighlights();
+              dragging.classList.remove("opacity-40");
+              ghost?.remove();
+              ghost = null;
+              dragging = null;
+              sync();
+            }
+            start = null;
+          };
+          el.addEventListener("pointerup", onUp);
+          el.addEventListener("pointercancel", onUp);
 
           el.addEventListener("click", (e) => {
             const remove = e.target.closest("[data-remove]");
