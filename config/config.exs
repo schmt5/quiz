@@ -24,6 +24,10 @@ config :quiz,
   ecto_repos: [Quiz.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# The UI is German throughout, so default all Gettext output (including the
+# built-in Ecto/changeset error messages) to German.
+config :quiz, QuizWeb.Gettext, default_locale: "de", locales: ~w(de en)
+
 # User-upload storage. Defaults to local disk everywhere; prod swaps in the
 # Cloudflare R2 adapter via config/runtime.exs when credentials are present.
 config :quiz, Quiz.Storage, adapter: Quiz.Storage.Local

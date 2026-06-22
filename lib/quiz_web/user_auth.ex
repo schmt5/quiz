@@ -223,7 +223,7 @@ defmodule QuizWeb.UserAuth do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
+        |> Phoenix.LiveView.put_flash(:error, "Bitte melde dich an, um diese Seite aufzurufen.")
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
 
       {:halt, socket}
@@ -238,7 +238,10 @@ defmodule QuizWeb.UserAuth do
     else
       socket =
         socket
-        |> Phoenix.LiveView.put_flash(:error, "You must re-authenticate to access this page.")
+        |> Phoenix.LiveView.put_flash(
+          :error,
+          "Bitte authentifiziere dich erneut, um diese Seite aufzurufen."
+        )
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
 
       {:halt, socket}
@@ -272,7 +275,7 @@ defmodule QuizWeb.UserAuth do
       conn
     else
       conn
-      |> put_flash(:error, "You must log in to access this page.")
+      |> put_flash(:error, "Bitte melde dich an, um diese Seite aufzurufen.")
       |> maybe_store_return_to()
       |> redirect(to: ~p"/users/log-in")
       |> halt()

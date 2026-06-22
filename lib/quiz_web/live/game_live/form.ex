@@ -8,16 +8,42 @@ defmodule QuizWeb.GameLive.Form do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-2xl space-y-4">
-        <.header>
-          {@page_title}
-        </.header>
+      <div class="mx-auto max-w-xl space-y-6">
+        <div>
+          <div class="breadcrumbs text-xs">
+            <ul>
+              <li>
+                <.link navigate={~p"/"} aria-label="Home">
+                  <.icon name="hero-home" class="size-4" />
+                </.link>
+              </li>
+              <li><.link navigate={~p"/games"}>Quizze</.link></li>
+              <li>{@page_title}</li>
+            </ul>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold">{@page_title}</h1>
+        </div>
 
-        <.form for={@form} id="game-form" phx-change="validate" phx-submit="save">
-          <.input field={@form[:title]} type="text" label="Title" />
-          <footer>
-            <.button phx-disable-with="Saving..." variant="primary">Save Game</.button>
-            <.button navigate={return_path(@current_scope, @return_to, @game)}>Cancel</.button>
+        <.form
+          for={@form}
+          id="game-form"
+          phx-change="validate"
+          phx-submit="save"
+          class="space-y-6"
+        >
+          <.input
+            field={@form[:title]}
+            type="text"
+            label="Titel"
+            placeholder="z. B. Pub-Quiz Freitagabend"
+          />
+          <footer class="flex items-center gap-3">
+            <.button phx-disable-with="Wird gespeichert …" variant="primary">
+              Quiz speichern
+            </.button>
+            <.button navigate={return_path(@current_scope, @return_to, @game)}>
+              Abbrechen
+            </.button>
           </footer>
         </.form>
       </div>
@@ -40,7 +66,7 @@ defmodule QuizWeb.GameLive.Form do
     game = Games.get_game!(socket.assigns.current_scope, id)
 
     socket
-    |> assign(:page_title, "Edit Game")
+    |> assign(:page_title, "Quiz bearbeiten")
     |> assign(:game, game)
     |> assign(:form, to_form(Games.change_game(socket.assigns.current_scope, game)))
   end
@@ -49,7 +75,7 @@ defmodule QuizWeb.GameLive.Form do
     game = %Game{user_id: socket.assigns.current_scope.user.id}
 
     socket
-    |> assign(:page_title, "New Game")
+    |> assign(:page_title, "Neues Quiz")
     |> assign(:game, game)
     |> assign(:form, to_form(Games.change_game(socket.assigns.current_scope, game)))
   end
@@ -69,7 +95,7 @@ defmodule QuizWeb.GameLive.Form do
       {:ok, game} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Game updated successfully")
+         |> put_flash(:info, "Quiz aktualisiert.")
          |> push_navigate(
            to: return_path(socket.assigns.current_scope, socket.assigns.return_to, game)
          )}
@@ -84,7 +110,7 @@ defmodule QuizWeb.GameLive.Form do
       {:ok, game} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Game created successfully")
+         |> put_flash(:info, "Quiz erstellt.")
          |> push_navigate(
            to: return_path(socket.assigns.current_scope, socket.assigns.return_to, game)
          )}

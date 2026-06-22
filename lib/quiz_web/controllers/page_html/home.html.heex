@@ -1,17 +1,71 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <%= if @current_scope do %>
-    <div class="mx-auto max-w-sm text-center space-y-6">
-      <h1 class="text-4xl font-bold">Welcome, {@current_scope.user.name}.</h1>
+    <div class="mx-auto w-full max-w-2xl space-y-8">
+      <div class="space-y-2">
+        <p class="text-sm font-medium uppercase tracking-wider text-base-content/50">
+          Quizmaster-Bereich
+        </p>
+        <h1 class="text-3xl sm:text-4xl font-bold">
+          Willkommen zurück, {@current_scope.user.name}.
+        </h1>
+        <p class="text-lg leading-snug text-base-content/55">
+          Verwalte deine Quizze oder erstelle ein neues für die nächste Runde.
+        </p>
+      </div>
 
-      <div class="flex flex-col gap-2">
-        <.link navigate={~p"/games"} class="btn btn-primary w-full">
-          Go to games
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <.link
+          navigate={~p"/games"}
+          class="group rounded-box bg-base-200 p-6 transition hover:bg-base-300/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <div class="flex items-center justify-between">
+            <span class="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <.icon name="hero-rectangle-stack" class="size-6" />
+            </span>
+            <.icon
+              name="hero-arrow-right"
+              class="size-5 text-base-content/30 transition group-hover:translate-x-1 group-hover:text-base-content/60"
+            />
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Meine Quizze</h2>
+          <p class="mt-1 text-sm text-base-content/55">
+            Quizze ansehen, bearbeiten und durchführen.
+          </p>
         </.link>
-        <.link navigate={~p"/users/settings"} class="btn btn-primary btn-soft w-full">
-          Go to settings
+
+        <.link
+          navigate={~p"/games/new"}
+          class="group rounded-box bg-primary p-6 text-primary-content transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        >
+          <div class="flex items-center justify-between">
+            <span class="flex size-11 items-center justify-center rounded-xl bg-primary-content/15">
+              <.icon name="hero-plus" class="size-6" />
+            </span>
+            <.icon
+              name="hero-arrow-right"
+              class="size-5 opacity-50 transition group-hover:translate-x-1 group-hover:opacity-90"
+            />
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Neues Quiz</h2>
+          <p class="mt-1 text-sm opacity-80">
+            Ein frisches Quiz von Grund auf erstellen.
+          </p>
         </.link>
-        <.link href={~p"/users/log-out"} method="delete" class="btn btn-soft w-full">
-          Log out
+      </div>
+
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-base-200 pt-6 text-sm">
+        <.link
+          navigate={~p"/users/settings"}
+          class="inline-flex items-center gap-2 text-base-content/60 transition hover:text-base-content"
+        >
+          <.icon name="hero-cog-6-tooth" class="size-4" /> Einstellungen
+        </.link>
+        <.link
+          href={~p"/users/log-out"}
+          method="delete"
+          class="inline-flex items-center gap-2 text-base-content/60 transition hover:text-base-content"
+        >
+          <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Abmelden
         </.link>
       </div>
     </div>

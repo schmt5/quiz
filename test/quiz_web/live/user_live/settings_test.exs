@@ -21,7 +21,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
 
       assert {:redirect, %{to: path, flash: flash}} = redirect
       assert path == ~p"/users/log-in"
-      assert %{"error" => "You must log in to access this page."} = flash
+      assert %{"error" => "Bitte melde dich an, um diese Seite aufzurufen."} = flash
     end
 
     test "redirects if user is not in sudo mode", %{conn: conn} do
@@ -33,7 +33,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
         |> live(~p"/users/settings")
         |> follow_redirect(conn, ~p"/users/log-in")
 
-      assert conn.resp_body =~ "You must re-authenticate to access this page."
+      assert conn.resp_body =~ "Bitte authentifiziere dich erneut, um diese Seite aufzurufen."
     end
   end
 
@@ -138,7 +138,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
         })
 
       assert result =~ "Save Password"
-      assert result =~ "should be at least 12 character(s)"
+      assert result =~ "sollte mindestens 12 Zeichen lang sein"
       assert result =~ "does not match password"
     end
 
@@ -156,7 +156,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
         |> render_submit()
 
       assert result =~ "Save Password"
-      assert result =~ "should be at least 12 character(s)"
+      assert result =~ "sollte mindestens 12 Zeichen lang sein"
       assert result =~ "does not match password"
     end
   end

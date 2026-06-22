@@ -207,7 +207,7 @@ defmodule QuizWeb.QuestionLiveTest do
 
       assert live
              |> form("#question-form", question: @invalid_attrs)
-             |> render_change() =~ "can&#39;t be blank"
+             |> render_change() =~ "darf nicht leer sein"
 
       render_submit(live, "save", @single_choice_submit_params)
 
@@ -305,7 +305,7 @@ defmodule QuizWeb.QuestionLiveTest do
 
       assert live
              |> form("#question-form", question: @invalid_attrs)
-             |> render_change() =~ "can&#39;t be blank"
+             |> render_change() =~ "darf nicht leer sein"
 
       params =
         put_in(@single_choice_submit_params, ["question", "prompt"], "renamed prompt")
@@ -344,6 +344,45 @@ defmodule QuizWeb.QuestionLiveTest do
       assert view_html =~ "<strong>Hinweis</strong>"
     end
 
+    test "auto-saves edits on change with no manual save button", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      # Edit mode has no manual save control — neither header button nor footer bar.
+      refute html =~ "Frage speichern"
+
+      html =
+        live
+        |> form("#question-form", question: %{"prompt" => "autosaved prompt"})
+        |> render_change()
+
+      # A successful auto-save surfaces nothing in the header.
+      refute html =~ "Nicht gespeichert"
+      refute html =~ "Speichern fehlgeschlagen"
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.prompt == "autosaved prompt"
+    end
+
+    test "shows a save-error status in the header when a change is invalid", %{
+      conn: conn,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      html =
+        live
+        |> form("#question-form", question: %{"prompt" => ""})
+        |> render_change()
+
+      assert html =~ "Nicht gespeichert"
+    end
+
     test "deletes the current question and returns to the type picker", %{
       conn: conn,
       game: game,
@@ -351,7 +390,7 @@ defmodule QuizWeb.QuestionLiveTest do
     } do
       {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
 
-      live |> element(~s|a[aria-label="Frage löschen"]|) |> render_click()
+      live |> element(~s|#question-actions a[phx-click="delete"]|) |> render_click()
 
       assert_patched(live, ~p"/games/#{game}/questions")
       html = render(live)

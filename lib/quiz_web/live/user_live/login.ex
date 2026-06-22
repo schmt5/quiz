@@ -8,10 +8,10 @@ defmodule QuizWeb.UserLive.Login do
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
-            <p>Log in</p>
+            <p>Anmelden</p>
             <:subtitle>
               <%= if @current_scope do %>
-                You need to reauthenticate to perform sensitive actions on your account.
+                Bitte melde dich erneut an, um sicherheitsrelevante Aktionen für dein Konto durchzuführen.
               <% end %>
             </:subtitle>
           </.header>
@@ -29,7 +29,7 @@ defmodule QuizWeb.UserLive.Login do
             readonly={!!@current_scope}
             field={f[:email]}
             type="email"
-            label="Email"
+            label="E-Mail"
             autocomplete="username"
             spellcheck="false"
             required
@@ -38,16 +38,16 @@ defmodule QuizWeb.UserLive.Login do
           <.input
             field={@form[:password]}
             type="password"
-            label="Password"
+            label="Passwort"
             autocomplete="current-password"
             spellcheck="false"
             required
           />
           <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
-            Log in and stay logged in <span aria-hidden="true">→</span>
+            Anmelden und angemeldet bleiben <span aria-hidden="true">→</span>
           </.button>
           <.button class="btn btn-primary btn-soft w-full mt-2">
-            Log in only this time
+            Nur dieses Mal anmelden
           </.button>
         </.form>
       </div>

@@ -42,34 +42,42 @@ defmodule QuizWeb.QuestionLive.Index do
               <h1 class="text-2xl font-bold">{@game.title} Fragen</h1>
             </div>
             <div
-              :if={@mode == :edit and @live_action in [:new, :edit]}
+              :if={@mode == :edit and @live_action == :edit}
               class="flex items-center gap-2"
             >
-              <.link patch={~p"/games/#{@game}/questions"} class="btn btn-ghost btn-sm">
-                Abbrechen
-              </.link>
-              <div
-                :if={@live_action == :edit}
-                class="tooltip tooltip-bottom"
-                data-tip="Frage löschen"
+              <p
+                :if={@save_status}
+                class="flex items-center gap-1 text-sm text-error"
+                role="alert"
               >
-                <.link
-                  phx-click="delete"
-                  data-confirm="Diese Frage löschen?"
-                  class="btn btn-soft btn-error btn-sm btn-square"
-                  aria-label="Frage löschen"
-                >
-                  <.icon name="hero-trash" class="size-5" />
-                </.link>
-              </div>
+                <.icon name="hero-exclamation-triangle" class="size-4 shrink-0" />
+                {@save_status}
+              </p>
               <button
-                type="submit"
-                form="question-form"
-                phx-disable-with="Speichert..."
-                class="btn btn-primary btn-sm"
+                type="button"
+                popovertarget="question-actions"
+                class="btn btn-soft btn-square btn-sm"
+                style="anchor-name:--question-actions"
+                aria-label="Weitere Aktionen"
               >
-                Frage speichern
+                <.icon name="hero-ellipsis-vertical" class="size-5" />
               </button>
+              <ul
+                class="dropdown dropdown-end menu w-52 rounded-box bg-base-100 shadow-sm"
+                popover
+                id="question-actions"
+                style="position-anchor:--question-actions"
+              >
+                <li>
+                  <.link
+                    phx-click="delete"
+                    data-confirm="Diese Frage löschen?"
+                    class="text-error"
+                  >
+                    <.icon name="hero-trash" class="size-5" /> Frage löschen
+                  </.link>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -405,6 +413,7 @@ defmodule QuizWeb.QuestionLive.Index do
       id="question-form"
       phx-change="validate"
       phx-submit="save"
+      phx-debounce="500"
       class="rounded-box bg-base-100 p-6"
     >
       <div class="space-y-4">
@@ -413,7 +422,9 @@ defmodule QuizWeb.QuestionLive.Index do
 
         <.input field={@form[:prompt]} type="textarea" label="Fragetext" />
 
-        <div>
+        <%!-- Beschreibung component is hidden for now (both creating and editing); markup and
+              logic are kept in place so it can be re-enabled later. --%>
+        <div :if={false}>
           <label class="block text-sm font-semibold mb-1">
             Beschreibung <span class="font-normal text-base-content/50">(optional)</span>
           </label>
@@ -1121,6 +1132,18 @@ defmodule QuizWeb.QuestionLive.Index do
           <% end %>
         </.inputs_for>
       </div>
+
+      <div
+        :if={@live_action == :new}
+        class="sticky bottom-0 -mx-6 -mb-6 mt-6 flex items-center justify-end gap-2 border-t border-base-200 bg-base-100/95 px-6 py-4 backdrop-blur rounded-b-box"
+      >
+        <.link patch={~p"/games/#{@game}/questions"} class="btn btn-ghost btn-sm">
+          Abbrechen
+        </.link>
+        <button type="submit" phx-disable-with="Speichert..." class="btn btn-primary btn-sm">
+          Frage speichern
+        </button>
+      </div>
     </.form>
     """
   end
@@ -1144,6 +1167,7 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:selected_question, nil)
      |> assign(:question_type, nil)
      |> assign(:form, nil)
+     |> assign(:save_status, nil)
      |> allow_upload(:pin_image,
        accept: ~w(.jpg .jpeg .png .webp),
        max_entries: 1,
@@ -1162,6 +1186,7 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:selected_question, nil)
     |> assign(:question_type, nil)
     |> assign(:form, nil)
+    |> assign(:save_status, nil)
   end
 
   defp apply_action(socket, action, params) when action in [:new, :edit] do
@@ -1196,6 +1221,7 @@ defmodule QuizWeb.QuestionLive.Index do
         |> assign(:selected_question, question)
         |> assign(:question_type, type)
         |> assign(:form, to_form(changeset))
+        |> assign(:save_status, nil)
     end
   end
 
@@ -1208,6 +1234,7 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:selected_question, question)
     |> assign(:question_type, question.type)
     |> assign(:form, to_form(changeset))
+    |> assign(:save_status, nil)
   end
 
   @impl true
@@ -1234,7 +1261,16 @@ defmodule QuizWeb.QuestionLive.Index do
         question_params
       )
 
-    {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+    socket =
+      if socket.assigns.live_action == :edit do
+        # Existing questions auto-save on every change; new ones can't (no entity
+        # yet) and are persisted via the footer "Frage speichern" button.
+        autosave(socket, changeset, question_params)
+      else
+        assign(socket, :form, to_form(changeset, action: :validate))
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("save", %{"question" => question_params}, socket) do
@@ -1256,6 +1292,46 @@ defmodule QuizWeb.QuestionLive.Index do
          socket
          |> put_flash(:error, @run_locked_message)
          |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
+    end
+  end
+
+  # Silently persists edits as they happen. On success nothing is surfaced (the
+  # header save status stays clear); any failure is shown in the header via
+  # :save_status. The form is rebuilt from the persisted record so embedded
+  # answers keep ids in sync for the next change.
+  defp autosave(socket, changeset, question_params) do
+    cond do
+      not changeset.valid? ->
+        socket
+        |> assign(:form, to_form(changeset, action: :validate))
+        |> assign(:save_status, "Nicht gespeichert – bitte Eingaben prüfen")
+
+      true ->
+        question_params = consume_pin_image(socket, question_params)
+
+        case Games.update_question(
+               socket.assigns.current_scope,
+               socket.assigns.selected_question,
+               question_params
+             ) do
+          {:ok, question} ->
+            form = to_form(Games.change_question(socket.assigns.current_scope, question))
+
+            socket
+            |> assign(:selected_question, question)
+            |> assign(:form, form)
+            |> assign(:save_status, nil)
+
+          {:error, :run_locked} ->
+            socket
+            |> assign(:form, to_form(changeset, action: :validate))
+            |> assign(:save_status, @run_locked_message)
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            socket
+            |> assign(:form, to_form(changeset, action: :validate))
+            |> assign(:save_status, "Speichern fehlgeschlagen")
+        end
     end
   end
 
