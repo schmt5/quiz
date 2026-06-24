@@ -13,8 +13,8 @@ defmodule QuizWeb.RunLive.Review do
   """
   use QuizWeb, :live_view
 
-  alias Quiz.Games
-  alias QuizWeb.QuestionLive.SolutionArea
+  alias Quiz.{Games, Play, Stats}
+  alias QuizWeb.QuestionLive.{SolutionArea, StatsArea}
 
   @impl true
   def render(assigns) do
@@ -79,10 +79,40 @@ defmodule QuizWeb.RunLive.Review do
           </h2>
           <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
           <SolutionArea.solution_area question={@question} />
+
+          <%!-- Optional anonymous answer distribution, revealed on demand and kept
+               visually separate from the solution above. --%>
+          <div :if={@game.show_statistics} class="pt-2">
+            <button
+              :if={!@show_stats}
+              type="button"
+              phx-click="toggle_stats"
+              class="btn btn-soft"
+            >
+              <.icon name="hero-chart-bar" class="size-5" /> Statistik einblenden
+            </button>
+
+            <div :if={@show_stats} class="space-y-3">
+              <div class="flex items-center justify-between">
+                <h3 class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+                  Statistik
+                </h3>
+                <button type="button" phx-click="toggle_stats" class="btn btn-ghost btn-sm">
+                  <.icon name="hero-chevron-up" class="size-4" /> Ausblenden
+                </button>
+              </div>
+              <StatsArea.stats_area stats={@stats} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("toggle_stats", _params, socket) do
+    {:noreply, update(socket, :show_stats, &(!&1))}
   end
 
   @impl true
@@ -110,9 +140,20 @@ defmodule QuizWeb.RunLive.Review do
          |> assign(:number, index + 1)
          |> assign(:total, length(questions))
          |> assign(:prev_position, position_at(questions, index - 1))
-         |> assign(:next_position, position_at(questions, index + 1))}
+         |> assign(:next_position, position_at(questions, index + 1))
+         |> assign(:show_stats, false)
+         |> assign_stats(game, question)}
     end
   end
+
+  # Stats are computed only when the game opts in. Each question is its own URL
+  # (a fresh mount), so the reveal toggle naturally resets per question.
+  defp assign_stats(socket, %{show_statistics: true} = game, question) do
+    total = length(Play.list_participants(game))
+    assign(socket, :stats, Stats.question_stats(question, total))
+  end
+
+  defp assign_stats(socket, _game, _question), do: assign(socket, :stats, nil)
 
   defp position_at(questions, index) when index >= 0 do
     case Enum.at(questions, index) do

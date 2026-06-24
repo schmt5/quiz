@@ -37,6 +37,15 @@ defmodule QuizWeb.GameLive.Form do
             label="Titel"
             placeholder="z. B. Pub-Quiz Freitagabend"
           />
+          <.input
+            field={@form[:show_statistics]}
+            type="checkbox"
+            label="Statistik in der Besprechung anzeigen"
+          />
+          <p class="text-sm text-base-content/60 -mt-3">
+            Zeigt nach dem Quiz pro Frage, wie die Teams geantwortet haben –
+            anonym und getrennt von der Musterlösung.
+          </p>
           <footer class="flex items-center gap-3">
             <.button phx-disable-with="Wird gespeichert …" variant="primary">
               Quiz speichern

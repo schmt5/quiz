@@ -29,6 +29,7 @@ defmodule Quiz.Games.Game do
     field :join_code, :string
     field :current_position, :integer
     field :grading_published, :boolean, default: false
+    field :show_statistics, :boolean, default: false
     field :user_id, :id
 
     timestamps(type: :utc_datetime)
@@ -44,7 +45,7 @@ defmodule Quiz.Games.Game do
   """
   def changeset(game, attrs, user_scope) do
     game
-    |> cast(attrs, [:title])
+    |> cast(attrs, [:title, :show_statistics])
     |> validate_required([:title])
     |> maybe_put_join_code()
     |> unique_constraint(:join_code)

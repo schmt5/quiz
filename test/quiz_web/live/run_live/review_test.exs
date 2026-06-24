@@ -101,4 +101,50 @@ defmodule QuizWeb.RunLive.ReviewTest do
       assert html =~ "uploads/test/fixture.png"
     end
   end
+
+  describe "statistics" do
+    defp answered_game(scope, opts) do
+      game = game_fixture(scope, %{show_statistics: Keyword.fetch!(opts, :show_statistics)})
+
+      question =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 1,
+          type: :single_choice,
+          prompt: "Welche Stadt?",
+          data: %{choices: [%{text: "Paris", correct: true}, %{text: "Berlin", correct: false}]}
+        })
+
+      running = set_game_status(game, :running)
+
+      for {name, idx} <- [{"t1", "1"}, {"t2", "1"}, {"t3", "0"}] do
+        {:ok, p, _tok} = Quiz.Play.enroll(running, name)
+        {:ok, _a} = Quiz.Play.submit_answer(running, p, question, %{"answer" => idx})
+      end
+
+      set_game_status(running, :finished)
+    end
+
+    test "stays hidden when the game has statistics disabled", %{conn: conn, scope: scope} do
+      game = answered_game(scope, show_statistics: false)
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/review/1")
+
+      refute html =~ "Statistik einblenden"
+    end
+
+    test "reveals the anonymous distribution on demand", %{conn: conn, scope: scope} do
+      game = answered_game(scope, show_statistics: true)
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/review/1")
+
+      assert html =~ "Statistik einblenden"
+      refute html =~ "Teams geantwortet"
+
+      html = lv |> element("button", "Statistik einblenden") |> render_click()
+
+      assert html =~ "Teams geantwortet"
+      assert html =~ "Verteilung der Antworten"
+      # Berlin (2 votes) leads Paris (1) — most-picked first, no correctness shown.
+      assert html =~ "Berlin"
+    end
+  end
 end
