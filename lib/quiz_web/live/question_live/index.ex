@@ -612,7 +612,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   <span>{choices_summary(@form)}</span>
                 </div>
 
-                <ul class="space-y-2 list-none p-0">
+                <ul id="choices-list" phx-hook=".SingleCorrect" class="space-y-2 list-none p-0">
                   <.inputs_for :let={c} field={d[:choices]}>
                     <li
                       id={"choice-#{c.index}"}
@@ -694,6 +694,33 @@ defmodule QuizWeb.QuestionLive.Index do
                 <p :if={choices_error = data_field_error(@form, :choices)} class="text-error text-sm">
                   {choices_error}
                 </p>
+
+                <script :type={Phoenix.LiveView.ColocatedHook} name=".SingleCorrect">
+                  export default {
+                    mounted() {
+                      // A single-choice question has exactly one correct answer,
+                      // but each row carries its own checkbox. Without this, ticking
+                      // a second option leaves two ticked and the form drops into a
+                      // validation error. Enforce single-select on the client by
+                      // unticking the others *before* the change bubbles to the
+                      // form's phx-change, so the autosave already sees one correct.
+                      this.el.addEventListener("change", (e) => {
+                        const cb = e.target;
+                        if (
+                          cb.type === "checkbox" &&
+                          cb.name.endsWith("[correct]") &&
+                          cb.checked
+                        ) {
+                          this.el
+                            .querySelectorAll('input[type="checkbox"][name$="[correct]"]')
+                            .forEach((other) => {
+                              if (other !== cb) other.checked = false;
+                            });
+                        }
+                      });
+                    },
+                  };
+                </script>
               </fieldset>
             <% :text_input -> %>
               <fieldset class="mt-8 space-y-3">
