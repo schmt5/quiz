@@ -136,15 +136,17 @@ defmodule QuizWeb.RunLive.ReviewTest do
       game = answered_game(scope, show_statistics: true)
       {:ok, lv, html} = live(conn, ~p"/games/#{game}/review/1")
 
+      # The panel stays in the DOM but is collapsed (animated) until revealed.
       assert html =~ "Statistik einblenden"
-      refute html =~ "Teams geantwortet"
-
-      html = lv |> element("button", "Statistik einblenden") |> render_click()
-
-      assert html =~ "Teams geantwortet"
+      assert html =~ "grid-rows-[0fr]"
       assert html =~ "Verteilung der Antworten"
       # Berlin (2 votes) leads Paris (1) — most-picked first, no correctness shown.
       assert html =~ "Berlin"
+
+      html = lv |> element("button", "Statistik einblenden") |> render_click()
+
+      assert html =~ "grid-rows-[1fr]"
+      refute html =~ "Statistik einblenden"
     end
   end
 end

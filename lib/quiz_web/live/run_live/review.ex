@@ -72,7 +72,9 @@ defmodule QuizWeb.RunLive.Review do
         </div>
       </div>
 
-      <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-8 p-8 overflow-y-auto">
+      <%!-- Top-aligned (not vertically centered) so revealing the statistics
+           extends downward without nudging the question/solution above. --%>
+      <div class="flex-1 min-h-0 flex flex-col items-center justify-start gap-8 p-8 sm:pt-12 overflow-y-auto">
         <div class="w-full max-w-3xl space-y-6">
           <h2 class="text-4xl sm:text-5xl font-extrabold leading-tight text-primary">
             {@question.prompt}
@@ -81,7 +83,9 @@ defmodule QuizWeb.RunLive.Review do
           <SolutionArea.solution_area question={@question} />
 
           <%!-- Optional anonymous answer distribution, revealed on demand and kept
-               visually separate from the solution above. --%>
+               visually separate from the solution above. The panel stays in the
+               DOM and animates open via a grid-rows 0fr->1fr collapse, so the
+               reveal eases instead of popping (respects reduced-motion). --%>
           <div :if={@game.show_statistics} class="pt-2">
             <button
               :if={!@show_stats}
@@ -92,16 +96,26 @@ defmodule QuizWeb.RunLive.Review do
               <.icon name="hero-chart-bar" class="size-5" /> Statistik einblenden
             </button>
 
-            <div :if={@show_stats} class="space-y-3">
-              <div class="flex items-center justify-between">
-                <h3 class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
-                  Statistik
-                </h3>
-                <button type="button" phx-click="toggle_stats" class="btn btn-ghost btn-sm">
-                  <.icon name="hero-chevron-up" class="size-4" /> Ausblenden
-                </button>
+            <div class={[
+              "grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none",
+              (@show_stats && "grid-rows-[1fr]") || "grid-rows-[0fr]"
+            ]}>
+              <div class="overflow-hidden">
+                <div class={[
+                  "space-y-3 transition-opacity duration-300 ease-out motion-reduce:transition-none",
+                  (@show_stats && "opacity-100") || "opacity-0"
+                ]}>
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+                      Statistik
+                    </h3>
+                    <button type="button" phx-click="toggle_stats" class="btn btn-ghost btn-sm">
+                      <.icon name="hero-chevron-up" class="size-4" /> Ausblenden
+                    </button>
+                  </div>
+                  <StatsArea.stats_area stats={@stats} />
+                </div>
               </div>
-              <StatsArea.stats_area stats={@stats} />
             </div>
           </div>
         </div>
