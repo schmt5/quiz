@@ -228,7 +228,7 @@ defmodule Quiz.Games do
 
     Repo.transaction(fn ->
       {:ok, copy} =
-        create_game(scope, %{title: game.title <> " (Kopie)"})
+        create_game(scope, %{title: game.title <> " (Kopie)", review_mode: game.review_mode})
 
       for question <- questions do
         Repo.insert!(%Question{

@@ -126,7 +126,10 @@ defmodule QuizWeb.QuestionLive.StatsArea do
   def stats_area(%{stats: %{type: :pin_on_image}} = assigns) do
     ~H"""
     <.panel stats={@stats}>
-      <div class="relative aspect-square w-full max-w-md overflow-hidden rounded-box bg-base-200">
+      <div
+        class="relative w-full max-w-md overflow-hidden rounded-box bg-base-200"
+        style={"aspect-ratio: #{@stats.aspect_ratio || 1.0};"}
+      >
         <img
           :if={@stats.image_key}
           src={Quiz.Storage.url(@stats.image_key)}

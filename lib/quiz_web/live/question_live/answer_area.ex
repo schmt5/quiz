@@ -404,7 +404,8 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
       id={"preview-pin-#{@question.id}"}
       phx-hook=".PreviewPin"
       phx-update="ignore"
-      class="relative aspect-square w-full overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
+      class="relative w-full overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
+      style={"aspect-ratio: #{@question.data.pin.aspect_ratio || 1.0};"}
     >
       <img
         src={Quiz.Storage.url(@question.data.pin.image_key)}

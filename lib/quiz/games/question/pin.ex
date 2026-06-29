@@ -3,14 +3,21 @@ defmodule Quiz.Games.Question.Pin do
   Type-specific payload for a `:pin_on_image` question.
 
   Holds the background image reference plus the single correct target and its
-  circular tolerance radius. All coordinates and the radius are normalized to
-  `0..1` relative to a 1:1 square box rendered with `object-cover`.
+  circular tolerance radius. The target coordinates and the radius are
+  normalized to `0..1`; the box is rendered at the image's natural
+  `aspect_ratio` (width / height) with `object-cover`.
 
-  Because the box is square and the image uses `object-cover`, a non-square
-  source image is cropped on its longer axis. Both the editor and the
-  participant view render the *identical* square box, so the visible normalized
-  coordinate space is the same on both sides and scoring is exact. The only
-  consequence is that the cropped-away region is unreachable — which is intended.
+  Because the box matches the image's aspect ratio, `object-cover` shows the
+  whole image without cropping. All views render the *identical* box, so the
+  normalized coordinate space is the same everywhere and scoring is exact.
+
+  `radius` is normalized to the box **width**. To keep the tolerance a true
+  circle on screen at any aspect ratio, the vertical axis is corrected by
+  `aspect_ratio`: scoring uses `sqrt(dx² + (dy / aspect_ratio)²) <= radius` and
+  the rendered circle uses `height = radius * aspect_ratio` (width = `radius`).
+  A square image (`aspect_ratio == 1.0`) reduces to the original behavior, so
+  pins stored before this field existed load with the `1.0` default and score
+  unchanged.
   """
 
   use Ecto.Schema
@@ -22,12 +29,13 @@ defmodule Quiz.Games.Question.Pin do
     field :target_x, :float
     field :target_y, :float
     field :radius, :float, default: 0.1
+    field :aspect_ratio, :float, default: 1.0
   end
 
   @doc false
   def changeset(pin, attrs) do
     pin
-    |> cast(attrs, [:image_key, :target_x, :target_y, :radius])
+    |> cast(attrs, [:image_key, :target_x, :target_y, :radius, :aspect_ratio])
     |> update_change(:target_x, &clamp/1)
     |> update_change(:target_y, &clamp/1)
     |> update_change(:radius, &clamp/1)
@@ -35,6 +43,7 @@ defmodule Quiz.Games.Question.Pin do
     |> validate_number(:radius, greater_than: 0.0, less_than_or_equal_to: 1.0)
     |> validate_number(:target_x, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0)
     |> validate_number(:target_y, greater_than_or_equal_to: 0.0, less_than_or_equal_to: 1.0)
+    |> validate_number(:aspect_ratio, greater_than: 0.0)
   end
 
   defp clamp(nil), do: nil

@@ -143,7 +143,11 @@ defmodule Quiz.Stats do
       for v <- values, p = point(v), not is_nil(p), do: p
 
     base(:pin_on_image, length(points), total)
-    |> Map.merge(%{image_key: pin && pin.image_key, points: points})
+    |> Map.merge(%{
+      image_key: pin && pin.image_key,
+      aspect_ratio: (pin && pin.aspect_ratio) || 1.0,
+      points: points
+    })
   end
 
   defp compute(%Question{type: type}, _values, total) do

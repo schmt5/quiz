@@ -13,15 +13,19 @@ defmodule Quiz.GamesFixtures do
       |> Enum.into(%{title: "some title"})
       |> Map.pop(:status, :draft)
 
+    # `revealing` is a runtime sub-phase set via the state machine, not castable
+    # at creation; pop it and force it directly like `status`.
+    {revealing, attrs} = Map.pop(attrs, :revealing, false)
+
     {:ok, game} = Quiz.Games.create_game(scope, attrs)
 
     # Games always start in :draft. Tests that need a running/finished game
-    # force the status directly, bypassing the state machine.
-    if status == :draft do
+    # force the status (and reveal phase) directly, bypassing the state machine.
+    if status == :draft and not revealing do
       game
     else
       game
-      |> Ecto.Changeset.change(status: status)
+      |> Ecto.Changeset.change(status: status, revealing: revealing)
       |> Quiz.Repo.update!()
     end
   end
@@ -73,7 +77,8 @@ defmodule Quiz.GamesFixtures do
                 image_key: "uploads/test/fixture.png",
                 target_x: 0.5,
                 target_y: 0.5,
-                radius: 0.1
+                radius: 0.1,
+                aspect_ratio: 1.0
               }
             }
           }

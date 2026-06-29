@@ -6,7 +6,8 @@ defmodule QuizWeb.RunLive.Host do
   """
   use QuizWeb, :live_view
 
-  alias Quiz.{Games, Play}
+  alias Quiz.{Games, Play, Stats}
+  alias QuizWeb.QuestionLive.{SolutionArea, StatsArea}
 
   @impl true
   def render(assigns) do
@@ -122,8 +123,25 @@ defmodule QuizWeb.RunLive.Host do
             <h1 class="text-lg font-bold truncate">{@game.title}</h1>
           </div>
 
+          <%!-- `per_question` mode inserts a reveal step: "Auswerten" closes the
+               question and shows its solution/stats, then "Nächste Frage" advances.
+               `end` mode advances straight away, exactly as before. --%>
           <button
-            :if={@game.status == :running}
+            :if={
+              @game.status == :running and @game.review_mode == :per_question and not @game.revealing
+            }
+            type="button"
+            phx-click="reveal"
+            class="btn btn-primary shrink-0"
+          >
+            <.icon name="hero-light-bulb" /> Auswerten
+          </button>
+
+          <button
+            :if={
+              @game.status == :running and
+                not (@game.review_mode == :per_question and not @game.revealing)
+            }
             type="button"
             phx-click="advance"
             class="btn btn-primary shrink-0"
@@ -140,7 +158,7 @@ defmodule QuizWeb.RunLive.Host do
             class="flex items-center gap-2 shrink-0"
           >
             <.link
-              :if={@review_position}
+              :if={@review_position && @game.review_mode == :end}
               navigate={~p"/games/#{@game}/review/#{@review_position}"}
               class="btn btn-primary"
             >
@@ -148,14 +166,22 @@ defmodule QuizWeb.RunLive.Host do
             </.link>
             <.link
               navigate={~p"/games/#{@game}/leaderboard"}
-              class={["btn", (@review_position && "btn-ghost") || "btn-primary"]}
+              class={[
+                "btn",
+                (@review_position && @game.review_mode == :end && "btn-ghost") || "btn-primary"
+              ]}
             >
               <.icon name="hero-trophy" /> Zur Rangliste
             </.link>
           </div>
         </div>
 
-        <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-8 p-8 lg:overflow-y-auto">
+        <%!-- Top-aligned while revealing (like the Review screen) so the stats
+             panel extends downward without nudging the question above. --%>
+        <div class={[
+          "flex-1 min-h-0 flex flex-col items-center gap-8 p-8 lg:overflow-y-auto",
+          (@game.revealing && "justify-start sm:pt-12") || "justify-center"
+        ]}>
           <div :if={@game.status == :running} class="w-full max-w-3xl space-y-8">
             <div :if={@question} class="space-y-6">
               <p class="text-sm font-bold uppercase tracking-[0.18em] text-base-content/45">
@@ -166,11 +192,51 @@ defmodule QuizWeb.RunLive.Host do
               </h2>
               <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
 
-              <div class="flex items-center gap-2 text-lg text-base-content/60">
+              <%!-- Collecting answers: live answered count. --%>
+              <div :if={!@game.revealing} class="flex items-center gap-2 text-lg text-base-content/60">
                 <.icon name="hero-user-group" class="size-5" />
                 <span>
                   {@answered_count} / {length(@participants)} Teams haben geantwortet
                 </span>
+              </div>
+
+              <%!-- Revealing: sample solution, plus the optional toggleable stats
+                   panel (same pattern as the end-of-game Review screen). --%>
+              <div :if={@game.revealing} class="space-y-6">
+                <SolutionArea.solution_area question={@question} />
+
+                <div :if={@game.show_statistics} class="pt-2">
+                  <button
+                    :if={!@show_stats}
+                    type="button"
+                    phx-click="toggle_stats"
+                    class="btn btn-soft"
+                  >
+                    <.icon name="hero-chart-bar" class="size-5" /> Statistik einblenden
+                  </button>
+
+                  <div class={[
+                    "grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none",
+                    (@show_stats && "grid-rows-[1fr]") || "grid-rows-[0fr]"
+                  ]}>
+                    <div class="overflow-hidden">
+                      <div class={[
+                        "space-y-3 transition-opacity duration-300 ease-out motion-reduce:transition-none",
+                        (@show_stats && "opacity-100") || "opacity-0"
+                      ]}>
+                        <div class="flex items-center justify-between">
+                          <h3 class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+                            Statistik
+                          </h3>
+                          <button type="button" phx-click="toggle_stats" class="btn btn-ghost btn-sm">
+                            <.icon name="hero-chevron-up" class="size-4" /> Ausblenden
+                          </button>
+                        </div>
+                        <StatsArea.stats_area stats={@stats} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -258,6 +324,20 @@ defmodule QuizWeb.RunLive.Host do
     end
   end
 
+  def handle_event("reveal", _params, socket) do
+    case Play.reveal_run(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, game} ->
+        {:noreply, socket |> assign(:game, game) |> load_question()}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Die Frage konnte nicht ausgewertet werden.")}
+    end
+  end
+
+  def handle_event("toggle_stats", _params, socket) do
+    {:noreply, update(socket, :show_stats, &(!&1))}
+  end
+
   @impl true
   def handle_info({:participant_joined, participant}, socket) do
     {:noreply, assign(socket, :participants, socket.assigns.participants ++ [participant])}
@@ -274,12 +354,32 @@ defmodule QuizWeb.RunLive.Host do
   defp load_question(socket) do
     game = socket.assigns.game
     {number, total} = Play.question_numbering(game)
+    question = Play.current_question(game)
 
     socket
-    |> assign(:question, Play.current_question(game))
+    |> assign(:question, question)
     |> assign(:q_number, number)
     |> assign(:q_total, total)
     |> assign_answered_count()
+    |> assign_reveal_stats(game, question)
+  end
+
+  # While revealing in `per_question` mode, compute the answer distribution (same
+  # as the Review screen) and start with the panel collapsed. Each reveal/advance
+  # routes through here, so the toggle naturally resets per question.
+  defp assign_reveal_stats(socket, %{revealing: true, show_statistics: true}, question)
+       when not is_nil(question) do
+    total = length(socket.assigns.participants)
+
+    socket
+    |> assign(:stats, Stats.question_stats(question, total))
+    |> assign(:show_stats, false)
+  end
+
+  defp assign_reveal_stats(socket, _game, _question) do
+    socket
+    |> assign(:stats, nil)
+    |> assign(:show_stats, false)
   end
 
   defp assign_answered_count(socket) do

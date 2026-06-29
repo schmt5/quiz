@@ -64,20 +64,34 @@ defmodule Quiz.Play do
   """
   def start_run(%Scope{} = scope, %Game{} = game) do
     case first_position(scope, game) do
-      nil -> {:error, :no_questions}
-      position -> transition(scope, game, %{status: :running, current_position: position})
+      nil ->
+        {:error, :no_questions}
+
+      position ->
+        transition(scope, game, %{status: :running, current_position: position, revealing: false})
     end
+  end
+
+  @doc """
+  Reveals the current question's solution/stats (`per_question` review mode): the
+  run stays `:running` on the same `current_position`, but `revealing` flips to
+  true so the host screen shows the solution and `submit_answer/4` stops accepting
+  answers. Operator only.
+  """
+  def reveal_run(%Scope{} = scope, %Game{} = game) do
+    transition(scope, game, %{status: :running, revealing: true})
   end
 
   @doc """
   Advances the run to the next question (`running` stays, `current_position`
   bumps to the next question's position). When already on the last question,
-  finishes the run (`:running` -> `:finished`). Operator only.
+  finishes the run (`:running` -> `:finished`). Always clears `revealing` so a
+  bumped/finished game never carries a stale reveal. Operator only.
   """
   def advance_run(%Scope{} = scope, %Game{current_position: position} = game) do
     case next_position(game, position) do
-      nil -> transition(scope, game, %{status: :finished})
-      next -> transition(scope, game, %{current_position: next})
+      nil -> transition(scope, game, %{status: :finished, revealing: false})
+      next -> transition(scope, game, %{current_position: next, revealing: false})
     end
   end
 
@@ -206,7 +220,16 @@ defmodule Quiz.Play do
   Records a team's answer to a question (latest wins). The raw form params are
   normalized to the canonical shape `Question.correct_answer?/2` expects, scored,
   and upserted. Broadcasts `{:answer_submitted, question.position}`.
+
+  Rejects with `{:error, :not_accepting_answers}` once the host has revealed the
+  question (`per_question` review mode) — a server-side guard, since a reconnecting
+  client can race the broadcast that locks its form, and a late submission would
+  corrupt the stats the room is discussing.
   """
+  def submit_answer(%Game{revealing: true}, %Participant{}, %Question{}, _params) do
+    {:error, :not_accepting_answers}
+  end
+
   def submit_answer(%Game{} = game, %Participant{} = participant, %Question{} = question, params) do
     canonical = canonicalize(question, params)
     grade = auto_grade(question, canonical)

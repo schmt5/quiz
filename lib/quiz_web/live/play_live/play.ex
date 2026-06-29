@@ -76,8 +76,35 @@ defmodule QuizWeb.PlayLive.Play do
             <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
           </div>
 
+          <%!-- Reveal phase (per_question mode): the question is closed. Lock the
+               form and point the room at the presenter screen, but still show the
+               team their own submitted answer for reference during the discussion. --%>
+          <div :if={@game.revealing} class="py-6">
+            <div class="rounded-[2rem] bg-base-100 p-8 text-center shadow-sm">
+              <div class="mx-auto grid size-20 place-items-center rounded-full bg-primary/10">
+                <.icon name="hero-presentation-chart-bar" class="size-10 text-primary" />
+              </div>
+              <h2 class="mt-6 text-3xl font-extrabold text-primary">Auswertung</h2>
+              <p class="mt-3 text-lg leading-snug text-base-content/55">
+                Die Quizmaster:in bespricht die Lösung – schaut auf den Bildschirm.
+              </p>
+
+              <div
+                :if={@answer}
+                class="mt-6 rounded-2xl bg-base-100 ring-1 ring-base-300 p-5 text-left shadow-sm"
+              >
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+                  Eure Antwort
+                </p>
+                <div class="mt-2">
+                  <AnswerArea.answer_summary question={@question} answer={@answer} />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <form
-            :if={!@submitted}
+            :if={!@game.revealing && !@submitted}
             phx-submit="answer_submit"
             class="py-6 flex flex-col gap-4"
           >
@@ -95,7 +122,7 @@ defmodule QuizWeb.PlayLive.Play do
             </button>
           </form>
 
-          <div :if={@submitted} class="py-6">
+          <div :if={!@game.revealing && @submitted} class="py-6">
             <div class="rounded-[2rem] bg-base-100 p-8 text-center shadow-sm">
               <div class="mx-auto grid size-20 place-items-center rounded-full bg-warning">
                 <.icon name="hero-check" class="size-10 text-primary" />
@@ -222,6 +249,9 @@ defmodule QuizWeb.PlayLive.Play do
          socket
          |> assign(:answer, answer.payload["value"])
          |> assign(:submitted, true)}
+
+      {:error, :not_accepting_answers} ->
+        {:noreply, put_flash(socket, :error, "Diese Frage ist bereits geschlossen.")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Antwort konnte nicht gespeichert werden.")}

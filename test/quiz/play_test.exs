@@ -43,7 +43,8 @@ defmodule Quiz.PlayTest do
       question_fixture(scope, %{game_id: game.id, position: 5})
       question_fixture(scope, %{game_id: game.id, position: 9})
 
-      assert {:ok, %{status: :running, current_position: 5}} = Play.start_run(scope, game)
+      assert {:ok, %{status: :running, current_position: 5, revealing: false}} =
+               Play.start_run(scope, game)
     end
 
     test "rejects a quiz without questions" do
@@ -207,6 +208,21 @@ defmodule Quiz.PlayTest do
     end
   end
 
+  describe "reveal_run/2" do
+    test "keeps the run on the same question but flips :revealing on" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open, review_mode: :per_question})
+      question_fixture(scope, %{game_id: game.id, position: 5})
+      {:ok, running} = Play.start_run(scope, game)
+      Play.subscribe(running)
+
+      assert {:ok, %{status: :running, current_position: 5, revealing: true}} =
+               Play.reveal_run(scope, running)
+
+      assert_received {:status_changed, %{revealing: true}}
+    end
+  end
+
   describe "advance_run/2" do
     test "moves to the next question's position" do
       scope = user_scope_fixture()
@@ -220,6 +236,18 @@ defmodule Quiz.PlayTest do
       assert_received {:status_changed, %{current_position: 9}}
     end
 
+    test "clears :revealing when advancing past a revealed question" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open, review_mode: :per_question})
+      question_fixture(scope, %{game_id: game.id, position: 5})
+      question_fixture(scope, %{game_id: game.id, position: 9})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, revealed} = Play.reveal_run(scope, running)
+
+      assert {:ok, %{status: :running, current_position: 9, revealing: false}} =
+               Play.advance_run(scope, revealed)
+    end
+
     test "finishes the run after the last question" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :open})
@@ -227,6 +255,16 @@ defmodule Quiz.PlayTest do
       {:ok, running} = Play.start_run(scope, game)
 
       assert {:ok, %{status: :finished}} = Play.advance_run(scope, running)
+    end
+
+    test "finishes with :revealing cleared after the last question's reveal" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open, review_mode: :per_question})
+      question_fixture(scope, %{game_id: game.id, position: 5})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, revealed} = Play.reveal_run(scope, running)
+
+      assert {:ok, %{status: :finished, revealing: false}} = Play.advance_run(scope, revealed)
     end
   end
 
@@ -268,6 +306,18 @@ defmodule Quiz.PlayTest do
 
       assert {:ok, %Answer{grade: :full}} =
                Play.submit_answer(game, participant, question, %{"answer" => "  paris "})
+    end
+
+    test "rejects answers once the question is revealed" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :running, revealing: true})
+      question = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, participant, _t} = Play.enroll(game, "Team A")
+
+      assert {:error, :not_accepting_answers} =
+               Play.submit_answer(game, participant, question, %{"answer" => "0"})
+
+      assert Play.count_answers(game, 1) == 0
     end
 
     test "count_answers/2 is 0 before any answer" do

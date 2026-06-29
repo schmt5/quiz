@@ -127,6 +127,34 @@ defmodule Quiz.GamesTest do
       assert %Ecto.Changeset{} = Games.change_game(scope, game)
     end
 
+    test "create_game/2 defaults review_mode to :end and accepts :per_question" do
+      scope = user_scope_fixture()
+
+      assert {:ok, %Game{review_mode: :end, revealing: false}} =
+               Games.create_game(scope, %{title: "default"})
+
+      assert {:ok, %Game{review_mode: :per_question}} =
+               Games.create_game(scope, %{title: "survey", review_mode: "per_question"})
+    end
+
+    test "update_game/3 rejects an invalid review_mode" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Games.update_game(scope, game, %{review_mode: "whenever"})
+
+      assert %{review_mode: [_ | _]} = errors_on(changeset)
+    end
+
+    test "duplicate_game/2 preserves review_mode" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{title: "Survey", review_mode: :per_question})
+
+      assert {:ok, copy} = Games.duplicate_game(scope, game)
+      assert copy.review_mode == :per_question
+    end
+
     test "duplicate_game/2 copies the game and all questions into a fresh draft" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{title: "Original"})
@@ -611,6 +639,40 @@ defmodule Quiz.GamesTest do
       refute Quiz.Games.Question.correct_answer?(q, %{"x" => 0.7, "y" => 0.7})
       refute Quiz.Games.Question.correct_answer?(q, %{"x" => 0.5})
       refute Quiz.Games.Question.correct_answer?(q, "not a map")
+    end
+
+    test "Question.correct_answer?/2 — pin_on_image tolerance is a true circle for non-square images" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      # 2:1 image: radius 0.1 is normalized to the box width, so the vertical
+      # tolerance stretches to radius * aspect_ratio = 0.2 to stay circular.
+      attrs = %{
+        type: :pin_on_image,
+        prompt: "Wo?",
+        position: 1,
+        game_id: game.id,
+        data: %{
+          pin: %{
+            image_key: "uploads/u/wide.png",
+            target_x: 0.5,
+            target_y: 0.5,
+            radius: 0.1,
+            aspect_ratio: 2.0
+          }
+        }
+      }
+
+      assert {:ok, %Question{} = q} = Games.create_question(scope, attrs)
+      assert q.data.pin.aspect_ratio == 2.0
+
+      # Horizontal boundary unchanged: dx == radius.
+      assert Quiz.Games.Question.correct_answer?(q, %{"x" => 0.6, "y" => 0.5})
+      refute Quiz.Games.Question.correct_answer?(q, %{"x" => 0.65, "y" => 0.5})
+      # Vertical tolerance widened by the aspect ratio (0.2). On a square box
+      # y=0.7 would be out of range, here it sits on the boundary.
+      assert Quiz.Games.Question.correct_answer?(q, %{"x" => 0.5, "y" => 0.7})
+      refute Quiz.Games.Question.correct_answer?(q, %{"x" => 0.5, "y" => 0.72})
     end
 
     test "update_question/3 with invalid scope raises" do

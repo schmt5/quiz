@@ -30,6 +30,14 @@ defmodule Quiz.Games.Game do
     field :current_position, :integer
     field :grading_published, :boolean, default: false
     field :show_statistics, :boolean, default: false
+
+    # When the solution/stats review happens: `:end` (after the whole run, via the
+    # Review walkthrough) or `:per_question` (the host reveals each question inline
+    # during the run before advancing). `revealing` is the runtime sub-phase of
+    # `:running`: true while the host shows a question's solution/stats.
+    field :review_mode, Ecto.Enum, values: [:end, :per_question], default: :end
+    field :revealing, :boolean, default: false
+
     field :user_id, :id
 
     timestamps(type: :utc_datetime)
@@ -45,7 +53,7 @@ defmodule Quiz.Games.Game do
   """
   def changeset(game, attrs, user_scope) do
     game
-    |> cast(attrs, [:title, :show_statistics])
+    |> cast(attrs, [:title, :show_statistics, :review_mode])
     |> validate_required([:title])
     |> maybe_put_join_code()
     |> unique_constraint(:join_code)
@@ -55,14 +63,15 @@ defmodule Quiz.Games.Game do
   @doc """
   Changeset for a runtime status transition (e.g. opening or starting a run).
 
-  Only `:status` and `:current_position` may change. The `from -> to` status
-  pair must be listed in `@transitions`, otherwise the changeset is invalid.
-  Unlike `changeset/3` this never regenerates the `join_code` or touches the
-  owner.
+  Only `:status`, `:current_position` and `:revealing` may change. The
+  `from -> to` status pair must be listed in `@transitions`, otherwise the
+  changeset is invalid (a no-op `running -> running` reveal toggle is allowed,
+  since `to == from` always passes). Unlike `changeset/3` this never regenerates
+  the `join_code` or touches the owner.
   """
   def transition_changeset(%__MODULE__{} = game, attrs) do
     game
-    |> cast(attrs, [:status, :current_position])
+    |> cast(attrs, [:status, :current_position, :revealing])
     |> validate_required([:status])
     |> validate_transition(game.status)
   end

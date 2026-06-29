@@ -96,8 +96,11 @@ defmodule Quiz.Games.Question do
       when is_map(answer) do
     with {:ok, x} <- fetch_coord(answer, "x"),
          {:ok, y} <- fetch_coord(answer, "y") do
+      ar = pin.aspect_ratio || 1.0
       dx = x - pin.target_x
-      dy = y - pin.target_y
+      # `radius` is normalized to the box width, so the vertical delta is scaled
+      # by the aspect ratio to keep the tolerance a true circle (see Pin docs).
+      dy = (y - pin.target_y) / ar
       :math.sqrt(dx * dx + dy * dy) <= pin.radius
     else
       _ -> false

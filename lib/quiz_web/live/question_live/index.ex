@@ -957,7 +957,9 @@ defmodule QuizWeb.QuestionLive.Index do
                     data-target-x={pin_coord(@form, :target_x)}
                     data-target-y={pin_coord(@form, :target_y)}
                     data-radius={pin_coord(@form, :radius)}
-                    class="relative aspect-square w-full max-w-md overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
+                    data-aspect-ratio={pin_coord(@form, :aspect_ratio)}
+                    class="relative w-full max-w-md overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
+                    style={"aspect-ratio: #{pin_coord(@form, :aspect_ratio)};"}
                   >
                     <.live_img_preview
                       :if={entry}
@@ -1001,6 +1003,11 @@ defmodule QuizWeb.QuestionLive.Index do
                     name="question[data][pin][target_y]"
                     value={pin_coord(@form, :target_y)}
                   />
+                  <input
+                    type="hidden"
+                    name="question[data][pin][aspect_ratio]"
+                    value={pin_coord(@form, :aspect_ratio)}
+                  />
                 </div>
 
                 <p :if={pin_error = data_field_error(@form, :pin)} class="text-error text-sm">
@@ -1038,10 +1045,12 @@ defmodule QuizWeb.QuestionLive.Index do
                         this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
                       if (this.radiusEl) this.radiusEl.addEventListener("input", this.onRadius);
 
+                      this.bindImage();
                       this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
                     },
 
                     updated() {
+                      this.bindImage();
                       this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
                     },
 
@@ -1068,13 +1077,41 @@ defmodule QuizWeb.QuestionLive.Index do
                       const v = this.radiusEl ? parseFloat(this.radiusEl.value) : NaN;
                       return Number.isFinite(v) ? v : parseFloat(this.el.dataset.radius) || 0.1;
                     },
+                    aspectRatio() {
+                      const el = this.input("aspect_ratio");
+                      const v = el ? parseFloat(el.value) : NaN;
+                      return Number.isFinite(v) && v > 0
+                        ? v
+                        : parseFloat(this.el.dataset.aspectRatio) || 1;
+                    },
+                    // Read the natural aspect ratio of the uploaded/stored image
+                    // and propagate it to the hidden input and the box so the
+                    // whole image shows uncropped and scoring matches the view.
+                    bindImage() {
+                      const img = this.el.querySelector("img");
+                      if (!img) return;
+                      const capture = () => {
+                        if (!img.naturalWidth || !img.naturalHeight) return;
+                        const ar = img.naturalWidth / img.naturalHeight;
+                        this.setInput("aspect_ratio", ar);
+                        this.el.style.aspectRatio = ar;
+                        this.render(
+                          this.coord("target_x"),
+                          this.coord("target_y"),
+                          this.radiusValue()
+                        );
+                      };
+                      if (img.complete && img.naturalWidth) capture();
+                      else img.addEventListener("load", capture, { once: true });
+                    },
                     render(x, y, radius) {
+                      const ar = this.aspectRatio();
                       this.marker.style.left = x * 100 + "%";
                       this.marker.style.top = y * 100 + "%";
                       this.circle.style.left = x * 100 + "%";
                       this.circle.style.top = y * 100 + "%";
                       this.circle.style.width = radius * 200 + "%";
-                      this.circle.style.height = radius * 200 + "%";
+                      this.circle.style.height = radius * ar * 200 + "%";
                     },
                     dispatchChange() {
                       this.form?.dispatchEvent(new Event("change", { bubbles: true }));
@@ -1501,7 +1538,7 @@ defmodule QuizWeb.QuestionLive.Index do
     end
   end
 
-  @pin_defaults %{target_x: 0.5, target_y: 0.5, radius: 0.1}
+  @pin_defaults %{target_x: 0.5, target_y: 0.5, radius: 0.1, aspect_ratio: 1.0}
 
   defp pin_coord(form, field) do
     case pin_struct(form) do
