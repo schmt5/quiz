@@ -70,10 +70,11 @@ defmodule QuizWeb.CorrectionLiveTest do
       assert Play.get_answer(teams.c, q).grade == :zero
     end
 
-    test "Fertig marks the question done", %{conn: conn, game: game, question: question} do
+    test "marking the question done finalises its correction",
+         %{conn: conn, game: game, question: question} do
       {:ok, lv, _html} = live(conn, ~p"/games/#{game}/correction/1")
 
-      lv |> element("button", "Fertig") |> render_click()
+      lv |> element("button[phx-click='done']") |> render_click()
 
       assert Play.correction_done?(question)
     end

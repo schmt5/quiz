@@ -133,14 +133,17 @@ defmodule QuizWeb.RunLive.Review do
   def mount(%{"id" => id, "position" => position}, _session, socket) do
     game = Games.get_game!(socket.assigns.current_scope, id)
     questions = Games.list_questions_for_game(socket.assigns.current_scope, game)
-    position = String.to_integer(position)
+    position = parse_position(position)
 
-    case Enum.find_index(questions, &(&1.position == position)) do
-      # No questions, or an unknown position: bounce to a sensible place.
+    case position && Enum.find_index(questions, &(&1.position == position)) do
+      # No questions, or an unknown/garbage position: bounce to a sensible place.
       nil ->
         case questions do
-          [] -> {:ok, push_navigate(socket, to: ~p"/games/#{game}/run")}
-          [first | _] -> {:ok, push_navigate(socket, to: ~p"/games/#{game}/review/#{first.position}")}
+          [] ->
+            {:ok, push_navigate(socket, to: ~p"/games/#{game}/run")}
+
+          [first | _] ->
+            {:ok, push_navigate(socket, to: ~p"/games/#{game}/review/#{first.position}")}
         end
 
       index ->
@@ -177,4 +180,13 @@ defmodule QuizWeb.RunLive.Review do
   end
 
   defp position_at(_questions, _index), do: nil
+
+  # A crafted, non-numeric :position must redirect (handled by the nil branch),
+  # not crash the mount with an ArgumentError.
+  defp parse_position(position) do
+    case Integer.parse(position) do
+      {pos, ""} -> pos
+      _ -> nil
+    end
+  end
 end

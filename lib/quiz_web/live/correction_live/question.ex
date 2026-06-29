@@ -42,7 +42,10 @@ defmodule QuizWeb.CorrectionLive.Question do
                 </.link>
               </div>
               <h1 class="text-2xl font-bold truncate">{@question.prompt}</h1>
-              <span :if={@done} class="badge badge-soft badge-primary shrink-0 font-semibold border! border-primary!">
+              <span
+                :if={@done}
+                class="badge badge-soft badge-primary shrink-0 font-semibold border! border-primary!"
+              >
                 korrigiert
               </span>
             </div>
@@ -170,8 +173,8 @@ defmodule QuizWeb.CorrectionLive.Question do
   @impl true
   def mount(%{"id" => id, "position" => position}, _session, socket) do
     game = Games.get_game!(socket.assigns.current_scope, id)
-    position = String.to_integer(position)
-    question = Play.get_question(game, position)
+    position = parse_position(position)
+    question = position && Play.get_question(game, position)
 
     cond do
       is_nil(question) or question.type != :text_input ->
@@ -254,6 +257,15 @@ defmodule QuizWeb.CorrectionLive.Question do
   end
 
   defp solution_hint(_question), do: nil
+
+  # A crafted, non-numeric :position redirects via the nil-question branch above
+  # instead of crashing the mount with an ArgumentError.
+  defp parse_position(position) do
+    case Integer.parse(position) do
+      {pos, ""} -> pos
+      _ -> nil
+    end
+  end
 
   defp judge_buttons do
     [

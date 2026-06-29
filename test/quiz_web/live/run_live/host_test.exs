@@ -43,6 +43,42 @@ defmodule QuizWeb.RunLive.HostTest do
       refute html =~ "Lösungen besprechen"
       assert html =~ ~p"/games/#{game}/leaderboard"
     end
+
+    test "survives the grading being published while the host screen stays open",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope)
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
+      game = set_game_status(game, :finished)
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      # The operator publishes the grading from the correction view — broadcast
+      # on the same "game:<id>" topic the host subscribed to in mount. The host
+      # must not crash on a message type it doesn't act on.
+      {:ok, _game} = Play.publish_grading(scope, game)
+
+      assert render(lv) =~ "Quiz beendet."
+      assert Process.alive?(lv.pid)
+    end
+  end
+
+  describe "lobby roster" do
+    test "a team is not listed twice if it arrives in the initial list and a broadcast",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      # Enrolling broadcasts {:participant_joined, _}; the host appends it once.
+      {:ok, participant, _token} = Play.enroll(game, "Team A")
+
+      # Simulate the subscribe/list-load race delivering the same join again.
+      send(lv.pid, {:participant_joined, participant})
+
+      html = render(lv)
+      occurrences = (html |> String.split(~s|id="participant-#{participant.id}"|) |> length()) - 1
+      assert occurrences == 1
+    end
   end
 
   describe "per_question review mode (running)" do

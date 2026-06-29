@@ -8,7 +8,7 @@ defmodule QuizWeb.UserLive.LoginTest do
     test "renders login page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/log-in")
 
-      assert html =~ "Log in"
+      assert html =~ "Anmelden"
     end
   end
 
@@ -39,7 +39,10 @@ defmodule QuizWeb.UserLive.LoginTest do
       render_submit(form, %{user: %{remember_me: true}})
 
       conn = follow_trigger_action(form, conn)
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Ungültige E-Mail-Adresse oder ungültiges Passwort"
+
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Ungültige E-Mail-Adresse oder ungültiges Passwort"
+
       assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
@@ -53,8 +56,8 @@ defmodule QuizWeb.UserLive.LoginTest do
     test "shows login page with email filled in", %{conn: conn, user: user} do
       {:ok, _lv, html} = live(conn, ~p"/users/log-in")
 
-      assert html =~ "You need to reauthenticate"
-      refute html =~ "Register"
+      assert html =~ "Bitte melde dich erneut an"
+      refute html =~ "Registrieren"
       assert html =~ ~s(value="#{user.email}")
     end
   end

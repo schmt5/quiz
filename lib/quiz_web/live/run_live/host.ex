@@ -340,7 +340,14 @@ defmodule QuizWeb.RunLive.Host do
 
   @impl true
   def handle_info({:participant_joined, participant}, socket) do
-    {:noreply, assign(socket, :participants, socket.assigns.participants ++ [participant])}
+    # Dedup: a team can enroll in the gap between subscribe/3 and the initial
+    # list_participants/1 during mount, so it would arrive both in the loaded
+    # list and via this broadcast — which would render a duplicate DOM id.
+    if Enum.any?(socket.assigns.participants, &(&1.id == participant.id)) do
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, :participants, socket.assigns.participants ++ [participant])}
+    end
   end
 
   def handle_info({:status_changed, game}, socket) do
@@ -350,6 +357,17 @@ defmodule QuizWeb.RunLive.Host do
   def handle_info({:answer_submitted, _position}, socket) do
     {:noreply, assign_answered_count(socket)}
   end
+
+  # The operator can publish the grading (from the correction view) while the
+  # host/presenter screen is still open. Keep our game copy in sync; the screen
+  # itself doesn't change, but this avoids crashing on the broadcast.
+  def handle_info({:grading_published, game}, socket) do
+    {:noreply, assign(socket, :game, game)}
+  end
+
+  # Ignore any other run broadcasts we don't act on, so a new message type can
+  # never crash the presenter screen mid-quiz.
+  def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp load_question(socket) do
     game = socket.assigns.game
