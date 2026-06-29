@@ -186,16 +186,15 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
       <ul class="space-y-2.5 list-none p-0">
         <li
           :for={pair <- @question.data.pairs}
-          class="flex items-center gap-2"
+          class="flex flex-col gap-1.5"
         >
-          <span class="flex-1 min-w-0 text-sm font-semibold truncate">
+          <span class="text-sm font-semibold break-words">
             {pair.left_text}
           </span>
-          <.icon name="hero-arrow-right" class="size-4 text-base-content/30 shrink-0" />
           <div
             data-slot
             data-pair-id={pair.id}
-            class="flex-1 min-w-0 h-11 flex items-stretch rounded-box border-2 border-dashed border-base-300 p-1 transition-colors"
+            class="w-full min-h-11 flex items-stretch rounded-box border-2 border-dashed border-base-300 p-1 transition-colors"
           >
             <span data-placeholder class="flex-1 grid place-items-center text-xs text-base-content/40">
               Hierher ziehen
