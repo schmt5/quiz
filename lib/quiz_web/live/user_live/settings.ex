@@ -9,76 +9,118 @@ defmodule QuizWeb.UserLive.Settings do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-2xl space-y-4">
-        <div class="text-center">
-          <.header>
-            Account Settings
-            <:subtitle>Manage your account name, email address and password settings</:subtitle>
-          </.header>
+      <:page_header>
+        <div class="mx-auto max-w-2xl">
+          <div class="breadcrumbs text-xs">
+            <ul>
+              <li>
+                <.link navigate={~p"/"} aria-label="Home">
+                  <.icon name="hero-home" class="size-4" />
+                </.link>
+              </li>
+              <li>Account</li>
+            </ul>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-bold">Account settings</h1>
+          <p class="mt-1 text-sm text-base-content/55">
+            Manage your name, email address, and password.
+          </p>
         </div>
+      </:page_header>
 
-        <.form for={@name_form} id="name_form" phx-submit="update_name" phx-change="validate_name">
-          <.input
-            field={@name_form[:name]}
-            type="text"
-            label="Name"
-            autocomplete="name"
-            required
-          />
-          <.button variant="primary" phx-disable-with="Changing...">Change Name</.button>
-        </.form>
+      <div class="h-full overflow-y-auto">
+        <div class="mx-auto max-w-2xl py-6 space-y-6">
+          <section class="rounded-box border border-base-300 bg-base-100 p-6">
+            <h2 class="text-lg font-bold">Profile</h2>
+            <p class="mt-1 mb-4 text-sm text-base-content/55">
+              The name shown alongside your quizzes.
+            </p>
+            <.form
+              for={@name_form}
+              id="name_form"
+              phx-submit="update_name"
+              phx-change="validate_name"
+            >
+              <.input
+                field={@name_form[:name]}
+                type="text"
+                label="Name"
+                autocomplete="name"
+                required
+              />
+              <.button variant="primary" phx-disable-with="Saving..." class="mt-4">
+                Update name
+              </.button>
+            </.form>
+          </section>
 
-        <div class="divider" />
+          <section class="rounded-box border border-base-300 bg-base-100 p-6">
+            <h2 class="text-lg font-bold">Email address</h2>
+            <p class="mt-1 mb-4 text-sm text-base-content/55">
+              Used to sign in. Changing it sends a confirmation link to the new address.
+            </p>
+            <.form
+              for={@email_form}
+              id="email_form"
+              phx-submit="update_email"
+              phx-change="validate_email"
+            >
+              <.input
+                field={@email_form[:email]}
+                type="email"
+                label="Email"
+                autocomplete="username"
+                spellcheck="false"
+                required
+              />
+              <.button variant="primary" phx-disable-with="Saving..." class="mt-4">
+                Update email
+              </.button>
+            </.form>
+          </section>
 
-        <.form for={@email_form} id="email_form" phx-submit="update_email" phx-change="validate_email">
-          <.input
-            field={@email_form[:email]}
-            type="email"
-            label="Email"
-            autocomplete="username"
-            spellcheck="false"
-            required
-          />
-          <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
-        </.form>
-
-        <div class="divider" />
-
-        <.form
-          for={@password_form}
-          id="password_form"
-          action={~p"/users/update-password"}
-          method="post"
-          phx-change="validate_password"
-          phx-submit="update_password"
-          phx-trigger-action={@trigger_submit}
-        >
-          <input
-            name={@password_form[:email].name}
-            type="hidden"
-            id="hidden_user_email"
-            spellcheck="false"
-            value={@current_email}
-          />
-          <.input
-            field={@password_form[:password]}
-            type="password"
-            label="New password"
-            autocomplete="new-password"
-            spellcheck="false"
-            required
-          />
-          <.input
-            field={@password_form[:password_confirmation]}
-            type="password"
-            label="Confirm new password"
-            autocomplete="new-password"
-            spellcheck="false"
-          />
-          <.button variant="primary" phx-disable-with="Saving...">
-            Save Password
-          </.button>
-        </.form>
+          <section class="rounded-box border border-base-300 bg-base-100 p-6">
+            <h2 class="text-lg font-bold">Password</h2>
+            <p class="mt-1 mb-4 text-sm text-base-content/55">
+              Choose a strong password you don't use anywhere else.
+            </p>
+            <.form
+              for={@password_form}
+              id="password_form"
+              action={~p"/users/update-password"}
+              method="post"
+              phx-change="validate_password"
+              phx-submit="update_password"
+              phx-trigger-action={@trigger_submit}
+            >
+              <input
+                name={@password_form[:email].name}
+                type="hidden"
+                id="hidden_user_email"
+                spellcheck="false"
+                value={@current_email}
+              />
+              <.input
+                field={@password_form[:password]}
+                type="password"
+                label="New password"
+                autocomplete="new-password"
+                spellcheck="false"
+                required
+              />
+              <.input
+                field={@password_form[:password_confirmation]}
+                type="password"
+                label="Confirm new password"
+                autocomplete="new-password"
+                spellcheck="false"
+              />
+              <.button variant="primary" phx-disable-with="Saving..." class="mt-4">
+                Update password
+              </.button>
+            </.form>
+          </section>
+        </div>
       </div>
     </Layouts.app>
     """

@@ -162,7 +162,12 @@ defmodule QuizWeb.QuestionLive.Index do
                       <span class="flex items-center justify-center size-5 rounded bg-base-300 text-base-content/60 font-mono font-bold text-[10px] shrink-0">
                         {type_letter(question.type)}
                       </span>
-                      <span class="truncate text-sm">{question.prompt}</span>
+                      <span class={[
+                        "truncate text-sm",
+                        blank?(question.prompt) && "italic text-base-content/50"
+                      ]}>
+                        {question_label(question)}
+                      </span>
                     </div>
                   </.link>
                   <div
@@ -176,7 +181,12 @@ defmodule QuizWeb.QuestionLive.Index do
                       <span class="flex items-center justify-center size-5 rounded bg-base-300 text-base-content/60 font-mono font-bold text-[10px] shrink-0">
                         {type_letter(question.type)}
                       </span>
-                      <span class="truncate text-sm">{question.prompt}</span>
+                      <span class={[
+                        "truncate text-sm",
+                        blank?(question.prompt) && "italic text-base-content/50"
+                      ]}>
+                        {question_label(question)}
+                      </span>
                     </div>
                   </div>
                 </li>
@@ -224,7 +234,7 @@ defmodule QuizWeb.QuestionLive.Index do
             <div :if={@mode == :edit}>
               <.type_picker :if={@live_action == :index} game={@game} />
               <.question_form
-                :if={@live_action in [:new, :edit]}
+                :if={@live_action == :edit}
                 form={@form}
                 game={@game}
                 live_action={@live_action}
@@ -283,9 +293,11 @@ defmodule QuizWeb.QuestionLive.Index do
       </h1>
 
       <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-left">
-        <.link
-          patch={~p"/games/#{@game}/questions/new?type=single_choice"}
-          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="single_choice"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
         >
           <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
             S
@@ -306,11 +318,13 @@ defmodule QuizWeb.QuestionLive.Index do
               <span class="block h-2 w-2/5 rounded bg-base-200"></span>
             </div>
           </div>
-        </.link>
+        </button>
 
-        <.link
-          patch={~p"/games/#{@game}/questions/new?type=text_input"}
-          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="text_input"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
         >
           <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
             T
@@ -320,11 +334,13 @@ defmodule QuizWeb.QuestionLive.Index do
           <div class="mt-8">
             <div class="h-8 w-2/3 rounded bg-base-200"></div>
           </div>
-        </.link>
+        </button>
 
-        <.link
-          patch={~p"/games/#{@game}/questions/new?type=sequence"}
-          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="sequence"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
         >
           <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
             R
@@ -345,11 +361,13 @@ defmodule QuizWeb.QuestionLive.Index do
               <span class="block h-2 w-2/5 rounded bg-base-200"></span>
             </div>
           </div>
-        </.link>
+        </button>
 
-        <.link
-          patch={~p"/games/#{@game}/questions/new?type=pin_on_image"}
-          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="pin_on_image"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
         >
           <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
             P
@@ -365,11 +383,13 @@ defmodule QuizWeb.QuestionLive.Index do
               </span>
             </div>
           </div>
-        </.link>
+        </button>
 
-        <.link
-          patch={~p"/games/#{@game}/questions/new?type=matching"}
-          class="group rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="matching"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
         >
           <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
             Z
@@ -393,7 +413,7 @@ defmodule QuizWeb.QuestionLive.Index do
               <span class="block h-2 w-2/5 rounded bg-base-content/20"></span>
             </div>
           </div>
-        </.link>
+        </button>
       </div>
     </div>
     """
@@ -1132,18 +1152,6 @@ defmodule QuizWeb.QuestionLive.Index do
           <% end %>
         </.inputs_for>
       </div>
-
-      <div
-        :if={@live_action == :new}
-        class="sticky bottom-0 -mx-6 -mb-6 mt-6 flex items-center justify-end gap-2 border-t border-base-200 bg-base-100/95 px-6 py-4 backdrop-blur rounded-b-box"
-      >
-        <.link patch={~p"/games/#{@game}/questions"} class="btn btn-ghost btn-sm">
-          Abbrechen
-        </.link>
-        <button type="submit" phx-disable-with="Speichert..." class="btn btn-primary btn-sm">
-          Frage speichern
-        </button>
-      </div>
     </.form>
     """
   end
@@ -1189,39 +1197,13 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:save_status, nil)
   end
 
-  defp apply_action(socket, action, params) when action in [:new, :edit] do
+  defp apply_action(socket, :edit, params) do
     if Games.questions_locked?(socket.assigns.game) do
       socket
       |> put_flash(:error, @run_locked_message)
       |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")
     else
-      authoring_action(socket, action, params)
-    end
-  end
-
-  defp authoring_action(socket, :new, params) do
-    case parse_type(params["type"]) do
-      nil ->
-        socket
-        |> put_flash(:error, "Wähle einen Fragetyp.")
-        |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")
-
-      type ->
-        question = %Question{
-          user_id: socket.assigns.current_scope.user.id,
-          game_id: socket.assigns.game.id,
-          type: type,
-          position: next_position(socket.assigns.questions)
-        }
-
-        changeset = Games.change_question(socket.assigns.current_scope, question)
-
-        socket
-        |> assign(:page_title, "Neue Frage")
-        |> assign(:selected_question, question)
-        |> assign(:question_type, type)
-        |> assign(:form, to_form(changeset))
-        |> assign(:save_status, nil)
+      authoring_action(socket, :edit, params)
     end
   end
 
@@ -1253,24 +1235,32 @@ defmodule QuizWeb.QuestionLive.Index do
      |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{id}/edit")}
   end
 
+  # Picking a type creates the question immediately and drops the user into its
+  # edit form, where the full validation rules apply.
+  def handle_event("create", %{"type" => type}, socket) do
+    case parse_type(type) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Wähle einen Fragetyp.")}
+
+      type ->
+        case Games.create_question(socket.assigns.current_scope, socket.assigns.game, type) do
+          {:ok, question} ->
+            {:noreply,
+             socket
+             |> assign(:mode, :edit)
+             |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{question}/edit")}
+
+          {:error, :run_locked} ->
+            {:noreply,
+             socket
+             |> put_flash(:error, @run_locked_message)
+             |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
+        end
+    end
+  end
+
   def handle_event("validate", %{"question" => question_params}, socket) do
-    changeset =
-      Games.change_question(
-        socket.assigns.current_scope,
-        socket.assigns.selected_question,
-        question_params
-      )
-
-    socket =
-      if socket.assigns.live_action == :edit do
-        # Existing questions auto-save on every change; new ones can't (no entity
-        # yet) and are persisted via the footer "Frage speichern" button.
-        autosave(socket, changeset, question_params)
-      else
-        assign(socket, :form, to_form(changeset, action: :validate))
-      end
-
-    {:noreply, socket}
+    {:noreply, autosave(socket, question_params)}
   end
 
   def handle_event("save", %{"question" => question_params}, socket) do
@@ -1299,7 +1289,20 @@ defmodule QuizWeb.QuestionLive.Index do
   # header save status stays clear); any failure is shown in the header via
   # :save_status. The form is rebuilt from the persisted record so embedded
   # answers keep ids in sync for the next change.
-  defp autosave(socket, changeset, question_params) do
+  #
+  # A freshly uploaded background image is consumed *before* validating so the
+  # new image_key is part of the changeset — otherwise a brand-new pin question
+  # (which starts with no image) could never become valid and save.
+  defp autosave(socket, question_params) do
+    question_params = consume_pin_image(socket, question_params)
+
+    changeset =
+      Games.change_question(
+        socket.assigns.current_scope,
+        socket.assigns.selected_question,
+        question_params
+      )
+
     cond do
       not changeset.valid? ->
         socket
@@ -1307,8 +1310,6 @@ defmodule QuizWeb.QuestionLive.Index do
         |> assign(:save_status, "Nicht gespeichert – bitte Eingaben prüfen")
 
       true ->
-        question_params = consume_pin_image(socket, question_params)
-
         case Games.update_question(
                socket.assigns.current_scope,
                socket.assigns.selected_question,
@@ -1347,30 +1348,6 @@ defmodule QuizWeb.QuestionLive.Index do
         {:noreply,
          socket
          |> put_flash(:info, "Frage erfolgreich aktualisiert")
-         |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{question}/edit")}
-
-      {:error, :run_locked} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, @run_locked_message)
-         |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions")}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, :form, to_form(changeset))}
-    end
-  end
-
-  defp save_question(socket, :new, question_params) do
-    question_params =
-      question_params
-      |> Map.put("game_id", socket.assigns.game.id)
-      |> then(&consume_pin_image(socket, &1))
-
-    case Games.create_question(socket.assigns.current_scope, question_params) do
-      {:ok, question} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Frage erfolgreich erstellt")
          |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions/#{question}/edit")}
 
       {:error, :run_locked} ->
@@ -1440,10 +1417,10 @@ defmodule QuizWeb.QuestionLive.Index do
   defp parse_type(type) when type in @valid_types, do: String.to_existing_atom(type)
   defp parse_type(_), do: nil
 
-  defp next_position([]), do: 1
+  defp blank?(value), do: value in [nil, ""] or String.trim(to_string(value)) == ""
 
-  defp next_position(questions),
-    do: Enum.map(questions, & &1.position) |> Enum.max() |> Kernel.+(1)
+  defp question_label(question),
+    do: if(blank?(question.prompt), do: "Neue Frage", else: question.prompt)
 
   defp padded_count(questions), do: pad(length(questions))
   defp pad(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")

@@ -34,6 +34,20 @@ defmodule Quiz.Games.Question do
     |> put_change(:user_id, user_scope.user.id)
   end
 
+  @doc """
+  Lenient changeset for the instant-create flow.
+
+  Picking a type persists a skeleton question immediately, so `:prompt` and the
+  type-specific `:data` are intentionally *not* required here — they are filled
+  in and validated later through `changeset/3` in the edit form.
+  """
+  def create_changeset(question, attrs, user_scope) do
+    question
+    |> cast(attrs, [:type, :position, :game_id])
+    |> validate_required([:type, :position, :game_id])
+    |> put_change(:user_id, user_scope.user.id)
+  end
+
   defp maybe_reset_data_on_type_change(changeset) do
     with {:ok, _new_type} <- fetch_change(changeset, :type),
          %Data{} <- get_field(changeset, :data) do

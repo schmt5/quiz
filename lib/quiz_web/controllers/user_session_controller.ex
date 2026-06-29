@@ -5,7 +5,7 @@ defmodule QuizWeb.UserSessionController do
   alias QuizWeb.UserAuth
 
   def create(conn, params) do
-    create(conn, params, "Welcome back!")
+    create(conn, params, nil)
   end
 
   defp create(conn, %{"user" => user_params}, info) do
@@ -13,7 +13,7 @@ defmodule QuizWeb.UserSessionController do
 
     if user = Accounts.get_user_by_email_and_password(email, password) do
       conn
-      |> put_flash(:info, info)
+      |> then(&if(info, do: put_flash(&1, :info, info), else: &1))
       |> UserAuth.log_in_user(user, user_params)
     else
       # In order to prevent user enumeration attacks, don't disclose whether the email is registered.

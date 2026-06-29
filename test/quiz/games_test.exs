@@ -104,6 +104,16 @@ defmodule Quiz.GamesTest do
       assert_raise Ecto.NoResultsError, fn -> Games.get_game!(scope, game.id) end
     end
 
+    test "delete_game/2 deletes a game together with its questions" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+      question = question_fixture(scope, %{game_id: game.id})
+
+      assert {:ok, %Game{}} = Games.delete_game(scope, game)
+      assert_raise Ecto.NoResultsError, fn -> Games.get_game!(scope, game.id) end
+      assert_raise Ecto.NoResultsError, fn -> Games.get_question!(scope, question.id) end
+    end
+
     test "delete_game/2 with invalid scope raises" do
       scope = user_scope_fixture()
       other_scope = user_scope_fixture()
@@ -236,6 +246,39 @@ defmodule Quiz.GamesTest do
       assert question.user_id == scope.user.id
       assert [%{text: "A", correct: true}, %{text: "B", correct: false}] = question.data.choices
       assert question.data.solutions == []
+    end
+
+    test "create_question/3 creates a blank skeleton without a prompt or data" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      assert {:ok, %Question{} = question} =
+               Games.create_question(scope, game, :single_choice)
+
+      assert question.type == :single_choice
+      assert question.prompt in [nil, ""]
+      assert question.game_id == game.id
+      assert question.user_id == scope.user.id
+    end
+
+    test "create_question/3 appends after the game's existing questions" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+      question_fixture(scope, %{game_id: game.id, position: 5})
+
+      assert {:ok, %Question{position: 6}} = Games.create_question(scope, game, :text_input)
+    end
+
+    test "a skeleton must be completed (prompt required) before it can be updated" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+      {:ok, question} = Games.create_question(scope, game, :single_choice)
+
+      # The strict edit changeset still requires a prompt and valid answer data.
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Games.update_question(scope, question, %{"prompt" => ""})
+
+      assert "can't be blank" in errors_on(changeset).prompt
     end
 
     test "create_question/2 stores a sanitized description" do

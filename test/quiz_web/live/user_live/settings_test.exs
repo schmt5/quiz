@@ -12,8 +12,8 @@ defmodule QuizWeb.UserLive.SettingsTest do
         |> log_in_user(user_fixture())
         |> live(~p"/users/settings")
 
-      assert html =~ "Change Email"
-      assert html =~ "Save Password"
+      assert html =~ "Update email"
+      assert html =~ "Update password"
     end
 
     test "redirects if user is not logged in", %{conn: conn} do
@@ -71,7 +71,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
           "user" => %{"email" => "with spaces"}
         })
 
-      assert result =~ "Change Email"
+      assert result =~ "Update email"
       assert result =~ "must have the @ sign and no spaces"
     end
 
@@ -85,7 +85,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
         })
         |> render_submit()
 
-      assert result =~ "Change Email"
+      assert result =~ "Update email"
       assert result =~ "did not change"
     end
   end
@@ -137,7 +137,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
           }
         })
 
-      assert result =~ "Save Password"
+      assert result =~ "Update password"
       assert result =~ "sollte mindestens 12 Zeichen lang sein"
       assert result =~ "does not match password"
     end
@@ -155,7 +155,7 @@ defmodule QuizWeb.UserLive.SettingsTest do
         })
         |> render_submit()
 
-      assert result =~ "Save Password"
+      assert result =~ "Update password"
       assert result =~ "sollte mindestens 12 Zeichen lang sein"
       assert result =~ "does not match password"
     end

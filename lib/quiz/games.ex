@@ -287,6 +287,37 @@ defmodule Quiz.Games do
   end
 
   @doc """
+  Creates a skeleton question of the given `type` with no prompt or answer data
+  yet, appended after the game's existing questions.
+
+  This backs the authoring UI's instant-create flow: picking a type persists the
+  question immediately and drops the user into the edit form, where
+  `update_question/3` enforces the full validation rules (prompt, answer data, …).
+  """
+  def create_question(%Scope{} = scope, %Game{} = game, type) do
+    true = game.user_id == scope.user.id
+
+    attrs = %{type: type, game_id: game.id, position: next_question_position(scope, game)}
+    changeset = Question.create_changeset(%Question{}, attrs, scope)
+
+    with :ok <- ensure_questions_editable(scope, game.id),
+         {:ok, question = %Question{}} <- Repo.insert(changeset) do
+      broadcast_question(scope, {:created, question})
+      {:ok, question}
+    end
+  end
+
+  defp next_question_position(%Scope{} = scope, %Game{} = game) do
+    max =
+      Question
+      |> where([q], q.game_id == ^game.id and q.user_id == ^scope.user.id)
+      |> select([q], max(q.position))
+      |> Repo.one()
+
+    (max || 0) + 1
+  end
+
+  @doc """
   Updates a question.
 
   ## Examples

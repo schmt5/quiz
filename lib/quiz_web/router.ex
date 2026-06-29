@@ -59,7 +59,6 @@ defmodule QuizWeb.Router do
       live "/games/:id/edit", GameLive.Form, :edit
 
       live "/games/:game_id/questions", QuestionLive.Index, :index
-      live "/games/:game_id/questions/new", QuestionLive.Index, :new
       live "/games/:game_id/questions/reorder", QuestionLive.Reorder, :index
       live "/games/:game_id/questions/:id/edit", QuestionLive.Index, :edit
 

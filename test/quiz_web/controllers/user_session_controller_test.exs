@@ -51,7 +51,7 @@ defmodule QuizWeb.UserSessionControllerTest do
         })
 
       assert redirected_to(conn) == "/foo/bar"
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
+      refute Phoenix.Flash.get(conn.assigns.flash, :info)
     end
 
     test "redirects to login page with invalid credentials", %{conn: conn, user: user} do
@@ -60,7 +60,9 @@ defmodule QuizWeb.UserSessionControllerTest do
           "user" => %{"email" => user.email, "password" => "invalid_password"}
         })
 
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Ungültige E-Mail-Adresse oder ungültiges Passwort"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "Ungültige E-Mail-Adresse oder ungültiges Passwort"
+
       assert redirected_to(conn) == ~p"/users/log-in"
     end
   end

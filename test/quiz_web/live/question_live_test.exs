@@ -33,22 +33,6 @@ defmodule QuizWeb.QuestionLiveTest do
     }
   }
 
-  @sequence_submit_params %{
-    "question" => %{
-      "type" => "sequence",
-      "prompt" => "some sequence prompt",
-      "position" => "44",
-      "data" => %{
-        "items_sort" => ["0", "1", "2"],
-        "items" => %{
-          "0" => %{"text" => "First"},
-          "1" => %{"text" => "Second"},
-          "2" => %{"text" => "Third"}
-        }
-      }
-    }
-  }
-
   @pin_submit_params %{
     "question" => %{
       "type" => "pin_on_image",
@@ -178,86 +162,108 @@ defmodule QuizWeb.QuestionLiveTest do
   describe "Creating a question" do
     setup [:create_game]
 
-    test "redirects to type picker when no type is provided", %{conn: conn, game: game} do
-      assert {:error, {:live_redirect, %{to: target}}} =
-               live(conn, ~p"/games/#{game}/questions/new")
-
-      assert target == ~p"/games/#{game}/questions"
-
-      {:ok, _live, html} = live(conn, target)
-      assert html =~ "Welche Art von Frage möchtest du hinzufügen?"
-    end
-
-    test "shows a single-choice form with the type fixed", %{conn: conn, game: game} do
-      {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions/new?type=single_choice")
-
-      assert html =~ "Neue Frage"
-      assert html =~ ~s|value="single_choice"|
-      # The type select must not be present anymore
-      refute html =~ ~s|name="question[type]" type="select"|
-      refute html =~ ~s|<select id="question_type"|
-      assert html =~ ~s|name="question[type]"|
-    end
-
-    test "saves a new single-choice question and lands on its edit form", %{
+    test "clicking a type card creates the question and opens its edit form", %{
       conn: conn,
+      scope: scope,
       game: game
     } do
-      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/new?type=single_choice")
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
 
-      assert live
-             |> form("#question-form", question: @invalid_attrs)
-             |> render_change() =~ "darf nicht leer sein"
+      live |> element(~s|button[phx-value-type="single_choice"]|) |> render_click()
 
-      render_submit(live, "save", @single_choice_submit_params)
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.type == :single_choice
+      assert_patched(live, ~p"/games/#{game}/questions/#{question}/edit")
 
       html = render(live)
-      assert html =~ "Frage erfolgreich erstellt"
-      assert html =~ "some prompt"
       assert html =~ "Bearbeiten"
+      assert html =~ ~s|value="single_choice"|
+      assert html =~ "Antwortoptionen"
     end
 
-    test "saves a new text_input question via the Text card", %{conn: conn, game: game} do
-      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/new?type=text_input")
+    test "a freshly created question starts blank and shows a placeholder label", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
 
-      render_submit(live, "save", @text_input_submit_params)
+      live |> element(~s|button[phx-value-type="text_input"]|) |> render_click()
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.prompt in [nil, ""]
+      # The sidebar labels the still-unnamed question.
+      assert render(live) =~ "Neue Frage"
+    end
+
+    test "appends new questions after the existing ones", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      existing = question_fixture(scope, %{game_id: game.id, position: 7})
+
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="single_choice"]|) |> render_click()
+
+      created =
+        Quiz.Games.list_questions_for_game(scope, game)
+        |> Enum.reject(&(&1.id == existing.id))
+        |> hd()
+
+      assert created.position == 8
+    end
+
+    test "editing autosaves the new question's content", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="text_input"]|) |> render_click()
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+
+      render_change(live, "validate", @text_input_submit_params)
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.prompt == "some updated prompt"
+      assert Enum.map(saved.data.solutions, & &1.text) == ["Paris"]
+    end
+
+    test "a new sequence question shows its editor hint", %{conn: conn, game: game} do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="sequence"]|) |> render_click()
 
       html = render(live)
-      assert html =~ "Frage erfolgreich erstellt"
-      assert html =~ "some updated prompt"
-    end
-
-    test "saves a new sequence question via the Reihenfolge card", %{conn: conn, game: game} do
-      {:ok, live, html} = live(conn, ~p"/games/#{game}/questions/new?type=sequence")
-
-      assert html =~ "Reihenfolge"
       assert html =~ "Die Reihenfolge ist die Lösung"
-
-      render_submit(live, "save", @sequence_submit_params)
-
-      html = render(live)
-      assert html =~ "Frage erfolgreich erstellt"
-      assert html =~ "some sequence prompt"
-      assert html =~ "First"
-      assert html =~ "Second"
-      assert html =~ "Third"
     end
 
-    test "shows the pin_on_image form with an upload drop zone", %{conn: conn, game: game} do
-      {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions/new?type=pin_on_image")
+    test "a new pin_on_image question shows the upload drop zone", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
 
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.type == :pin_on_image
+
+      html = render(live)
       assert html =~ ~s|value="pin_on_image"|
       assert html =~ "Hintergrundbild"
       assert html =~ "Bild hochladen"
       assert html =~ ~s|name="question[data][pin][image_key]"|
     end
 
-    test "uploads a background image and saves a pin_on_image question", %{
+    test "uploading a background image autosaves the pin_on_image question", %{
       conn: conn,
       scope: scope,
       game: game
     } do
-      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/new?type=pin_on_image")
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
 
       image =
         file_input(live, "#question-form", :pin_image, [
@@ -270,9 +276,7 @@ defmodule QuizWeb.QuestionLiveTest do
         ])
 
       render_upload(image, "paris.png")
-      render_submit(live, "save", @pin_submit_params)
-
-      assert render(live) =~ "Frage erfolgreich erstellt"
+      render_change(live, "validate", @pin_submit_params)
 
       [question] = Quiz.Games.list_questions_for_game(scope, game)
       assert question.type == :pin_on_image
