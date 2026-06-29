@@ -318,6 +318,96 @@ defmodule QuizWeb.QuestionLiveTest do
       assert render_change(live, "validate", @pin_submit_params)
       assert Process.alive?(live.pid)
     end
+
+    test "the uploaded image persists when the prompt was typed before the upload",
+         %{conn: conn, scope: scope, game: game} do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
+
+      # Prompt typed first; the question is not yet valid (no image), so this
+      # autosave does not persist — it only stashes the form params.
+      render_change(live, "validate", @pin_submit_params)
+
+      image =
+        file_input(live, "#question-form", :pin_image, [
+          %{
+            last_modified: 1_700_000_000_000,
+            name: "paris.png",
+            content: File.read!("test/support/fixtures/files/pin.png"),
+            type: "image/png"
+          }
+        ])
+
+      # Completing the upload alone must persist the image — no extra validate
+      # round-trip needed, because the progress callback re-uses the stashed
+      # params and the prompt is already present.
+      render_upload(image, "paris.png")
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.data.pin.image_key
+      assert String.starts_with?(question.data.pin.image_key, "uploads/#{scope.user.id}/")
+
+      dir = Application.fetch_env!(:quiz, Quiz.Storage.Local)[:dir]
+      stored_path = Path.join(dir, Path.relative_to(question.data.pin.image_key, "uploads"))
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+    end
+
+    test "the target coordinates a participant-author sets are persisted", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
+
+      image =
+        file_input(live, "#question-form", :pin_image, [
+          %{
+            last_modified: 1_700_000_000_000,
+            name: "paris.png",
+            content: File.read!("test/support/fixtures/files/pin.png"),
+            type: "image/png"
+          }
+        ])
+
+      render_upload(image, "paris.png")
+
+      # The hook writes the clicked target into the hidden inputs; simulate the
+      # change it dispatches with a non-default target.
+      params =
+        put_in(@pin_submit_params, ["question", "data", "pin", "target_x"], "0.25")
+        |> put_in(["question", "data", "pin", "target_y"], "0.75")
+
+      render_change(live, "validate", params)
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.data.pin.target_x == 0.25
+      assert question.data.pin.target_y == 0.75
+      assert question.data.pin.image_key
+
+      dir = Application.fetch_env!(:quiz, Quiz.Storage.Local)[:dir]
+      stored_path = Path.join(dir, Path.relative_to(question.data.pin.image_key, "uploads"))
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+    end
+
+    test "pin coordinate inputs render inside phx-update=ignore containers so " <>
+           "autosave re-renders never stomp client-set values",
+         %{conn: conn, scope: scope, game: game} do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      html = render(live)
+
+      # The coordinate controls and the image box must be keyed by question id
+      # and ignored, so a DOM patch from a concurrent autosave cannot reset a
+      # just-placed target, and the image element is owned by the client hook.
+      assert html =~ ~s|id="pin-controls-#{question.id}" phx-update="ignore"|
+      assert html =~ ~s|id="pin-editor-box-#{question.id}" phx-update="ignore"|
+      # The coordinate inputs themselves are present for the form submit.
+      assert html =~ ~s|name="question[data][pin][target_x]"|
+      assert html =~ ~s|name="question[data][pin][target_y]"|
+    end
   end
 
   describe "Editing a question" do

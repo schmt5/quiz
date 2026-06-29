@@ -533,7 +533,9 @@ defmodule QuizWeb.QuestionLive.Index do
 
                 this.sync = () => {
                   this.input.value = this.editor.innerHTML;
-                  this.el.closest("form")?.dispatchEvent(new Event("change", { bubbles: true }));
+                  // Dispatch on the input, not the form: LiveView finds the form
+                  // via event.target.form, so a form-targeted event is ignored.
+                  this.input.dispatchEvent(new Event("input", { bubbles: true }));
                 };
 
                 this.onInput = () => this.sync();
@@ -887,8 +889,12 @@ defmodule QuizWeb.QuestionLive.Index do
                         if (!dragging) return;
                         dragging.classList.remove("opacity-40");
                         dragging.removeAttribute("draggable");
-                        const form = el.closest("form");
-                        if (form) form.dispatchEvent(new Event("change", { bubbles: true }));
+                        // Fire phx-change on a real input (the reordered sort
+                        // fields), not the form: LiveView resolves the form via
+                        // event.target.form, so an event whose target is the form
+                        // itself is ignored — the reorder would never autosave.
+                        const sortInput = el.querySelector('input[name="question[data][items_sort][]"]');
+                        if (sortInput) sortInput.dispatchEvent(new Event("input", { bubbles: true }));
                         dragging = null;
                       });
                     },
@@ -899,7 +905,18 @@ defmodule QuizWeb.QuestionLive.Index do
             <% :pin_on_image -> %>
               <% entry = List.first(@uploads.pin_image.entries) %>
               <% image_key = pin_image_key(@form) %>
-              <fieldset class="mt-8 space-y-4">
+              <% qid = @selected_question.id %>
+              <% has_image = !is_nil(entry) or not is_nil(image_key) %>
+              <fieldset
+                id={"pin-fieldset-#{qid}"}
+                phx-hook=".PinEditor"
+                data-image-url={image_key && Quiz.Storage.url(image_key)}
+                data-target-x={pin_coord(@form, :target_x)}
+                data-target-y={pin_coord(@form, :target_y)}
+                data-radius={pin_coord(@form, :radius)}
+                data-aspect-ratio={pin_coord(@form, :aspect_ratio)}
+                class="mt-8 space-y-4"
+              >
                 <div class="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-base-content/60">
                   <span>Hintergrundbild · Setze das Ziel</span>
                   <span>{pin_summary(@form)}</span>
@@ -912,7 +929,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   <div class="flex items-center justify-between gap-4">
                     <div class="text-sm text-base-content/70">
                       <p class="font-semibold">
-                        {if entry || image_key, do: "Bild ersetzen", else: "Bild hochladen"}
+                        {if has_image, do: "Bild ersetzen", else: "Bild hochladen"}
                       </p>
                       <p class="text-xs text-base-content/50">
                         JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
@@ -939,75 +956,73 @@ defmodule QuizWeb.QuestionLive.Index do
                   </p>
                 </div>
 
+                <%!-- Server-owned: written by the upload progress callback, never
+                      by the client. Lives outside the ignored containers below so
+                      it always reflects the persisted key. --%>
                 <input
                   type="hidden"
                   name="question[data][pin][image_key]"
                   value={image_key}
                 />
 
-                <div :if={entry || image_key} class="space-y-3">
+                <%!-- The editor box and coordinate inputs are client-owned: the
+                      PinEditor hook is the single source of truth for the target,
+                      radius and aspect ratio. They sit in phx-update="ignore"
+                      containers (keyed by question id) so server re-renders from
+                      autosave never stomp values the user just set. --%>
+                <div data-editor-wrap class={["space-y-3", !has_image && "hidden"]}>
                   <p class="text-xs text-base-content/60">
                     Klicke auf das Bild, um das Ziel zu setzen. Mit dem Regler unten passt du
                     den Toleranzradius an.
                   </p>
 
                   <div
-                    id="pin-editor"
-                    phx-hook=".PinEditor"
-                    data-target-x={pin_coord(@form, :target_x)}
-                    data-target-y={pin_coord(@form, :target_y)}
-                    data-radius={pin_coord(@form, :radius)}
-                    data-aspect-ratio={pin_coord(@form, :aspect_ratio)}
+                    id={"pin-editor-box-#{qid}"}
+                    phx-update="ignore"
+                    data-editor-box
                     class="relative w-full max-w-md overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
                     style={"aspect-ratio: #{pin_coord(@form, :aspect_ratio)};"}
                   >
-                    <.live_img_preview
-                      :if={entry}
-                      entry={entry}
-                      class="absolute inset-0 w-full h-full object-cover pointer-events-none"
-                    />
                     <img
-                      :if={!entry && image_key}
-                      src={Quiz.Storage.url(image_key)}
+                      data-bg
+                      src={image_key && Quiz.Storage.url(image_key)}
                       class="absolute inset-0 w-full h-full object-cover pointer-events-none"
                       alt="Hintergrundbild"
                     />
-                    <div
-                      id="pin-editor-layer"
-                      phx-update="ignore"
-                      class="absolute inset-0 pointer-events-none"
-                    >
-                    </div>
+                    <div data-layer class="absolute inset-0 pointer-events-none"></div>
                   </div>
 
-                  <label class="flex items-center gap-3 text-sm max-w-md">
-                    <span class="shrink-0 text-base-content/70">Radius</span>
-                    <input
-                      type="range"
-                      name="question[data][pin][radius]"
-                      min="0.02"
-                      max="0.5"
-                      step="0.01"
-                      value={pin_coord(@form, :radius)}
-                      class="range range-primary range-sm flex-1"
-                    />
-                  </label>
+                  <div id={"pin-controls-#{qid}"} phx-update="ignore">
+                    <label class="flex items-center gap-3 text-sm max-w-md">
+                      <span class="shrink-0 text-base-content/70">Radius</span>
+                      <input
+                        type="range"
+                        name="question[data][pin][radius]"
+                        min="0.02"
+                        max="0.5"
+                        step="0.01"
+                        value={pin_coord(@form, :radius)}
+                        data-radius-input
+                        class="range range-primary range-sm flex-1"
+                      />
+                    </label>
 
-                  <input
-                    type="hidden"
-                    name="question[data][pin][target_x]"
-                    value={pin_coord(@form, :target_x)}
-                  />
-                  <input
-                    type="hidden"
-                    name="question[data][pin][target_y]"
-                    value={pin_coord(@form, :target_y)}
-                  />
-                  <input
-                    type="hidden"
-                    name="question[data][pin][aspect_ratio]"
-                    value={pin_coord(@form, :aspect_ratio)}
-                  />
+                    <input
+                      type="hidden"
+                      name="question[data][pin][target_x]"
+                      value={pin_coord(@form, :target_x)}
+                    />
+                    <input
+                      type="hidden"
+                      name="question[data][pin][target_y]"
+                      value={pin_coord(@form, :target_y)}
+                    />
+                    <input
+                      type="hidden"
+                      name="question[data][pin][aspect_ratio]"
+                      value={pin_coord(@form, :aspect_ratio)}
+                    />
+                  </div>
                 </div>
 
                 <p :if={pin_error = data_field_error(@form, :pin)} class="text-error text-sm">
@@ -1018,7 +1033,17 @@ defmodule QuizWeb.QuestionLive.Index do
                   export default {
                     mounted() {
                       this.form = this.el.closest("form");
-                      this.layer = this.el.querySelector("#pin-editor-layer");
+                      this.wrap = this.el.querySelector("[data-editor-wrap]");
+                      this.box = this.el.querySelector("[data-editor-box]");
+                      this.img = this.el.querySelector("[data-bg]");
+                      this.layer = this.el.querySelector("[data-layer]");
+                      this.fileInput = this.el.querySelector('input[type="file"]');
+                      this.radiusEl = this.input("radius");
+
+                      this.shownUrl = null; // stored URL currently displayed
+                      this.objectUrl = null; // local blob URL, if any
+                      this.awaitingUpload = false; // a freshly picked file is streaming up
+                      this.preReplaceUrl = null; // stored URL shown when that file was picked
 
                       this.circle = document.createElement("div");
                       this.circle.className =
@@ -1029,83 +1054,138 @@ defmodule QuizWeb.QuestionLive.Index do
                       this.layer.appendChild(this.circle);
                       this.layer.appendChild(this.marker);
 
+                      // Show the picked file instantly from a local object URL —
+                      // this is independent of the upload round-trip, so the
+                      // preview never blanks out while the file streams up.
+                      this.onFile = () => {
+                        const file = this.fileInput?.files?.[0];
+                        if (!file) return;
+                        if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+                        this.objectUrl = URL.createObjectURL(file);
+                        // Remember which stored image is being replaced so the
+                        // local preview is not reverted to it by a validate that
+                        // fires while the new file is still streaming up.
+                        this.preReplaceUrl = this.shownUrl;
+                        this.awaitingUpload = true;
+                        this.shownUrl = null;
+                        this.img.src = this.objectUrl;
+                        this.img.onload = () => this.captureAspect();
+                        this.showBox();
+                      };
+                      if (this.fileInput) this.fileInput.addEventListener("change", this.onFile);
+
                       this.onClick = (e) => {
-                        const r = this.el.getBoundingClientRect();
+                        if (!this.img.getAttribute("src")) return;
+                        const r = this.box.getBoundingClientRect();
                         const x = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
                         const y = Math.min(Math.max((e.clientY - r.top) / r.height, 0), 1);
                         this.setInput("target_x", x);
                         this.setInput("target_y", y);
-                        this.render(x, y, this.radiusValue());
+                        this.renderMarker();
                         this.dispatchChange();
                       };
-                      this.el.addEventListener("click", this.onClick);
+                      this.box.addEventListener("click", this.onClick);
 
-                      this.radiusEl = this.input("radius");
-                      this.onRadius = () =>
-                        this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
+                      this.onRadius = () => this.renderMarker();
                       if (this.radiusEl) this.radiusEl.addEventListener("input", this.onRadius);
 
-                      this.bindImage();
-                      this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
+                      this.syncStoredImage();
+                      this.renderMarker();
                     },
 
                     updated() {
-                      this.bindImage();
-                      this.render(this.coord("target_x"), this.coord("target_y"), this.radiusValue());
+                      // After an upload is persisted, the stored URL arrives on a
+                      // re-render; swap to it without flashing (see swapTo).
+                      this.syncStoredImage();
+                      this.renderMarker();
                     },
 
                     destroyed() {
-                      this.el.removeEventListener("click", this.onClick);
+                      if (this.fileInput) this.fileInput.removeEventListener("change", this.onFile);
+                      this.box?.removeEventListener("click", this.onClick);
                       if (this.radiusEl) this.radiusEl.removeEventListener("input", this.onRadius);
+                      if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+                    },
+
+                    syncStoredImage() {
+                      const url = this.el.dataset.imageUrl;
+                      if (!url) return;
+                      this.showBox();
+                      this.swapTo(url);
+                    },
+
+                    // Preload the stored image, then swap the visible src only
+                    // once it has decoded. The local preview (or the previously
+                    // shown image) stays put until then, so there is no flash.
+                    swapTo(url) {
+                      // While a freshly picked file is uploading, keep showing
+                      // its local preview — don't revert to the image it replaces.
+                      if (this.awaitingUpload && url === this.preReplaceUrl) return;
+                      if (this.shownUrl === url) return;
+                      if (this.img.getAttribute("src") === url) {
+                        this.shownUrl = url;
+                        this.awaitingUpload = false;
+                        this.captureAspect();
+                        return;
+                      }
+                      const pre = new Image();
+                      pre.onload = () => {
+                        this.shownUrl = url;
+                        this.awaitingUpload = false;
+                        this.img.src = url;
+                        this.applyAspect(pre.naturalWidth / pre.naturalHeight);
+                        if (this.objectUrl) {
+                          URL.revokeObjectURL(this.objectUrl);
+                          this.objectUrl = null;
+                        }
+                      };
+                      pre.src = url;
+                    },
+
+                    captureAspect() {
+                      if (this.img.naturalWidth && this.img.naturalHeight) {
+                        this.applyAspect(this.img.naturalWidth / this.img.naturalHeight);
+                      }
+                    },
+
+                    // Mirror the image's natural aspect ratio into the box and the
+                    // hidden input; persist it (via a change) only when it really
+                    // differs, so scoring matches what the author sees.
+                    applyAspect(ar) {
+                      if (!Number.isFinite(ar) || ar <= 0) return;
+                      if (this.box) this.box.style.aspectRatio = ar;
+                      const cur = parseFloat(this.input("aspect_ratio")?.value);
+                      if (!Number.isFinite(cur) || Math.abs(cur - ar) > 0.001) {
+                        this.setInput("aspect_ratio", ar);
+                        this.dispatchChange();
+                      }
+                      this.renderMarker();
+                    },
+
+                    showBox() {
+                      if (this.wrap) this.wrap.classList.remove("hidden");
                     },
 
                     input(field) {
-                      return this.form?.querySelector(
-                        `[name="question[data][pin][${field}]"]`
-                      );
+                      return this.form?.querySelector(`[name="question[data][pin][${field}]"]`);
                     },
                     setInput(field, value) {
                       const el = this.input(field);
                       if (el) el.value = value;
                     },
-                    coord(field) {
+                    num(field, fallback) {
                       const el = this.input(field);
                       const v = el ? parseFloat(el.value) : NaN;
-                      return Number.isFinite(v) ? v : parseFloat(this.el.dataset[field === "target_x" ? "targetX" : "targetY"]) || 0.5;
+                      return Number.isFinite(v) ? v : fallback;
                     },
-                    radiusValue() {
-                      const v = this.radiusEl ? parseFloat(this.radiusEl.value) : NaN;
-                      return Number.isFinite(v) ? v : parseFloat(this.el.dataset.radius) || 0.1;
-                    },
-                    aspectRatio() {
-                      const el = this.input("aspect_ratio");
-                      const v = el ? parseFloat(el.value) : NaN;
-                      return Number.isFinite(v) && v > 0
-                        ? v
-                        : parseFloat(this.el.dataset.aspectRatio) || 1;
-                    },
-                    // Read the natural aspect ratio of the uploaded/stored image
-                    // and propagate it to the hidden input and the box so the
-                    // whole image shows uncropped and scoring matches the view.
-                    bindImage() {
-                      const img = this.el.querySelector("img");
-                      if (!img) return;
-                      const capture = () => {
-                        if (!img.naturalWidth || !img.naturalHeight) return;
-                        const ar = img.naturalWidth / img.naturalHeight;
-                        this.setInput("aspect_ratio", ar);
-                        this.el.style.aspectRatio = ar;
-                        this.render(
-                          this.coord("target_x"),
-                          this.coord("target_y"),
-                          this.radiusValue()
-                        );
-                      };
-                      if (img.complete && img.naturalWidth) capture();
-                      else img.addEventListener("load", capture, { once: true });
-                    },
-                    render(x, y, radius) {
-                      const ar = this.aspectRatio();
+
+                    renderMarker() {
+                      const x = this.num("target_x", parseFloat(this.el.dataset.targetX) || 0.5);
+                      const y = this.num("target_y", parseFloat(this.el.dataset.targetY) || 0.5);
+                      const radius = this.radiusEl
+                        ? parseFloat(this.radiusEl.value) || 0.1
+                        : parseFloat(this.el.dataset.radius) || 0.1;
+                      const ar = this.num("aspect_ratio", parseFloat(this.el.dataset.aspectRatio) || 1) || 1;
                       this.marker.style.left = x * 100 + "%";
                       this.marker.style.top = y * 100 + "%";
                       this.circle.style.left = x * 100 + "%";
@@ -1113,8 +1193,16 @@ defmodule QuizWeb.QuestionLive.Index do
                       this.circle.style.width = radius * 200 + "%";
                       this.circle.style.height = radius * ar * 200 + "%";
                     },
+
+                    // Trigger the form's phx-change autosave. The event MUST be
+                    // dispatched on a real input, not the form: LiveView locates
+                    // the form via event.target.form, so an event whose target is
+                    // the form itself is silently ignored — which is why a placed
+                    // target only saved when some other input event happened to
+                    // carry it along.
                     dispatchChange() {
-                      this.form?.dispatchEvent(new Event("change", { bubbles: true }));
+                      const el = this.input("target_x");
+                      if (el) el.dispatchEvent(new Event("input", { bubbles: true }));
                     },
                   };
                 </script>
@@ -1213,15 +1301,18 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:question_type, nil)
      |> assign(:form, nil)
      |> assign(:save_status, nil)
+     |> assign(:pin_pending_params, nil)
+     |> assign(:pin_uploaded_key, nil)
      |> allow_upload(:pin_image,
        accept: ~w(.jpg .jpeg .png .webp),
        max_entries: 1,
        max_file_size: 5_000_000,
-       # The form is persisted only via autosave on "validate" (there is no
-       # submit button), so the file must finish uploading during editing —
-       # otherwise consume_pin_image/2 never sees a completed entry. Progress
-       # arrives as "validate" events; consume_pin_image/2 waits until done.
-       auto_upload: true
+       # There is no submit button — the form persists via autosave on
+       # "validate". Uploads are consumed in handle_pin_image_progress/3 the
+       # moment the file finishes streaming, independent of the validate churn,
+       # which keeps the upload lifecycle deterministic.
+       auto_upload: true,
+       progress: &handle_pin_image_progress/3
      )}
   end
 
@@ -1259,6 +1350,8 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:question_type, question.type)
     |> assign(:form, to_form(changeset))
     |> assign(:save_status, nil)
+    |> assign(:pin_pending_params, nil)
+    |> assign(:pin_uploaded_key, nil)
   end
 
   @impl true
@@ -1302,7 +1395,10 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   def handle_event("validate", %{"question" => question_params}, socket) do
-    {:noreply, autosave(socket, question_params)}
+    {:noreply,
+     socket
+     |> assign(:pin_pending_params, question_params)
+     |> autosave(question_params)}
   end
 
   def handle_event("save", %{"question" => question_params}, socket) do
@@ -1332,11 +1428,12 @@ defmodule QuizWeb.QuestionLive.Index do
   # :save_status. The form is rebuilt from the persisted record so embedded
   # answers keep ids in sync for the next change.
   #
-  # A freshly uploaded background image is consumed *before* validating so the
-  # new image_key is part of the changeset — otherwise a brand-new pin question
-  # (which starts with no image) could never become valid and save.
+  # A just-uploaded background image's key is injected into the params here so
+  # it becomes part of the changeset on the very next autosave — this is what
+  # lets a brand-new pin question (which starts with no image) become valid and
+  # save, regardless of whether the prompt was typed before or after the upload.
   defp autosave(socket, question_params) do
-    question_params = consume_pin_image(socket, question_params)
+    question_params = inject_uploaded_key(socket, question_params)
 
     changeset =
       Games.change_question(
@@ -1363,6 +1460,9 @@ defmodule QuizWeb.QuestionLive.Index do
             socket
             |> assign(:selected_question, question)
             |> assign(:form, form)
+            # The uploaded key is now persisted on the record; clear the pending
+            # marker so we don't keep re-injecting it on later autosaves.
+            |> assign(:pin_uploaded_key, nil)
             |> assign(:save_status, nil)
 
           {:error, :run_locked} ->
@@ -1379,7 +1479,7 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp save_question(socket, :edit, question_params) do
-    question_params = consume_pin_image(socket, question_params)
+    question_params = inject_uploaded_key(socket, question_params)
 
     case Games.update_question(
            socket.assigns.current_scope,
@@ -1403,17 +1503,18 @@ defmodule QuizWeb.QuestionLive.Index do
     end
   end
 
-  # Persists a freshly uploaded background image via the storage adapter and
-  # injects the returned key into the embedded pin params. A no-op when no new
-  # file was staged (e.g. editing without re-uploading, or non-pin types).
-  defp consume_pin_image(socket, question_params) do
-    # The "validate" event fires repeatedly while the file is still streaming
-    # in. `consume_uploaded_entries/3` raises if *any* entry is in progress, so
-    # we only consume once the upload has finished — otherwise an autosave
-    # mid-upload would crash the LiveView.
-    {_completed, in_progress} = uploaded_entries(socket, :pin_image)
-
-    if in_progress == [] do
+  # Consumes the background image exactly once, the moment its upload finishes.
+  # Using the upload :progress callback (rather than consuming inside "validate")
+  # keeps the lifecycle deterministic: the file is persisted to storage as soon
+  # as it is complete, regardless of how the surrounding form events interleave.
+  #
+  # The returned key is stashed in :pin_uploaded_key and an autosave is run with
+  # the last form params so the key is written to the record immediately when
+  # the rest of the question is already valid. If it is not yet valid (e.g. the
+  # prompt is still empty), the key is retained and injected into the next
+  # autosave, so it is never lost.
+  def handle_pin_image_progress(:pin_image, entry, socket) do
+    if entry.done? do
       consumed =
         consume_uploaded_entries(socket, :pin_image, fn %{path: path}, entry ->
           Quiz.Storage.put(socket.assigns.current_scope, path,
@@ -1423,11 +1524,28 @@ defmodule QuizWeb.QuestionLive.Index do
         end)
 
       case consumed do
-        [key | _] -> put_pin_image_key(question_params, key)
-        [] -> question_params
+        [key | _] ->
+          params = socket.assigns.pin_pending_params || base_pin_params(socket)
+
+          {:noreply,
+           socket
+           |> assign(:pin_uploaded_key, key)
+           |> autosave(params)}
+
+        [] ->
+          {:noreply, socket}
       end
     else
-      question_params
+      {:noreply, socket}
+    end
+  end
+
+  # Merges a pending uploaded image key into the pin params. A no-op when no new
+  # file is awaiting persistence (editing without re-uploading, or non-pin types).
+  defp inject_uploaded_key(socket, question_params) do
+    case socket.assigns[:pin_uploaded_key] do
+      key when is_binary(key) -> put_pin_image_key(question_params, key)
+      _ -> question_params
     end
   end
 
@@ -1435,6 +1553,27 @@ defmodule QuizWeb.QuestionLive.Index do
     data = Map.get(params, "data", %{})
     pin = data |> Map.get("pin", %{}) |> Map.put("image_key", key)
     Map.put(params, "data", Map.put(data, "pin", pin))
+  end
+
+  # Minimal, well-formed pin params used when the upload completes before any
+  # "validate" has run (so we have no stashed form params yet). Carries the
+  # question's current prompt/position and default pin coordinates.
+  defp base_pin_params(socket) do
+    question = socket.assigns.selected_question
+
+    %{
+      "type" => "pin_on_image",
+      "prompt" => question.prompt || "",
+      "position" => to_string(question.position),
+      "data" => %{
+        "pin" => %{
+          "target_x" => to_string(pin_coord(socket.assigns.form, :target_x)),
+          "target_y" => to_string(pin_coord(socket.assigns.form, :target_y)),
+          "radius" => to_string(pin_coord(socket.assigns.form, :radius)),
+          "aspect_ratio" => to_string(pin_coord(socket.assigns.form, :aspect_ratio))
+        }
+      }
+    }
   end
 
   @impl true
