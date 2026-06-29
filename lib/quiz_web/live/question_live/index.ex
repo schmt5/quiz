@@ -1216,7 +1216,12 @@ defmodule QuizWeb.QuestionLive.Index do
      |> allow_upload(:pin_image,
        accept: ~w(.jpg .jpeg .png .webp),
        max_entries: 1,
-       max_file_size: 5_000_000
+       max_file_size: 5_000_000,
+       # The form is persisted only via autosave on "validate" (there is no
+       # submit button), so the file must finish uploading during editing —
+       # otherwise consume_pin_image/2 never sees a completed entry. Progress
+       # arrives as "validate" events; consume_pin_image/2 waits until done.
+       auto_upload: true
      )}
   end
 
@@ -1402,17 +1407,27 @@ defmodule QuizWeb.QuestionLive.Index do
   # injects the returned key into the embedded pin params. A no-op when no new
   # file was staged (e.g. editing without re-uploading, or non-pin types).
   defp consume_pin_image(socket, question_params) do
-    consumed =
-      consume_uploaded_entries(socket, :pin_image, fn %{path: path}, entry ->
-        Quiz.Storage.put(socket.assigns.current_scope, path,
-          content_type: entry.client_type,
-          filename: entry.client_name
-        )
-      end)
+    # The "validate" event fires repeatedly while the file is still streaming
+    # in. `consume_uploaded_entries/3` raises if *any* entry is in progress, so
+    # we only consume once the upload has finished — otherwise an autosave
+    # mid-upload would crash the LiveView.
+    {_completed, in_progress} = uploaded_entries(socket, :pin_image)
 
-    case consumed do
-      [key | _] -> put_pin_image_key(question_params, key)
-      [] -> question_params
+    if in_progress == [] do
+      consumed =
+        consume_uploaded_entries(socket, :pin_image, fn %{path: path}, entry ->
+          Quiz.Storage.put(socket.assigns.current_scope, path,
+            content_type: entry.client_type,
+            filename: entry.client_name
+          )
+        end)
+
+      case consumed do
+        [key | _] -> put_pin_image_key(question_params, key)
+        [] -> question_params
+      end
+    else
+      question_params
     end
   end
 

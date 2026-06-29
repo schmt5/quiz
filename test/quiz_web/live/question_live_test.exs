@@ -292,6 +292,32 @@ defmodule QuizWeb.QuestionLiveTest do
 
       on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
     end
+
+    test "a validate while the upload is still in progress does not crash", %{
+      conn: conn,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
+
+      image =
+        file_input(live, "#question-form", :pin_image, [
+          %{
+            last_modified: 1_700_000_000_000,
+            name: "paris.png",
+            content: File.read!("test/support/fixtures/files/pin.png"),
+            type: "image/png"
+          }
+        ])
+
+      # Upload only part of the file: the entry is still in progress. A
+      # validate (autosave) firing now must not raise — it previously crashed
+      # the LiveView with "cannot consume uploaded files when entries are
+      # still in progress".
+      render_upload(image, "paris.png", 30)
+      assert render_change(live, "validate", @pin_submit_params)
+      assert Process.alive?(live.pid)
+    end
   end
 
   describe "Editing a question" do
