@@ -543,10 +543,27 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   the original order is not given away; other types pass through unchanged.
   """
   def prepare_question(%{type: :sequence, data: data} = question) do
-    %{question | data: %{data | items: Enum.shuffle(data.items)}}
+    %{question | data: %{data | items: shuffle_items(data.items)}}
   end
 
   def prepare_question(question), do: question
+
+  # Shuffle the items but avoid handing the participant the solution order. Only
+  # reshuffle while a different arrangement is actually reachable: a list of 0/1
+  # items, or one where every item reads the same, can never differ, so we stop
+  # to avoid looping forever.
+  defp shuffle_items(items) do
+    if reorderable?(items) do
+      Stream.repeatedly(fn -> Enum.shuffle(items) end)
+      |> Enum.find(&(Enum.map(&1, fn i -> i.text end) != Enum.map(items, fn i -> i.text end)))
+    else
+      Enum.shuffle(items)
+    end
+  end
+
+  defp reorderable?(items) do
+    items |> Enum.map(& &1.text) |> Enum.uniq() |> length() > 1
+  end
 
   # Six-dot "grip" glyph signalling a draggable element. Shared by the sequence
   # handle and the matching chips so the drag affordance reads the same way.
