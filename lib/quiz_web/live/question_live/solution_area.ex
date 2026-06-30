@@ -89,7 +89,7 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
           {pair.left_text}
         </span>
         <.icon name="hero-arrow-right" class="size-4 shrink-0 text-base-content/30" />
-        <span class="flex-1 min-w-0 font-medium text-success-content break-words">
+        <span class="flex-1 min-w-0 font-medium text-success break-words">
           {pair.right_text}
         </span>
       </li>
