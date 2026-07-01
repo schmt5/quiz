@@ -130,15 +130,23 @@ defmodule Quiz.Play do
   @doc """
   Looks up a joinable game by its (case-insensitive) join code.
 
-  Returns `{:ok, game}` only while the run accepts enrollment, otherwise
-  `{:error, :not_found}`.
+  Distinguishes *why* a code can't be joined so the UI can say something useful
+  instead of a blanket "wrong PIN":
+
+    * `{:ok, game}` — the run accepts enrollment (`:open`/`:running`).
+    * `{:error, :not_started}` — the code is valid but its quiz is still a
+      `:draft` (the operator hasn't opened it yet).
+    * `{:error, :ended}` — the code is valid but its quiz has `:finished`/`:closed`.
+    * `{:error, :not_found}` — no quiz has this code.
   """
   def get_game_by_join_code(code) when is_binary(code) do
     normalized = code |> String.trim() |> String.upcase()
 
     case Repo.get_by(Game, join_code: normalized) do
       %Game{status: status} = game when status in @joinable -> {:ok, game}
-      _ -> {:error, :not_found}
+      %Game{status: :draft} -> {:error, :not_started}
+      %Game{} -> {:error, :ended}
+      nil -> {:error, :not_found}
     end
   end
 

@@ -54,6 +54,37 @@ defmodule QuizWeb.PlayLive.JoinTest do
       refute html =~ "Kein Quiz mit der PIN"
     end
 
+    test "a valid PIN for a not-yet-opened quiz says so, not 'wrong PIN'",
+         %{conn: conn} do
+      scope = user_scope_fixture()
+      draft = game_fixture(scope, %{status: :draft})
+
+      {:ok, lv, _html} = live(conn, ~p"/join")
+
+      html =
+        lv
+        |> form("#join-form", participant: %{name: "Team A", code: draft.join_code})
+        |> render_submit()
+
+      assert html =~ "wurde noch nicht gestartet"
+      refute html =~ "Kein Quiz mit der PIN"
+    end
+
+    test "a valid PIN for a finished quiz says it has ended", %{conn: conn} do
+      scope = user_scope_fixture()
+      done = game_fixture(scope, %{status: :finished})
+
+      {:ok, lv, _html} = live(conn, ~p"/join")
+
+      html =
+        lv
+        |> form("#join-form", participant: %{name: "Team A", code: done.join_code})
+        |> render_submit()
+
+      assert html =~ "bereits beendet"
+      refute html =~ "Kein Quiz mit der PIN"
+    end
+
     test "a valid code enrols and moves to the waiting room", %{conn: conn, game: game} do
       {:ok, lv, _html} = live(conn, ~p"/join")
 

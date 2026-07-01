@@ -128,14 +128,23 @@ defmodule QuizWeb.PlayLive.Join do
         {:noreply,
          socket |> assign(:code, code) |> assign(:code_locked, false) |> assign(:error, message)}
 
-      {:error, :not_joinable} ->
+      # The PIN is valid — the quiz just isn't accepting teams yet / anymore.
+      # Keep the field as-is (editing it wouldn't help; it's the right quiz).
+      {:error, :not_started} ->
         {:noreply,
-         socket
-         |> assign(:code_locked, false)
-         |> assign(
+         assign(
+           socket,
            :error,
-           "Dieses Quiz nimmt gerade keine neuen Teams auf. Frag den Quizmaster, ob es schon gestartet wurde."
+           "Dieses Quiz wurde noch nicht gestartet. Warte, bis die Quizmaster:in es öffnet."
          )}
+
+      {:error, :ended} ->
+        {:noreply, assign(socket, :error, "Dieses Quiz ist bereits beendet.")}
+
+      # Fallback for the rare race where the quiz stops accepting teams between
+      # the lookup and enrollment.
+      {:error, :not_joinable} ->
+        {:noreply, assign(socket, :error, "Dieses Quiz nimmt gerade keine neuen Teams auf.")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}

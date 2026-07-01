@@ -64,11 +64,20 @@ defmodule Quiz.PlayTest do
       assert found.id == game.id
     end
 
-    test "does not return a draft game" do
+    test "reports a draft game as :not_started (valid PIN, not opened yet)" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :draft})
 
-      assert {:error, :not_found} = Play.get_game_by_join_code(game.join_code)
+      assert {:error, :not_started} = Play.get_game_by_join_code(game.join_code)
+    end
+
+    test "reports a finished/closed game as :ended (valid PIN, over)" do
+      scope = user_scope_fixture()
+
+      for status <- [:finished, :closed] do
+        game = game_fixture(scope, %{status: status})
+        assert {:error, :ended} = Play.get_game_by_join_code(game.join_code)
+      end
     end
 
     test "returns :not_found for an unknown code" do
@@ -81,8 +90,8 @@ defmodule Quiz.PlayTest do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :finished})
 
-      # The joinable lookup rejects it, but the play lookup still finds it.
-      assert {:error, :not_found} = Play.get_game_by_join_code(game.join_code)
+      # The joinable lookup rejects it (as :ended), but the play lookup still finds it.
+      assert {:error, :ended} = Play.get_game_by_join_code(game.join_code)
       assert {:ok, found} = Play.get_game_for_play(String.downcase(game.join_code))
       assert found.id == game.id
     end
