@@ -168,6 +168,14 @@ defmodule QuizWeb.QuestionLive.Index do
                       ]}>
                         {question_label(question)}
                       </span>
+                      <span
+                        :if={incomplete?(question)}
+                        class="tooltip tooltip-left ml-auto shrink-0 text-warning"
+                        data-tip="Unvollständig – kann noch nicht gespielt werden"
+                        aria-label="Unvollständig"
+                      >
+                        <.icon name="hero-exclamation-triangle" class="size-4" />
+                      </span>
                     </div>
                   </.link>
                   <div
@@ -1653,6 +1661,10 @@ defmodule QuizWeb.QuestionLive.Index do
 
   defp question_label(question),
     do: if(blank?(question.prompt), do: "Neue Frage", else: question.prompt)
+
+  # A question that does not yet meet the playable bar (see `Question.ready?/1`);
+  # the quiz can't be opened until every question is complete.
+  defp incomplete?(question), do: not Quiz.Games.Question.ready?(question)
 
   defp padded_count(questions), do: pad(length(questions))
   defp pad(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")

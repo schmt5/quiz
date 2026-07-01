@@ -19,6 +19,27 @@ defmodule Quiz.PlayTest do
       assert id == opened.id
     end
 
+    test "opens a draft game whose questions are all complete" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+
+      assert {:ok, %{status: :open}} = Play.open_run(scope, game)
+    end
+
+    test "refuses to open a draft game with an incomplete question" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, skeleton} = Quiz.Games.create_question(scope, game, :single_choice)
+
+      assert {:error, {:incomplete_questions, [incomplete]}} = Play.open_run(scope, game)
+      assert incomplete.id == skeleton.id
+
+      # The transition did not happen.
+      assert Quiz.Games.get_game!(scope, game.id).status == :draft
+    end
+
     test "rejects an invalid transition (running -> open)" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :running})

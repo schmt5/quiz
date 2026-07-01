@@ -297,12 +297,27 @@ defmodule Quiz.GamesTest do
       assert {:ok, %Question{position: 6}} = Games.create_question(scope, game, :text_input)
     end
 
-    test "a skeleton must be completed (prompt required) before it can be updated" do
+    test "update_question/3 saves an incomplete question leniently while the quiz is a draft" do
       scope = user_scope_fixture()
-      game = game_fixture(scope)
+      game = game_fixture(scope, %{status: :draft})
       {:ok, question} = Games.create_question(scope, game, :single_choice)
 
-      # The strict edit changeset still requires a prompt and valid answer data.
+      # A draft quiz is still being built: a blank prompt and no answer data yet
+      # must be savable so the author can finish later.
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{"prompt" => ""})
+
+      assert updated.prompt in [nil, ""]
+      refute Question.ready?(updated)
+    end
+
+    test "update_question/3 enforces completeness once the quiz has been opened" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question = question_fixture(scope, %{game_id: game.id})
+
+      # A live (non-draft) question must stay complete — editing it into an
+      # invalid state is rejected so the running quiz never breaks.
       assert {:error, %Ecto.Changeset{} = changeset} =
                Games.update_question(scope, question, %{"prompt" => ""})
 
@@ -846,6 +861,64 @@ defmodule Quiz.GamesTest do
 
         assert updated.prompt == new_prompt
       end
+    end
+  end
+
+  describe "question readiness (publish gate)" do
+    alias Quiz.Games.Question
+
+    import Quiz.AccountsFixtures, only: [user_scope_fixture: 0]
+    import Quiz.GamesFixtures
+
+    test "ready?/1 is false for a bare skeleton (no prompt, no answers)" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      {:ok, question} = Games.create_question(scope, game, :single_choice)
+
+      refute Question.ready?(question)
+    end
+
+    test "ready?/1 is false for a single_choice without exactly one correct answer" do
+      # A draft may hold such a question (the lenient changeset allows it); the
+      # publish bar must still reject it.
+      refute Question.ready?(%Question{
+               type: :single_choice,
+               prompt: "?",
+               data: %Quiz.Games.Question.Data{
+                 choices: [
+                   %Quiz.Games.Question.Choice{text: "A", correct: false},
+                   %Quiz.Games.Question.Choice{text: "B", correct: false}
+                 ]
+               }
+             })
+    end
+
+    test "ready?/1 is true for a complete question" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert Question.ready?(question)
+    end
+
+    test "incomplete_questions/2 lists only the not-yet-playable questions, in order" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+
+      complete = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, skeleton} = Games.create_question(scope, game, :text_input)
+
+      incomplete = Games.incomplete_questions(scope, game)
+
+      assert Enum.map(incomplete, & &1.id) == [skeleton.id]
+      refute complete.id in Enum.map(incomplete, & &1.id)
+    end
+
+    test "incomplete_questions/2 is empty for a fully built quiz" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+
+      assert Games.incomplete_questions(scope, game) == []
     end
   end
 end

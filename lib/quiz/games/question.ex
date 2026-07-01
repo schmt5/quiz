@@ -18,21 +18,68 @@ defmodule Quiz.Games.Question do
     timestamps(type: :utc_datetime)
   end
 
-  @doc false
-  def changeset(question, attrs, user_scope) do
+  @doc """
+  Authoring changeset for a question.
+
+  `mode` mirrors `Data.changeset/4`:
+
+    * `:draft` (lenient) — only structural rules; the prompt and complete answer
+      data may still be missing, so an author can save work in progress.
+    * `:publish` (strict, the default) — also requires a prompt and enforces the
+      per-type completeness rules a playable question needs.
+
+  The authoring UI passes `:draft` while a quiz is still a draft and `:publish`
+  once it has been opened (a live question must stay complete); the publish gate
+  uses `ready?/1` to hold the whole quiz to the `:publish` bar before it opens.
+  """
+  def changeset(question, attrs, user_scope, mode \\ :publish) do
     changeset =
       question
       |> cast(attrs, [:type, :prompt, :description, :position, :game_id])
-      |> validate_required([:type, :prompt, :position, :game_id])
+      |> validate_required(required_fields(mode))
       |> update_change(:description, &Quiz.HTML.sanitize_description/1)
       |> maybe_reset_data_on_type_change()
 
     type = get_field(changeset, :type)
 
     changeset
-    |> cast_embed(:data, with: &Data.changeset(&1, &2, type))
+    |> cast_embed(:data, with: &Data.changeset(&1, &2, type, mode))
     |> put_change(:user_id, user_scope.user.id)
   end
+
+  # `:prompt` is a completeness rule (a playable question needs a question text),
+  # so it is only required in `:publish` mode; `:type`/`:position`/`:game_id` are
+  # structural and always required.
+  defp required_fields(:publish), do: [:type, :prompt, :position, :game_id]
+  defp required_fields(_draft), do: [:type, :position, :game_id]
+
+  @doc """
+  Whether a question meets the `:publish` bar — complete enough to be played.
+
+  This is the whole-question counterpart to the completeness rules in
+  `changeset/4`/`Data.changeset/4`: the edit form surfaces them per field, this
+  predicate answers pass/fail for the publish gate (`Quiz.Games.open_run`, i.e.
+  the `draft -> open` transition). Keep the two in sync.
+  """
+  def ready?(%__MODULE__{prompt: prompt}) when prompt in [nil, ""], do: false
+
+  def ready?(%__MODULE__{type: :single_choice, data: %Data{choices: choices}}) do
+    length(choices) >= 2 and Enum.count(choices, & &1.correct) == 1
+  end
+
+  def ready?(%__MODULE__{type: :text_input, data: %Data{solutions: solutions}}),
+    do: solutions != []
+
+  def ready?(%__MODULE__{type: :sequence, data: %Data{items: items}}), do: length(items) >= 2
+
+  def ready?(%__MODULE__{type: :pin_on_image, data: %Data{pin: pin}}), do: not is_nil(pin)
+
+  def ready?(%__MODULE__{type: :matching, data: %Data{pairs: pairs}}) do
+    rights = pairs |> Enum.map(&normalize(&1.right_text)) |> Enum.reject(&(&1 == ""))
+    length(pairs) >= 2 and rights == Enum.uniq(rights)
+  end
+
+  def ready?(%__MODULE__{}), do: false
 
   @doc """
   Lenient changeset for the instant-create flow.

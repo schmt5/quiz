@@ -184,9 +184,24 @@ defmodule QuizWeb.GameLive.Show do
       {:ok, game} ->
         {:noreply, push_navigate(socket, to: ~p"/games/#{game}/run")}
 
+      {:error, {:incomplete_questions, questions}} ->
+        {:noreply, put_flash(socket, :error, incomplete_questions_message(questions))}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Durchführung konnte nicht eröffnet werden.")}
     end
+  end
+
+  defp incomplete_questions_message(questions) do
+    names =
+      Enum.map_join(questions, ", ", fn q ->
+        case q.prompt do
+          blank when blank in [nil, ""] -> "Frage #{q.position} (ohne Titel)"
+          prompt -> "„#{prompt}“"
+        end
+      end)
+
+    "Diese Fragen sind noch unvollständig und müssen zuerst fertiggestellt werden: #{names}"
   end
 
   @impl true

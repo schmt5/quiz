@@ -53,9 +53,18 @@ defmodule Quiz.Play do
 
   @doc """
   Opens a run for enrollment (`:draft`/`:closed` -> `:open`). Operator only.
+
+  This is the *publish gate*: before the quiz becomes joinable, every question
+  must meet the playable bar (`Quiz.Games.Question.ready?/1`). If any are still
+  incomplete the transition is refused with `{:error, {:incomplete_questions,
+  questions}}` so the caller can point the author at what to finish. A quiz with
+  no questions at all still opens (an empty lobby); `start_run/2` guards that.
   """
   def open_run(%Scope{} = scope, %Game{} = game) do
-    transition(scope, game, %{status: :open})
+    case Games.incomplete_questions(scope, game) do
+      [] -> transition(scope, game, %{status: :open})
+      incomplete -> {:error, {:incomplete_questions, incomplete}}
+    end
   end
 
   @doc """

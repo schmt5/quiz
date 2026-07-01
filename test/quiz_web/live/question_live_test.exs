@@ -372,10 +372,18 @@ defmodule QuizWeb.QuestionLiveTest do
 
       render_upload(image, "paris.png")
 
+      # Uploading persists the pin immediately (with default centre coordinates);
+      # the re-rendered form then carries the stored image_key in its hidden
+      # input. Mirror that here so the coordinate change reflects the real DOM.
+      [uploaded] = Quiz.Games.list_questions_for_game(scope, game)
+      image_key = uploaded.data.pin.image_key
+
       # The hook writes the clicked target into the hidden inputs; simulate the
       # change it dispatches with a non-default target.
       params =
-        put_in(@pin_submit_params, ["question", "data", "pin", "target_x"], "0.25")
+        @pin_submit_params
+        |> put_in(["question", "data", "pin", "image_key"], image_key)
+        |> put_in(["question", "data", "pin", "target_x"], "0.25")
         |> put_in(["question", "data", "pin", "target_y"], "0.75")
 
       render_change(live, "validate", params)
@@ -420,10 +428,16 @@ defmodule QuizWeb.QuestionLiveTest do
       assert html =~ question.prompt
     end
 
-    test "validates and saves changes", %{conn: conn, game: game, question: question} do
+    test "saves changes and, while a draft, accepts an incomplete edit leniently", %{
+      conn: conn,
+      game: game,
+      question: question
+    } do
       {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
 
-      assert live
+      # Draft quiz: a blank prompt does not raise a blocking validation error, so
+      # the author can keep working on a half-finished question.
+      refute live
              |> form("#question-form", question: @invalid_attrs)
              |> render_change() =~ "darf nicht leer sein"
 
@@ -488,11 +502,30 @@ defmodule QuizWeb.QuestionLiveTest do
       assert saved.prompt == "autosaved prompt"
     end
 
-    test "shows a save-error status in the header when a change is invalid", %{
+    test "autosaves an incomplete change without an error while the quiz is a draft", %{
       conn: conn,
       game: game,
       question: question
     } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      html =
+        live
+        |> form("#question-form", question: %{"prompt" => ""})
+        |> render_change()
+
+      refute html =~ "Nicht gespeichert"
+    end
+
+    test "shows a save-error status in the header when a live question is made invalid", %{
+      conn: conn,
+      scope: scope
+    } do
+      # A non-draft (live) quiz holds its questions to the full validation rules,
+      # so blanking a required field surfaces the save-error status.
+      game = game_fixture(scope, %{status: :open})
+      question = question_fixture(scope, %{game_id: game.id})
+
       {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
 
       html =

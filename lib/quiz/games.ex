@@ -336,10 +336,10 @@ defmodule Quiz.Games do
   def update_question(%Scope{} = scope, %Question{} = question, attrs) do
     true = question.user_id == scope.user.id
 
-    with :ok <- ensure_questions_editable(scope, question.game_id),
+    with {:ok, game} <- fetch_editable_game(scope, question.game_id),
          {:ok, question = %Question{}} <-
            question
-           |> Question.changeset(attrs, scope)
+           |> Question.changeset(attrs, scope, authoring_mode(game))
            |> Repo.update() do
       broadcast_question(scope, {:updated, question})
       {:ok, question}
@@ -381,7 +381,7 @@ defmodule Quiz.Games do
   def change_question(%Scope{} = scope, %Question{} = question, attrs \\ %{}) do
     true = question.user_id == scope.user.id
 
-    Question.changeset(question, attrs, scope)
+    Question.changeset(question, attrs, scope, question_authoring_mode(scope, question.game_id))
   end
 
   @doc """
@@ -457,15 +457,67 @@ defmodule Quiz.Games do
   """
   def questions_locked?(%Game{status: status}), do: status in @locked_run_states
 
+  @doc """
+  The validation strictness for authoring questions in `game`.
+
+  A `:draft` quiz is still being built, so questions are validated leniently
+  (`:draft`); once a quiz has been opened its questions are live and must stay
+  complete, so edits are validated strictly (`:publish`). See
+  `Quiz.Games.Question.changeset/4`.
+  """
+  def authoring_mode(%Game{status: :draft}), do: :draft
+  def authoring_mode(%Game{}), do: :publish
+  # An unloadable game (should not happen for a persisted question) errs strict.
+  def authoring_mode(nil), do: :publish
+
+  @doc """
+  Questions in `game` that do not yet meet the `:publish` bar (see
+  `Quiz.Games.Question.ready?/1`), ordered by position. Empty means the quiz is
+  ready to open. Used by `Quiz.Play.open_run/2` to gate the `draft -> open`
+  transition so a live quiz never contains an unplayable question.
+  """
+  def incomplete_questions(%Scope{} = scope, %Game{} = game) do
+    scope
+    |> list_questions_for_game(game)
+    |> Enum.reject(&Question.ready?/1)
+  end
+
   # Loads the owning game and rejects question mutations when its run is locked.
-  defp ensure_questions_editable(%Scope{} = scope, game_id) when not is_nil(game_id) do
-    case Repo.get_by(Game, id: game_id, user_id: scope.user.id) do
-      %Game{status: status} when status in @locked_run_states -> {:error, :run_locked}
-      _ -> :ok
+  defp ensure_questions_editable(scope, game_id) do
+    case fetch_editable_game(scope, game_id) do
+      {:ok, _game} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  defp ensure_questions_editable(_scope, _game_id), do: :ok
+  # Loads the owning game, returning `{:error, :run_locked}` when its run is in a
+  # state that freezes authoring. A missing/foreign game yields `{:ok, nil}` so
+  # callers keep their prior lenient behaviour (the scope check upstream owns
+  # ownership enforcement).
+  defp fetch_editable_game(%Scope{} = scope, game_id) when not is_nil(game_id) do
+    case Repo.get_by(Game, id: game_id, user_id: scope.user.id) do
+      %Game{status: status} when status in @locked_run_states -> {:error, :run_locked}
+      %Game{} = game -> {:ok, game}
+      nil -> {:ok, nil}
+    end
+  end
+
+  defp fetch_editable_game(_scope, _game_id), do: {:ok, nil}
+
+  # Reads just the owning game's status to pick the authoring validation mode,
+  # without loading the whole record (called on every keystroke via the form).
+  defp question_authoring_mode(%Scope{} = scope, game_id) when not is_nil(game_id) do
+    Game
+    |> where([g], g.id == ^game_id and g.user_id == ^scope.user.id)
+    |> select([g], g.status)
+    |> Repo.one()
+    |> case do
+      :draft -> :draft
+      _ -> :publish
+    end
+  end
+
+  defp question_authoring_mode(_scope, _game_id), do: :publish
 
   defp normalize_id(id) when is_integer(id), do: id
 
