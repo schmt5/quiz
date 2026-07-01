@@ -87,6 +87,34 @@ fly scale vm shared-cpu-1x --vm-memory 1024 -a along-quiz
 # optionally set min_machines_running = 0 again in fly.toml and redeploy
 ```
 
+## Load testing before the event
+
+There's an in-VM load test that simulates N participants joining + answering,
+driving the `Quiz.Play` context directly (no browser). It stresses the parts that
+break first: the DB pool, answer upserts, the per-answer host COUNT, and the
+PubSub fan-out. It does **not** test the WebSocket/LiveView transport layer.
+
+```sh
+# worst case: all 300 submit at the same instant
+mix quiz.load --participants 300 --questions 5 --mode herd --subscribers
+
+# realistic: submissions spread over 3s
+mix quiz.load --participants 300 --mode jitter --spread 3000 --subscribers
+```
+
+Read the output:
+
+- **`queries over 50ms`** in the DB-pool section > 0 → the pool is saturating;
+  raise `POOL_SIZE`. (At 0, the pool is coping.)
+- **answer `p95` / `max` latency** climbing into hundreds of ms → contention.
+- **`err`** counts > 0 → something actually failed under load.
+
+Caveats: run it against a **prod-like target** for meaningful numbers (your laptop's
+Postgres ≠ Fly's) — e.g. on the Fly machine via `fly ssh console` then
+`/app/bin/quiz eval "Mix.Tasks.Quiz.Load.run([...])"`, or point a local run at a
+staging DB. Watch `/dashboard` (LiveDashboard) at the same time. Full options:
+`mix help quiz.load`.
+
 ## If you ever want 2+ machines (NOT for this event)
 
 You'd have to enable clustering first so PubSub spans nodes:
