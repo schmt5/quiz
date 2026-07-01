@@ -122,12 +122,17 @@ defmodule QuizWeb.PlayLive.Join do
             "Kein Quiz mit der PIN „#{code}“ gefunden. Bitte überprüfe die PIN und versuch es nochmals."
           end
 
-        {:noreply, socket |> assign(:code, code) |> assign(:error, message)}
+        # Unlock the (QR-prefilled) code field so the participant can actually
+        # correct a stale/typo'd PIN — the message tells them to, and a disabled
+        # field would otherwise leave them stuck.
+        {:noreply,
+         socket |> assign(:code, code) |> assign(:code_locked, false) |> assign(:error, message)}
 
       {:error, :not_joinable} ->
         {:noreply,
-         assign(
-           socket,
+         socket
+         |> assign(:code_locked, false)
+         |> assign(
            :error,
            "Dieses Quiz nimmt gerade keine neuen Teams auf. Frag den Quizmaster, ob es schon gestartet wurde."
          )}

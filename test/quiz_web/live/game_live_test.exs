@@ -113,6 +113,24 @@ defmodule QuizWeb.GameLiveTest do
       refute html =~ ~p"/games/#{game}/leaderboard"
     end
 
+    test "reflects a runtime status change from the run topic without a reload",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+
+      {:ok, show_live, html} = live(conn, ~p"/games/#{game}")
+      # While :open there is no correction/leaderboard affordance.
+      refute html =~ ~p"/games/#{game}/correction"
+
+      # The run starts elsewhere (e.g. the host screen), broadcasting on the run
+      # topic. The still-open Show page must pick it up rather than go stale.
+      {:ok, _running} = Quiz.Play.start_run(scope, game)
+
+      html = render(show_live)
+      assert html =~ ~p"/games/#{game}/correction"
+      assert html =~ ~p"/games/#{game}/leaderboard"
+    end
+
     test "duplicates the game from the dropdown", %{conn: conn, scope: scope} do
       game = game_fixture(scope, %{title: "Original"})
 

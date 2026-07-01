@@ -146,12 +146,17 @@ defmodule QuizWeb.GameLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
+    game = Games.get_game!(socket.assigns.current_scope, id)
+
     if connected?(socket) do
       Games.subscribe_games(socket.assigns.current_scope)
       Games.subscribe_questions(socket.assigns.current_scope)
+      # Runtime status transitions (open/start/advance/finish) are broadcast on
+      # the run topic, not the Games user topic. Without this, @game.status goes
+      # stale and the status-gated action buttons (e.g. "Durchführung eröffnen")
+      # keep showing — letting a click regress a live :running row back to :open.
+      Quiz.Play.subscribe(game)
     end
-
-    game = Games.get_game!(socket.assigns.current_scope, id)
 
     {:ok,
      socket
@@ -229,6 +234,17 @@ defmodule QuizWeb.GameLive.Show do
       {:noreply, socket}
     end
   end
+
+  # Runtime status/grading broadcasts from the run topic keep the status-gated
+  # action buttons in sync with the live run.
+  def handle_info({msg, %Quiz.Games.Game{id: id} = game}, %{assigns: %{game: %{id: id}}} = socket)
+      when msg in [:status_changed, :grading_published] do
+    {:noreply, assign(socket, :game, game)}
+  end
+
+  # Other run-topic broadcasts (participant_joined, answer_submitted, …) don't
+  # affect this screen; ignore them so they can never crash the LiveView.
+  def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp humanize_type(:single_choice), do: "Single-Choice"
   defp humanize_type(:text_input), do: "Texteingabe"

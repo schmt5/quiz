@@ -12,6 +12,11 @@ defmodule Quiz.Games.Question.Choice do
   def changeset(choice, attrs) do
     choice
     |> cast(attrs, [:text, :correct])
+    |> update_change(:text, fn
+      nil -> nil
+      text -> String.trim(text)
+    end)
     |> validate_required([:text])
+    |> validate_length(:text, min: 1)
   end
 end

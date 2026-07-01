@@ -1542,22 +1542,36 @@ defmodule QuizWeb.QuestionLive.Index do
   # autosave, so it is never lost.
   def handle_pin_image_progress(:pin_image, entry, socket) do
     if entry.done? do
+      # Wrap the storage result in `{:ok, ...}`: consume_uploaded_entries raises
+      # on anything that isn't `{:ok, _}`/`{:postpone, _}`, so returning a bare
+      # `{:error, _}` from `Quiz.Storage.put/3` (a network blip, bad R2
+      # credentials, unreadable temp file) would crash the editor. Wrapping lets
+      # us surface a flash instead.
       consumed =
         consume_uploaded_entries(socket, :pin_image, fn %{path: path}, entry ->
-          Quiz.Storage.put(socket.assigns.current_scope, path,
-            content_type: entry.client_type,
-            filename: entry.client_name
-          )
+          {:ok,
+           Quiz.Storage.put(socket.assigns.current_scope, path,
+             content_type: entry.client_type,
+             filename: entry.client_name
+           )}
         end)
 
       case consumed do
-        [key | _] ->
+        [{:ok, key} | _] ->
           params = socket.assigns.pin_pending_params || base_pin_params(socket)
 
           {:noreply,
            socket
            |> assign(:pin_uploaded_key, key)
            |> autosave(params)}
+
+        [{:error, _reason} | _] ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "Das Bild konnte nicht hochgeladen werden. Bitte versuch es erneut."
+           )}
 
         [] ->
           {:noreply, socket}

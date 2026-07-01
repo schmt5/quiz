@@ -206,6 +206,7 @@ defmodule QuizWeb.PlayLive.Play do
          |> assign(:game, game)
          |> assign(:participant, nil)
          |> assign(:question, nil)
+         |> assign(:canonical_question, nil)
          |> assign(:q_number, 0)
          |> assign(:q_total, 0)
          |> assign(:answer, nil)
@@ -241,7 +242,7 @@ defmodule QuizWeb.PlayLive.Play do
   end
 
   def handle_event("answer_submit", params, socket) do
-    %{game: game, participant: participant, question: question} = socket.assigns
+    %{game: game, participant: participant, canonical_question: question} = socket.assigns
 
     case Play.submit_answer(game, participant, question, params) do
       {:ok, answer} ->
@@ -288,18 +289,20 @@ defmodule QuizWeb.PlayLive.Play do
   end
 
   defp load_question(socket) do
-    question =
-      case Play.current_question(socket.assigns.game) do
-        nil -> nil
-        question -> AnswerArea.prepare_question(question)
-      end
+    # The canonical question (stored authoring order) is what we grade against.
+    # `prepare_question/1` derives a display copy — for `:sequence` it shuffles
+    # the items so the answer order isn't given away — which must never be used
+    # for scoring, or the shuffle would become the "correct" order.
+    canonical = Play.current_question(socket.assigns.game)
+    question = canonical && AnswerArea.prepare_question(canonical)
 
     {number, total} = Play.question_numbering(socket.assigns.game)
 
-    existing = question && Play.get_answer(socket.assigns.participant, question)
+    existing = canonical && Play.get_answer(socket.assigns.participant, canonical)
 
     socket
     |> assign(:question, question)
+    |> assign(:canonical_question, canonical)
     |> assign(:q_number, number)
     |> assign(:q_total, total)
     |> assign(:answer, existing && existing.payload["value"])
