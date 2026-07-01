@@ -900,6 +900,26 @@ defmodule Quiz.GamesTest do
       assert Question.ready?(question)
     end
 
+    test "missing_requirements/1 spells out what a single_choice skeleton still needs" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      {:ok, skeleton} = Games.create_question(scope, game, :single_choice)
+
+      assert Question.missing_requirements(skeleton) == [
+               "ein Fragetext",
+               "mindestens zwei Antwortmöglichkeiten",
+               "eine als richtig markierte Antwort"
+             ]
+    end
+
+    test "missing_requirements/1 is empty exactly when the question is ready" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert Question.ready?(question)
+      assert Question.missing_requirements(question) == []
+    end
+
     test "incomplete_questions/2 lists only the not-yet-playable questions, in order" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :draft})

@@ -435,6 +435,13 @@ defmodule QuizWeb.QuestionLive.Index do
   attr :uploads, :map, required: true
 
   defp question_form(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :missing,
+        Quiz.Games.Question.missing_requirements(assigns.selected_question)
+      )
+
     ~H"""
     <.form
       for={@form}
@@ -447,6 +454,21 @@ defmodule QuizWeb.QuestionLive.Index do
       <div class="space-y-4">
         <input type="hidden" name="question[type]" value={Atom.to_string(@question_type)} />
         <input type="hidden" name="question[position]" value={@selected_question.position} />
+
+        <div
+          :if={@missing != []}
+          class="flex items-start gap-3 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm"
+        >
+          <.icon name="hero-exclamation-triangle" class="mt-0.5 size-5 shrink-0 text-warning" />
+          <div>
+            <p class="font-semibold text-base-content">
+              Noch nicht spielbar – es fehlt:
+            </p>
+            <ul class="mt-1 list-disc list-inside space-y-0.5 text-base-content/70">
+              <li :for={item <- @missing}>{item}</li>
+            </ul>
+          </div>
+        </div>
 
         <.input field={@form[:prompt]} type="textarea" label="Fragetext" />
 

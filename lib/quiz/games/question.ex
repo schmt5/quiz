@@ -82,6 +82,52 @@ defmodule Quiz.Games.Question do
   def ready?(%__MODULE__{}), do: false
 
   @doc """
+  Human-readable list of what a question still needs to reach the `:publish` bar
+  (empty exactly when `ready?/1` is true).
+
+  Powers the non-blocking "was noch fehlt" hint in the editor so an author can
+  see *why* a draft question is not yet playable, without being blocked from
+  saving. Keep in sync with `ready?/1` and `Data.changeset/4`.
+  """
+  def missing_requirements(%__MODULE__{} = question) do
+    prompt_missing(question.prompt) ++ data_missing(question.type, question.data || %Data{})
+  end
+
+  defp prompt_missing(prompt) do
+    if prompt in [nil, ""] or String.trim(to_string(prompt)) == "",
+      do: ["ein Fragetext"],
+      else: []
+  end
+
+  defp data_missing(:single_choice, %Data{choices: choices}) do
+    []
+    |> add_if(length(choices) < 2, "mindestens zwei Antwortmöglichkeiten")
+    |> add_if(Enum.count(choices, & &1.correct) != 1, "eine als richtig markierte Antwort")
+  end
+
+  defp data_missing(:text_input, %Data{solutions: solutions}),
+    do: add_if([], solutions == [], "mindestens eine akzeptierte Lösung")
+
+  defp data_missing(:sequence, %Data{items: items}),
+    do: add_if([], length(items) < 2, "mindestens zwei Einträge")
+
+  defp data_missing(:pin_on_image, %Data{pin: pin}),
+    do: add_if([], is_nil(pin), "ein Bild mit markiertem Ziel")
+
+  defp data_missing(:matching, %Data{pairs: pairs}) do
+    rights = pairs |> Enum.map(&normalize(&1.right_text)) |> Enum.reject(&(&1 == ""))
+
+    []
+    |> add_if(length(pairs) < 2, "mindestens zwei Paare")
+    |> add_if(rights != Enum.uniq(rights), "eindeutige Zuordnungen (rechte Spalte)")
+  end
+
+  defp data_missing(_type, _data), do: []
+
+  defp add_if(list, true, message), do: list ++ [message]
+  defp add_if(list, false, _message), do: list
+
+  @doc """
   Lenient changeset for the instant-create flow.
 
   Picking a type persists a skeleton question immediately, so `:prompt` and the
