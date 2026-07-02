@@ -4,6 +4,12 @@ defmodule QuizWeb.PlayLive.Join do
   `?code=...`, prefilling and locking the code field) or by opening `/join`
   directly and typing the code. On success the participant's signed token is
   written to `localStorage` and they are sent to the waiting room.
+
+  Re-entry: a team that already holds a token for the scanned code should not be
+  shown the form at all — re-scanning the QR is exactly what a "fell out" team
+  does. So when we arrive with a code, we hold on a "checking" spinner while the
+  `.ResumeOrJoin` hook reads `localStorage`; if a token is present and still valid
+  we forward straight to `/play`, otherwise we fall through to the join form.
   """
   use QuizWeb, :live_view
 
@@ -12,8 +18,21 @@ defmodule QuizWeb.PlayLive.Join do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-base-100 flex items-center justify-center p-6">
-      <div class="w-full max-w-sm">
+    <div
+      id="join-root"
+      phx-hook=".ResumeOrJoin"
+      data-code={@code}
+      class="min-h-screen bg-base-100 flex items-center justify-center p-6"
+    >
+      <div
+        :if={@checking}
+        class="flex flex-col items-center justify-center gap-3 text-base-content/60"
+      >
+        <span class="loading loading-spinner loading-lg"></span>
+        <p class="text-sm">Verbinde …</p>
+      </div>
+
+      <div :if={!@checking} class="w-full max-w-sm">
         <div class="inline-flex items-baseline text-4xl font-extrabold tracking-tight">
           <span class="text-primary">Pub</span>
           <span class="bg-primary text-secondary rounded-xl px-2.5 py-0.5">Quiz</span>
@@ -76,6 +95,23 @@ defmodule QuizWeb.PlayLive.Join do
           },
         };
       </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ResumeOrJoin">
+        export default {
+          mounted() {
+            const code = this.el.dataset.code;
+            let token = null;
+            if (code) {
+              try { token = window.localStorage.getItem("quiz:" + code); } catch (_e) {}
+            }
+            if (token) {
+              this.pushEvent("try_resume", { token });
+            } else {
+              this.pushEvent("no_resume", {});
+            }
+          },
+        };
+      </script>
     </div>
     """
   end
@@ -83,17 +119,39 @@ defmodule QuizWeb.PlayLive.Join do
   @impl true
   def mount(params, _session, socket) do
     code = params |> Map.get("code", "") |> String.trim() |> String.upcase()
+    has_code = code != ""
 
     {:ok,
      socket
      |> assign(:page_title, "Beitreten")
      |> assign(:code, code)
-     |> assign(:code_locked, code != "")
+     |> assign(:code_locked, has_code)
+     # With a code in hand we might already hold a token for it. Hold on a spinner
+     # until `.ResumeOrJoin` reports back, so a returning team is forwarded to
+     # `/play` rather than flashed the form. Without a code there is nothing to
+     # look up, so go straight to the form.
+     |> assign(:checking, has_code)
      |> assign(:error, nil)
      |> assign_form(Play.change_enrollment())}
   end
 
   @impl true
+  def handle_event("try_resume", %{"token" => token}, socket) do
+    # A token exists for this code. Validate it against the current game (guards a
+    # stale token from an earlier run that reused the code) and forward to `/play`
+    # only if it still resolves a participant; otherwise fall through to the form.
+    with {:ok, game} <- Play.get_game_for_play(socket.assigns.code),
+         {:ok, _participant} <- Play.restore_participant(game, token) do
+      {:noreply, push_navigate(socket, to: ~p"/play/#{game.join_code}")}
+    else
+      _ -> {:noreply, assign(socket, :checking, false)}
+    end
+  end
+
+  def handle_event("no_resume", _params, socket) do
+    {:noreply, assign(socket, :checking, false)}
+  end
+
   def handle_event("validate", %{"participant" => params}, socket) do
     changeset = Play.change_enrollment(params) |> Map.put(:action, :validate)
     # Clear any prior join error as soon as the participant edits the form.
@@ -109,10 +167,7 @@ defmodule QuizWeb.PlayLive.Join do
 
     with {:ok, game} <- Play.get_game_by_join_code(code),
          {:ok, _participant, token} <- Play.enroll(game, Map.get(params, "name", "")) do
-      {:noreply,
-       socket
-       |> push_event("store_token", %{key: "quiz:#{game.join_code}", token: token})
-       |> push_navigate(to: ~p"/play/#{game.join_code}")}
+      {:noreply, enter_play(socket, game, token)}
     else
       {:error, :not_found} ->
         message =
@@ -138,8 +193,15 @@ defmodule QuizWeb.PlayLive.Join do
            "Dieses Quiz wurde noch nicht gestartet. Warte, bis die Quizmaster:in es öffnet."
          )}
 
+      # A finished quiz won't take *new* teams, but a team that already exists and
+      # lost its token may still reconnect — to reach the published leaderboard.
       {:error, :ended} ->
-        {:noreply, assign(socket, :error, "Dieses Quiz ist bereits beendet.")}
+        with {:ok, game} <- Play.get_game_for_play(code),
+             {:ok, _participant, token} <- Play.reclaim_team(game, Map.get(params, "name", "")) do
+          {:noreply, enter_play(socket, game, token)}
+        else
+          _ -> {:noreply, assign(socket, :error, "Dieses Quiz ist bereits beendet.")}
+        end
 
       # Fallback for the rare race where the quiz stops accepting teams between
       # the lookup and enrollment.
@@ -153,5 +215,12 @@ defmodule QuizWeb.PlayLive.Join do
 
   defp assign_form(socket, changeset) do
     assign(socket, :form, to_form(changeset, as: :participant))
+  end
+
+  # Persist the (re-issued) token to localStorage and hand off to the play view.
+  defp enter_play(socket, game, token) do
+    socket
+    |> push_event("store_token", %{key: "quiz:#{game.join_code}", token: token})
+    |> push_navigate(to: ~p"/play/#{game.join_code}")
   end
 end

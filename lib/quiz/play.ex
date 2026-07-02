@@ -189,18 +189,57 @@ defmodule Quiz.Play do
   @doc """
   Enrolls a team into the run. Returns `{:ok, participant, token}` where `token`
   is a signed handle the client stores to reconnect later.
+
+  Get-or-create by `(game_id, trimmed name)`: if a team with that name is already
+  enrolled, we *rebind* to the existing record — with its answers and score intact
+  — and re-issue its token, rather than tripping the `(game_id, name)` unique
+  constraint. This is how a team whose `localStorage` token was lost (different
+  in-app browser, cleared storage, new device) gets back into *their* team: they
+  just retype the same name. Only a genuinely new name inserts a new participant.
   """
   def enroll(%Game{status: status} = game, name) when status in @joinable do
-    with {:ok, participant} <-
-           %Participant{}
-           |> Participant.changeset(%{name: name, game_id: game.id})
-           |> Repo.insert() do
-      broadcast(game, {:participant_joined, participant})
-      {:ok, participant, sign_token(participant)}
+    trimmed = name |> to_string() |> String.trim()
+
+    case Repo.get_by(Participant, game_id: game.id, name: trimmed) do
+      %Participant{} = participant ->
+        {:ok, participant, sign_token(participant)}
+
+      nil ->
+        case %Participant{}
+             |> Participant.changeset(%{name: name, game_id: game.id})
+             |> Repo.insert() do
+          {:ok, participant} ->
+            broadcast(game, {:participant_joined, participant})
+            {:ok, participant, sign_token(participant)}
+
+          {:error, changeset} ->
+            # Lost a race to a concurrent insert of the same name — same name means
+            # same team, so rebind to the winner instead of erroring.
+            case Repo.get_by(Participant, game_id: game.id, name: trimmed) do
+              %Participant{} = participant -> {:ok, participant, sign_token(participant)}
+              nil -> {:error, changeset}
+            end
+        end
     end
   end
 
   def enroll(%Game{}, _name), do: {:error, :not_joinable}
+
+  @doc """
+  Reconnects to an *existing* team by name, regardless of run status. Unlike
+  `enroll/2` this never creates a participant, so a team that lost its token can
+  still reclaim its spot — e.g. to reach the leaderboard after the run already
+  `:finished`, where `enroll/2` would refuse as `:not_joinable`. Returns
+  `{:ok, participant, token}` or `{:error, :not_found}`.
+  """
+  def reclaim_team(%Game{} = game, name) do
+    trimmed = name |> to_string() |> String.trim()
+
+    case Repo.get_by(Participant, game_id: game.id, name: trimmed) do
+      %Participant{} = participant -> {:ok, participant, sign_token(participant)}
+      nil -> {:error, :not_found}
+    end
+  end
 
   @doc """
   Rebinds a returning participant from their signed token, asserting it belongs

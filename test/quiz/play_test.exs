@@ -163,13 +163,44 @@ defmodule Quiz.PlayTest do
       assert {:error, :not_joinable} = Play.enroll(game, "Too Late")
     end
 
-    test "rejects a duplicate team name within the same game" do
+    test "re-enrolling with an existing team name rebinds to that team" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :open})
 
-      assert {:ok, _p, _t} = Play.enroll(game, "Dup")
-      assert {:error, changeset} = Play.enroll(game, "Dup")
-      assert %{name: [_]} = errors_on(changeset)
+      # A team that lost its localStorage token gets back into *their* team by
+      # retyping the same name — same participant, re-issued token, no duplicate.
+      assert {:ok, %Participant{id: id}, _t} = Play.enroll(game, "Dup")
+      assert {:ok, %Participant{id: ^id}, token} = Play.enroll(game, "Dup")
+      assert {:ok, %Participant{id: ^id}} = Play.restore_participant(game, token)
+
+      assert [%Participant{id: ^id}] = Play.list_participants(game)
+    end
+
+    test "rebinds by name ignoring surrounding whitespace" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+
+      assert {:ok, %Participant{id: id}, _t} = Play.enroll(game, "Trimmed")
+      assert {:ok, %Participant{id: ^id}, _t} = Play.enroll(game, "  Trimmed  ")
+      assert [%Participant{id: ^id}] = Play.list_participants(game)
+    end
+
+    test "reclaim_team/2 rebinds an existing team even after the run finished" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, %Participant{id: id}, _t} = Play.enroll(game, "Team A")
+      {:ok, finished} = game |> Ecto.Changeset.change(status: :finished) |> Quiz.Repo.update()
+
+      assert {:ok, %Participant{id: ^id}, token} = Play.reclaim_team(finished, "Team A")
+      assert {:ok, %Participant{id: ^id}} = Play.restore_participant(finished, token)
+    end
+
+    test "reclaim_team/2 never creates a team for an unknown name" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :finished})
+
+      assert {:error, :not_found} = Play.reclaim_team(game, "Nobody")
+      assert [] = Play.list_participants(game)
     end
 
     test "rejects a token from a different game" do
