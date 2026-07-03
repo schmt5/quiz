@@ -180,7 +180,13 @@ defmodule QuizWeb.PlayLive.Play do
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".RestoreParticipant">
         export default {
-          mounted() {
+          // On a websocket reconnect (e.g. the browser app was suspended and
+          // resumed) the server LiveView remounts and waits for the token again,
+          // but the DOM survives, so mounted() alone would leave it waiting
+          // forever on the spinner.
+          mounted() { this.restore(); },
+          reconnected() { this.restore(); },
+          restore() {
             const code = this.el.dataset.code;
             let token = null;
             try { token = window.localStorage.getItem("quiz:" + code); } catch (_e) {}

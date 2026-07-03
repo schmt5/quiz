@@ -98,7 +98,11 @@ defmodule QuizWeb.PlayLive.Join do
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ResumeOrJoin">
         export default {
-          mounted() {
+          // Re-run the resume check after a websocket reconnect (suspended
+          // browser app), where the server remounts but mounted() won't re-fire.
+          mounted() { this.resume(); },
+          reconnected() { this.resume(); },
+          resume() {
             const code = this.el.dataset.code;
             let token = null;
             if (code) {
