@@ -496,6 +496,60 @@ defmodule QuizWeb.CoreComponents do
   end
 
   @doc """
+  Near-fullscreen presenter modal for host-only content such as a game's
+  intro (rules/infos in the lobby) or outro (closing words at the end).
+
+  A native `<dialog>` (DaisyUI modal, method 1): open it from any button via
+  `onclick="<id>.showModal()"`; ESC and the backdrop close it without a
+  LiveView round-trip. Shows a title, an optional image resolved from its
+  storage key, and optional pre-line text.
+
+  ## Examples
+
+      <.content_modal id="intro_modal" title="Infos & Spielregeln"
+        text={@game.intro_text} image_key={@game.intro_image_key} />
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :text, :string, default: nil
+  attr :image_key, :string, default: nil
+
+  def content_modal(assigns) do
+    ~H"""
+    <dialog id={@id} class="modal">
+      <div class="modal-box w-11/12 max-w-6xl h-[90vh] max-h-[90vh] flex flex-col p-10 overflow-y-auto">
+        <form method="dialog">
+          <button
+            class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4"
+            aria-label="Schliessen"
+          >
+            <.icon name="hero-x-mark" class="size-5" />
+          </button>
+        </form>
+        <%!-- m-auto (not justify-center) so long content scrolls instead of
+             clipping at the top, while short content stays centered. --%>
+        <div class="m-auto flex flex-col items-center gap-8 text-center">
+          <h2 class="text-3xl sm:text-4xl font-extrabold text-primary">{@title}</h2>
+          <img
+            :if={@image_key}
+            src={Quiz.Storage.url(@image_key)}
+            alt=""
+            class="max-h-[40vh] max-w-full object-contain"
+          />
+          <p
+            :if={@text not in [nil, ""]}
+            class="max-w-3xl whitespace-pre-line text-xl sm:text-2xl leading-relaxed text-base-content/80 text-left"
+          >
+            {@text}
+          </p>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>schliessen</button></form>
+    </dialog>
+    """
+  end
+
+  @doc """
   Renders a question's optional media (uploaded image or video) below the
   question text.
 

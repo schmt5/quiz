@@ -7,6 +7,7 @@ defmodule QuizWeb.LeaderboardLive.Show do
   use QuizWeb, :live_view
 
   alias Quiz.{Games, Play}
+  alias Quiz.Games.Game
   alias QuizWeb.LeaderboardComponent
 
   @impl true
@@ -31,10 +32,30 @@ defmodule QuizWeb.LeaderboardLive.Show do
           </div>
         </div>
 
-        <.link navigate={~p"/games/#{@game}"} class="btn btn-primary shrink-0">
-          <.icon name="hero-arrow-left" /> Zurück zum Quiz
-        </.link>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            :if={Game.outro?(@game)}
+            type="button"
+            onclick="outro_modal.showModal()"
+            title="Abschluss & Infos"
+            aria-label="Abschluss & Infos"
+            class="btn btn-ghost btn-circle"
+          >
+            <.icon name="hero-information-circle" class="size-6" />
+          </button>
+          <.link navigate={~p"/games/#{@game}"} class="btn btn-primary">
+            <.icon name="hero-arrow-left" /> Zurück zum Quiz
+          </.link>
+        </div>
       </div>
+
+      <.content_modal
+        :if={Game.outro?(@game)}
+        id="outro_modal"
+        title="Abschluss & Infos"
+        text={@game.outro_text}
+        image_key={@game.outro_image_key}
+      />
 
       <div class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center p-6 sm:p-10">
         <div class="w-full max-w-xl space-y-8">

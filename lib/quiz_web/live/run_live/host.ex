@@ -184,7 +184,7 @@ defmodule QuizWeb.RunLive.Host do
               aria-label="Abschluss & Infos"
               class="btn btn-ghost btn-circle"
             >
-              <.icon name="hero-sparkles" class="size-6" />
+              <.icon name="hero-information-circle" class="size-6" />
             </button>
             <.link
               :if={@review_position && @game.review_mode == :end}
@@ -319,49 +319,6 @@ defmodule QuizWeb.RunLive.Host do
         </ul>
       </aside>
     </div>
-    """
-  end
-
-  # Near-fullscreen presenter modal for the host-only intro/outro content
-  # (native <dialog>, opened via `<id>.showModal()`; ESC and the backdrop
-  # close it without any LiveView round-trip).
-  attr :id, :string, required: true
-  attr :title, :string, required: true
-  attr :text, :string, default: nil
-  attr :image_key, :string, default: nil
-
-  defp content_modal(assigns) do
-    ~H"""
-    <dialog id={@id} class="modal">
-      <div class="modal-box w-11/12 max-w-6xl h-[90vh] max-h-[90vh] flex flex-col p-10 overflow-y-auto">
-        <form method="dialog">
-          <button
-            class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4"
-            aria-label="Schliessen"
-          >
-            <.icon name="hero-x-mark" class="size-5" />
-          </button>
-        </form>
-        <%!-- m-auto (not justify-center) so long content scrolls instead of
-             clipping at the top, while short content stays centered. --%>
-        <div class="m-auto flex flex-col items-center gap-8 text-center">
-          <h2 class="text-3xl sm:text-4xl font-extrabold text-primary">{@title}</h2>
-          <img
-            :if={@image_key}
-            src={Quiz.Storage.url(@image_key)}
-            alt=""
-            class="max-h-[40vh] max-w-full object-contain"
-          />
-          <p
-            :if={@text not in [nil, ""]}
-            class="max-w-3xl whitespace-pre-line text-xl sm:text-2xl leading-relaxed text-base-content/80 text-left"
-          >
-            {@text}
-          </p>
-        </div>
-      </div>
-      <form method="dialog" class="modal-backdrop"><button>schliessen</button></form>
-    </dialog>
     """
   end
 
