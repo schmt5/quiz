@@ -23,17 +23,17 @@ DNS managed by **Cloudflare**.
 - [x] Register `waerweiss.ch` in the Infomaniak Manager. ✅ **Done**
 
 ### 2. Add the domain to Cloudflare
-- [ ] Cloudflare dashboard → **Add a site** → enter `waerweiss.ch`.
-- [ ] Choose the **Free** plan.
-- [ ] Copy the **two nameservers** Cloudflare shows (e.g. `xxx.ns.cloudflare.com`,
-      `yyy.ns.cloudflare.com`).
+- [x] Cloudflare dashboard → **Add a site** → enter `waerweiss.ch`. ✅ **Done**
+- [x] Choose the **Free** plan. ✅ **Done**
+- [x] Copy the **two nameservers** Cloudflare shows: `jarred.ns.cloudflare.com`,
+      `treasure.ns.cloudflare.com`. ✅ **Done**
 
 ### 3. Point Infomaniak's nameservers to Cloudflare
 > The **only** thing left to do at Infomaniak.
-- [ ] Infomaniak Manager → `waerweiss.ch` → **DNS / Nameservers**.
-- [ ] Replace Infomaniak's default nameservers with the **two Cloudflare
-      nameservers** from Task 2.
-- [ ] Save and wait for Cloudflare to email that the domain is **Active**
+- [x] Infomaniak Manager → `waerweiss.ch` → **DNS / Nameservers**. ✅ **Done**
+- [x] Replace Infomaniak's default nameservers with the **two Cloudflare
+      nameservers** from Task 2. ✅ **Done**
+- [x] Save and wait for Cloudflare to email that the domain is **Active**
       (minutes to a few hours).
 
 > After this, **all DNS lives in the Cloudflare dashboard.** Infomaniak stays only
@@ -82,5 +82,6 @@ The R2 public URL comes from the **`R2_PUBLIC_BASE_URL`** env var — read in
 ---
 
 ## Next action
-You're done with Task 1. **Task 2:** add `waerweiss.ch` as a site in Cloudflare
-and grab the two nameservers.
+You're done with Tasks 1–3 (nameservers set at Infomaniak). **Wait for Cloudflare's
+"Active" confirmation**, then re-add the SPF/DMARC TXT records in Cloudflare and
+move on to **Task 4:** route the app to Fly.io.
