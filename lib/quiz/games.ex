@@ -214,7 +214,9 @@ defmodule Quiz.Games do
   Duplicates a game and all its questions into a fresh **draft** copy owned by
   the same user.
 
-  Each question is copied with its prompt, description, position and the full
+  Each question is copied with its prompt, description, position, media
+  (image/video keys point at the same stored file — uploads are never deleted,
+  so sharing keys is safe) and the full
   answer payload (`data`: choices, solutions, items, pairs, pin). Runtime and
   participant data is intentionally *not* copied — the copy starts a clean run,
   so there are no enrollments, submitted answers or corrections, the
@@ -241,6 +243,8 @@ defmodule Quiz.Games do
           description: question.description,
           position: question.position,
           data: question.data,
+          media_image_key: question.media_image_key,
+          media_video_key: question.media_video_key,
           game_id: copy.id,
           user_id: scope.user.id
         })

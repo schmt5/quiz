@@ -251,6 +251,37 @@ defmodule Quiz.GamesTest do
       assert length(Games.list_questions_for_game(scope, game)) == 2
     end
 
+    test "duplicate_game/2 copies question media (image and video keys)" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        type: :text_input,
+        prompt: "Mit Bild",
+        media_image_key: "uploads/abc.jpg",
+        data: %{solutions: [%{text: "Ja"}]}
+      })
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 2,
+        type: :text_input,
+        prompt: "Mit Video",
+        media_video_key: "uploads/def.mp4",
+        data: %{solutions: [%{text: "Nein"}]}
+      })
+
+      assert {:ok, copy} = Games.duplicate_game(scope, game)
+
+      [c1, c2] = Games.list_questions_for_game(scope, copy)
+      assert c1.media_image_key == "uploads/abc.jpg"
+      assert c1.media_video_key == nil
+      assert c2.media_video_key == "uploads/def.mp4"
+      assert c2.media_image_key == nil
+    end
+
     test "duplicate_game/2 refuses a game owned by someone else" do
       scope = user_scope_fixture()
       other_scope = user_scope_fixture()
