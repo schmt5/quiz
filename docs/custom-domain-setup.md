@@ -56,32 +56,33 @@ DNS managed by **Cloudflare**.
   ```
 
 ### 5. Connect the images domain to R2
-- [ ] Cloudflare → **R2** → your bucket → **Settings** → **Public access** →
-      **Custom Domains** → **Connect Domain**.
-- [ ] Enter `images.waerweiss.ch`.
-- [ ] Let Cloudflare auto-create the proxied CNAME + TLS cert (a few minutes).
-- [ ] *(Recommended)* Set aggressive caching — object `Cache-Control:
-      public, max-age=31536000, immutable` on upload, or a Cloudflare **Cache
-      Rule** for `images.waerweiss.ch` with a long Edge TTL.
+- [x] Cloudflare → **R2** → your bucket → **Settings** → **Public access** →
+      **Custom Domains** → **Connect Domain**. ✅ **Done**
+- [x] Enter `images.waerweiss.ch`. ✅ **Done**
+- [x] Let Cloudflare auto-create the proxied CNAME + TLS cert (a few minutes). ✅ **Done**
+- [ ] *(Recommended, skipped for now)* Set aggressive caching — object
+      `Cache-Control: public, max-age=31536000, immutable` on upload, or a
+      Cloudflare **Cache Rule** for `images.waerweiss.ch` with a long Edge TTL.
 
 ### 6. Update the app config
 The R2 public URL comes from the **`R2_PUBLIC_BASE_URL`** env var — read in
 [`config/runtime.exs`](../config/runtime.exs) and used by
 [`lib/quiz/storage/r2.ex`](../lib/quiz/storage/r2.ex) `url/1`.
-- [ ] Point it at the custom domain (restarts the app):
+- [x] Point it at the custom domain (restarts the app): ✅ **Done**
   ```bash
   fly secrets set R2_PUBLIC_BASE_URL="https://images.waerweiss.ch" -a along-quiz
   ```
 
 ### 7. Verify
 - [ ] `https://waerweiss.ch` loads the app with a valid certificate.
-- [ ] `https://images.waerweiss.ch/<some-key>` serves an image with a valid cert.
-- [ ] Image response header shows `cf-cache-status: HIT` on a repeat request
-      (confirms edge caching).
+- [x] `https://images.waerweiss.ch/<some-key>` serves an image with a valid cert. ✅ **Done**
+- [x] Image response header shows `cf-cache-status: HIT` on a repeat request
+      (confirms edge caching). ✅ **Done**
 
 ---
 
 ## Next action
-You're done with Tasks 1–3 (nameservers set at Infomaniak). **Wait for Cloudflare's
-"Active" confirmation**, then re-add the SPF/DMARC TXT records in Cloudflare and
-move on to **Task 4:** route the app to Fly.io.
+You're done with Tasks 1, 2, 3, 5, and 6 (caching step in Task 5 skipped by
+choice). If you haven't already, finish **Task 4** (route `waerweiss.ch` /
+`www.waerweiss.ch` to Fly.io) — then move to **Task 7: Verify** everything end
+to end.
