@@ -86,6 +86,24 @@ defmodule QuizWeb.GameLive.Form do
               </span>
             </span>
           </label>
+          <.intro_outro_section
+            legend="Intro"
+            hint="Infos & Spielregeln – öffnest du als Quizmaster:in in der Lobby. Teams sehen das nie."
+            text_field={@form[:intro_text]}
+            upload={@uploads.intro_image}
+            image_key={@intro_image_key}
+            slot_name="intro"
+          />
+
+          <.intro_outro_section
+            legend="Outro"
+            hint="Abschluss & Verdankungen – öffnest du als Quizmaster:in am Ende des Quiz. Teams sehen das nie."
+            text_field={@form[:outro_text]}
+            upload={@uploads.outro_image}
+            image_key={@outro_image_key}
+            slot_name="outro"
+          />
+
           <footer class="flex items-center gap-3">
             <.button phx-disable-with="Wird gespeichert …" variant="primary">
               Quiz speichern
@@ -135,11 +153,91 @@ defmodule QuizWeb.GameLive.Form do
     """
   end
 
+  # One authoring block for the host-only intro/outro content: an optional
+  # multi-line text plus an optional image (e.g. a logo). The image slot shows
+  # either the pending upload's client-side preview or the already stored image
+  # with a remove action — never both, since picking a new file replaces the
+  # stored one on save.
+  attr :legend, :string, required: true
+  attr :hint, :string, required: true
+  attr :text_field, Phoenix.HTML.FormField, required: true
+  attr :upload, Phoenix.LiveView.UploadConfig, required: true
+  attr :image_key, :string, default: nil
+  attr :slot_name, :string, required: true
+
+  defp intro_outro_section(assigns) do
+    ~H"""
+    <fieldset class="space-y-3">
+      <legend class={label_class()}>{@legend}</legend>
+      <p class="text-sm text-base-content/60">{@hint}</p>
+
+      <.input field={@text_field} type="textarea" label="Text (optional)" />
+
+      <div class="space-y-2">
+        <span class="block text-sm font-medium">Bild / Logo (optional)</span>
+
+        <div
+          :for={entry <- @upload.entries}
+          class="flex items-center gap-3 rounded-field border border-base-300/70 bg-white p-3"
+        >
+          <.live_img_preview entry={entry} class="max-h-24 rounded-box object-contain" />
+          <button
+            type="button"
+            phx-click="cancel_upload"
+            phx-value-upload={@upload.name}
+            phx-value-ref={entry.ref}
+            class="btn btn-ghost btn-sm"
+          >
+            <.icon name="hero-x-mark" class="size-4" /> Abbrechen
+          </button>
+          <p :for={err <- upload_errors(@upload, entry)} class="text-sm text-error">
+            {upload_error_to_string(err)}
+          </p>
+        </div>
+
+        <div
+          :if={@upload.entries == [] && @image_key}
+          class="flex items-center gap-3 rounded-field border border-base-300/70 bg-white p-3"
+        >
+          <img
+            src={Quiz.Storage.url(@image_key)}
+            alt=""
+            class="max-h-24 rounded-box object-contain"
+          />
+          <button
+            type="button"
+            phx-click="remove_image"
+            phx-value-slot={@slot_name}
+            class="btn btn-ghost btn-sm"
+          >
+            <.icon name="hero-trash" class="size-4" /> Bild entfernen
+          </button>
+        </div>
+
+        <.live_file_input upload={@upload} class="file-input w-full" />
+        <p :for={err <- upload_errors(@upload)} class="text-sm text-error">
+          {upload_error_to_string(err)}
+        </p>
+      </div>
+    </fieldset>
+    """
+  end
+
   @impl true
   def mount(params, _session, socket) do
     {:ok,
      socket
      |> assign(:return_to, return_to(params["return_to"]))
+     |> allow_upload(:intro_image,
+       accept: ~w(.jpg .jpeg .png .webp .svg),
+       max_entries: 1,
+       max_file_size: 5_000_000
+     )
+     |> allow_upload(:outro_image,
+       accept: ~w(.jpg .jpeg .png .webp .svg),
+       max_entries: 1,
+       max_file_size: 5_000_000
+     )
      |> apply_action(socket.assigns.live_action, params)}
   end
 
@@ -152,6 +250,8 @@ defmodule QuizWeb.GameLive.Form do
     socket
     |> assign(:page_title, "Quiz bearbeiten")
     |> assign(:game, game)
+    |> assign(:intro_image_key, game.intro_image_key)
+    |> assign(:outro_image_key, game.outro_image_key)
     |> assign(:form, to_form(Games.change_game(socket.assigns.current_scope, game)))
   end
 
@@ -161,6 +261,8 @@ defmodule QuizWeb.GameLive.Form do
     socket
     |> assign(:page_title, "Neues Quiz")
     |> assign(:game, game)
+    |> assign(:intro_image_key, nil)
+    |> assign(:outro_image_key, nil)
     |> assign(:form, to_form(Games.change_game(socket.assigns.current_scope, game)))
   end
 
@@ -171,7 +273,31 @@ defmodule QuizWeb.GameLive.Form do
   end
 
   def handle_event("save", %{"game" => game_params}, socket) do
-    save_game(socket, socket.assigns.live_action, game_params)
+    case consume_images(socket, game_params) do
+      {:ok, game_params} ->
+        save_game(socket, socket.assigns.live_action, game_params)
+
+      :error ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Das Bild konnte nicht hochgeladen werden. Bitte versuch es erneut."
+         )}
+    end
+  end
+
+  def handle_event("remove_image", %{"slot" => "intro"}, socket) do
+    {:noreply, assign(socket, :intro_image_key, nil)}
+  end
+
+  def handle_event("remove_image", %{"slot" => "outro"}, socket) do
+    {:noreply, assign(socket, :outro_image_key, nil)}
+  end
+
+  def handle_event("cancel_upload", %{"upload" => upload, "ref" => ref}, socket)
+      when upload in ["intro_image", "outro_image"] do
+    {:noreply, cancel_upload(socket, String.to_existing_atom(upload), ref)}
   end
 
   defp save_game(socket, :edit, game_params) do
@@ -206,4 +332,42 @@ defmodule QuizWeb.GameLive.Form do
 
   defp return_path(_scope, "index", _game), do: ~p"/games"
   defp return_path(_scope, "show", game), do: ~p"/games/#{game}"
+
+  # Resolves both image slots into the save params: the slot assign carries the
+  # currently displayed key (nil after "Bild entfernen"), a finished upload
+  # replaces it. Always written, so removing an image really clears the column.
+  defp consume_images(socket, params) do
+    params =
+      params
+      |> Map.put("intro_image_key", socket.assigns.intro_image_key)
+      |> Map.put("outro_image_key", socket.assigns.outro_image_key)
+
+    with {:ok, params} <- consume_image(socket, :intro_image, "intro_image_key", params) do
+      consume_image(socket, :outro_image, "outro_image_key", params)
+    end
+  end
+
+  defp consume_image(socket, upload_name, field, params) do
+    # Wrap the storage result in `{:ok, ...}`: consume_uploaded_entries raises
+    # on anything that isn't `{:ok, _}`/`{:postpone, _}`, so a bare `{:error, _}`
+    # from `Quiz.Storage.put/3` would crash the form instead of flashing.
+    consumed =
+      consume_uploaded_entries(socket, upload_name, fn %{path: path}, entry ->
+        {:ok,
+         Quiz.Storage.put(socket.assigns.current_scope, path,
+           content_type: entry.client_type,
+           filename: entry.client_name
+         )}
+      end)
+
+    case consumed do
+      [{:ok, key} | _] -> {:ok, Map.put(params, field, key)}
+      [{:error, _reason} | _] -> :error
+      [] -> {:ok, params}
+    end
+  end
+
+  defp upload_error_to_string(:too_large), do: "Die Datei ist zu gross (max. 5 MB)."
+  defp upload_error_to_string(:not_accepted), do: "Dieses Dateiformat wird nicht unterstützt."
+  defp upload_error_to_string(_), do: "Der Upload ist fehlgeschlagen."
 end

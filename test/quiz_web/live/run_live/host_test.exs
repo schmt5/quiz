@@ -62,6 +62,80 @@ defmodule QuizWeb.RunLive.HostTest do
     end
   end
 
+  describe "intro & outro modals" do
+    test "the lobby offers the intro modal when intro content exists",
+         %{conn: conn, scope: scope} do
+      game =
+        game_fixture(scope, %{
+          status: :open,
+          intro_text: "Handys weg, pro Team eine Antwort.",
+          intro_image_key: "uploads/1/logo.png"
+        })
+
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+
+      assert html =~ "Infos &amp; Spielregeln"
+      assert html =~ "Handys weg, pro Team eine Antwort."
+      assert html =~ Quiz.Storage.url("uploads/1/logo.png")
+      assert html =~ ~s|id="intro_modal"|
+    end
+
+    test "the lobby shows no intro button without intro content", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+
+      refute html =~ "intro_modal"
+      refute html =~ "Infos &amp; Spielregeln"
+    end
+
+    test "the finished screen offers the outro modal when outro content exists",
+         %{conn: conn, scope: scope} do
+      game =
+        game_fixture(scope, %{
+          outro_text: "Danke und bis zum nächsten Mal!",
+          outro_image_key: "uploads/1/sponsor.png"
+        })
+
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      game = set_game_status(game, :finished)
+
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+
+      assert html =~ "Abschluss &amp; Infos"
+      assert html =~ "Danke und bis zum nächsten Mal!"
+      assert html =~ Quiz.Storage.url("uploads/1/sponsor.png")
+      assert html =~ ~s|id="outro_modal"|
+    end
+
+    test "a running quiz shows neither modal", %{conn: conn, scope: scope} do
+      game =
+        game_fixture(scope, %{
+          status: :open,
+          intro_text: "Spielregeln",
+          outro_text: "Danke!"
+        })
+
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, running} = Play.start_run(scope, game)
+
+      {:ok, _lv, html} = live(conn, ~p"/games/#{running}/run")
+
+      refute html =~ "intro_modal"
+      refute html =~ "outro_modal"
+    end
+
+    test "the finished screen shows no outro button without outro content",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :closed})
+
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+
+      refute html =~ "outro_modal"
+      refute html =~ "Abschluss &amp; Infos"
+    end
+  end
+
   describe "lobby roster" do
     test "a team is not listed twice if it arrives in the initial list and a broadcast",
          %{conn: conn, scope: scope} do

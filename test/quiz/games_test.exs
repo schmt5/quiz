@@ -80,6 +80,41 @@ defmodule Quiz.GamesTest do
       assert updated_game.join_code == original_join_code
     end
 
+    test "create_game/2 and update_game/3 accept host-only intro/outro content" do
+      scope = user_scope_fixture()
+
+      assert {:ok, %Game{} = game} =
+               Games.create_game(scope, %{
+                 title: "some title",
+                 intro_text: "Handys weg, pro Team eine Antwort.",
+                 intro_image_key: "uploads/1/intro.png"
+               })
+
+      assert game.intro_text == "Handys weg, pro Team eine Antwort."
+      assert game.intro_image_key == "uploads/1/intro.png"
+
+      assert {:ok, %Game{} = updated} =
+               Games.update_game(scope, game, %{
+                 outro_text: "Danke fürs Mitspielen!",
+                 outro_image_key: "uploads/1/outro.png",
+                 intro_image_key: nil
+               })
+
+      assert updated.outro_text == "Danke fürs Mitspielen!"
+      assert updated.outro_image_key == "uploads/1/outro.png"
+      assert updated.intro_image_key == nil
+    end
+
+    test "intro?/1 and outro?/1 detect any intro/outro content" do
+      assert Game.intro?(%Game{intro_text: "Spielregeln"})
+      assert Game.intro?(%Game{intro_image_key: "uploads/1/logo.png"})
+      refute Game.intro?(%Game{intro_text: "", intro_image_key: nil})
+
+      assert Game.outro?(%Game{outro_text: "Danke!"})
+      assert Game.outro?(%Game{outro_image_key: "uploads/1/sponsor.png"})
+      refute Game.outro?(%Game{})
+    end
+
     test "update_game/3 with invalid scope raises" do
       scope = user_scope_fixture()
       other_scope = user_scope_fixture()

@@ -78,6 +78,65 @@ defmodule QuizWeb.GameLiveTest do
       assert html =~ "some updated title"
     end
 
+    test "saves intro and outro content", %{conn: conn, scope: scope, game: game} do
+      {:ok, form_live, _html} = live(conn, ~p"/games/#{game}/edit")
+
+      assert {:ok, _index_live, _html} =
+               form_live
+               |> form("#game-form",
+                 game: %{
+                   title: game.title,
+                   intro_text: "Handys weg, pro Team eine Antwort.",
+                   outro_text: "Danke fürs Mitspielen!"
+                 }
+               )
+               |> render_submit()
+               |> follow_redirect(conn, ~p"/games")
+
+      updated = Quiz.Games.get_game!(scope, game.id)
+      assert updated.intro_text == "Handys weg, pro Team eine Antwort."
+      assert updated.outro_text == "Danke fürs Mitspielen!"
+    end
+
+    test "uploads an intro image and removes it again", %{conn: conn, scope: scope, game: game} do
+      {:ok, form_live, _html} = live(conn, ~p"/games/#{game}/edit")
+
+      # 1×1 transparent PNG.
+      png =
+        Base.decode64!(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        )
+
+      form_live
+      |> file_input("#game-form", :intro_image, [
+        %{name: "logo.png", content: png, type: "image/png"}
+      ])
+      |> render_upload("logo.png")
+
+      assert {:ok, _index_live, _html} =
+               form_live
+               |> form("#game-form", game: %{title: game.title})
+               |> render_submit()
+               |> follow_redirect(conn, ~p"/games")
+
+      updated = Quiz.Games.get_game!(scope, game.id)
+      assert updated.intro_image_key =~ ~r|^uploads/.+\.png$|
+
+      # Removing the image clears the stored key on the next save.
+      {:ok, form_live, html} = live(conn, ~p"/games/#{game}/edit")
+      assert html =~ "Bild entfernen"
+
+      form_live |> element("button", "Bild entfernen") |> render_click()
+
+      assert {:ok, _index_live, _html} =
+               form_live
+               |> form("#game-form", game: %{title: game.title})
+               |> render_submit()
+               |> follow_redirect(conn, ~p"/games")
+
+      assert Quiz.Games.get_game!(scope, game.id).intro_image_key == nil
+    end
+
     test "deletes game in listing", %{conn: conn, game: game} do
       {:ok, index_live, _html} = live(conn, ~p"/games")
 

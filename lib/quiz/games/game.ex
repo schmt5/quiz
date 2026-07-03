@@ -28,6 +28,14 @@ defmodule Quiz.Games.Game do
 
     field :join_code, :string
     field :current_position, :integer
+
+    # Host-only intro (shown from the lobby) and outro (shown on the finished
+    # screen), each an optional text plus an optional image (e.g. a logo).
+    # Participants never see these.
+    field :intro_text, :string
+    field :intro_image_key, :string
+    field :outro_text, :string
+    field :outro_image_key, :string
     field :grading_published, :boolean, default: false
     field :show_statistics, :boolean, default: false
 
@@ -53,7 +61,15 @@ defmodule Quiz.Games.Game do
   """
   def changeset(game, attrs, user_scope) do
     game
-    |> cast(attrs, [:title, :show_statistics, :review_mode])
+    |> cast(attrs, [
+      :title,
+      :show_statistics,
+      :review_mode,
+      :intro_text,
+      :intro_image_key,
+      :outro_text,
+      :outro_image_key
+    ])
     |> validate_required([:title])
     |> maybe_put_join_code()
     |> unique_constraint(:join_code)
@@ -75,6 +91,18 @@ defmodule Quiz.Games.Game do
     |> validate_required([:status])
     |> validate_transition(game.status)
   end
+
+  @doc "Whether the game has intro content (text or image) to show in the lobby."
+  def intro?(%__MODULE__{intro_text: text, intro_image_key: key}) do
+    present?(text) or present?(key)
+  end
+
+  @doc "Whether the game has outro content (text or image) to show at the end."
+  def outro?(%__MODULE__{outro_text: text, outro_image_key: key}) do
+    present?(text) or present?(key)
+  end
+
+  defp present?(value), do: value not in [nil, ""]
 
   defp validate_transition(changeset, from) do
     to = get_field(changeset, :status)
