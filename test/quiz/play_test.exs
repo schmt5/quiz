@@ -163,7 +163,7 @@ defmodule Quiz.PlayTest do
       assert {:error, :not_joinable} = Play.enroll(game, "Too Late")
     end
 
-    test "re-enrolling with an existing team name rebinds to that team" do
+    test "re-enrolling with an existing team name rebinds to that team when it is offline" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :open})
 
@@ -183,6 +183,64 @@ defmodule Quiz.PlayTest do
       assert {:ok, %Participant{id: id}, _t} = Play.enroll(game, "Trimmed")
       assert {:ok, %Participant{id: ^id}, _t} = Play.enroll(game, "  Trimmed  ")
       assert [%Participant{id: ^id}] = Play.list_participants(game)
+    end
+
+    test "enrolling with the name of a connected team is refused" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+
+      assert {:ok, participant, _t} = Play.enroll(game, "Dup")
+      {:ok, _ref} = Play.track_participant(game, participant)
+
+      # The seat is live — a second browser typing the same name (even padded)
+      # must not take it over.
+      assert {:error, :name_taken} = Play.enroll(game, "Dup")
+      assert {:error, :name_taken} = Play.enroll(game, "  Dup  ")
+    end
+
+    test "participant_online?/2 reflects tracking" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, participant, _t} = Play.enroll(game, "Solo")
+
+      refute Play.participant_online?(game, participant)
+      {:ok, _ref} = Play.track_participant(game, participant)
+      assert Play.participant_online?(game, participant)
+    end
+
+    test "the guard lifts when the team's connection dies" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, %Participant{id: id} = participant, _t} = Play.enroll(game, "Flaky")
+
+      parent = self()
+
+      pid =
+        spawn(fn ->
+          {:ok, _ref} = Play.track_participant(game, participant)
+          send(parent, :tracked)
+
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      assert_receive :tracked
+      assert {:error, :name_taken} = Play.enroll(game, "Flaky")
+
+      send(pid, :stop)
+      # Untracking on process exit is asynchronous — poll until the rejoin works.
+      assert {:ok, %Participant{id: ^id}, _t} = poll_enroll(game, "Flaky")
+    end
+
+    test "reclaim_team/2 refuses a connected team" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, participant, _t} = Play.enroll(game, "Team A")
+      {:ok, _ref} = Play.track_participant(game, participant)
+      {:ok, finished} = game |> Ecto.Changeset.change(status: :finished) |> Quiz.Repo.update()
+
+      assert {:error, :name_taken} = Play.reclaim_team(finished, "Team A")
     end
 
     test "reclaim_team/2 rebinds an existing team even after the run finished" do
@@ -492,6 +550,19 @@ defmodule Quiz.PlayTest do
                %{score: 1.0, rank: 2},
                %{score: 1.0, rank: 2}
              ] = Play.leaderboard(game)
+    end
+  end
+
+  # Retries enroll until the presence untrack of a dead connection has
+  # propagated (it is asynchronous), so the rejoin succeeds.
+  defp poll_enroll(game, name, attempts \\ 50) do
+    case Play.enroll(game, name) do
+      {:error, :name_taken} when attempts > 0 ->
+        Process.sleep(10)
+        poll_enroll(game, name, attempts - 1)
+
+      result ->
+        result
     end
   end
 end

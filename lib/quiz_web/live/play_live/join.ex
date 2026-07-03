@@ -200,6 +200,7 @@ defmodule QuizWeb.PlayLive.Join do
              {:ok, _participant, token} <- Play.reclaim_team(game, Map.get(params, "name", "")) do
           {:noreply, enter_play(socket, game, token)}
         else
+          {:error, :name_taken} -> {:noreply, assign(socket, :error, name_taken_message())}
           _ -> {:noreply, assign(socket, :error, "Dieses Quiz ist bereits beendet.")}
         end
 
@@ -208,9 +209,18 @@ defmodule QuizWeb.PlayLive.Join do
       {:error, :not_joinable} ->
         {:noreply, assign(socket, :error, "Dieses Quiz nimmt gerade keine neuen Teams auf.")}
 
+      # The name belongs to a team that is currently connected — rejoining by
+      # name is only allowed once that team's connection is gone.
+      {:error, :name_taken} ->
+        {:noreply, assign(socket, :error, name_taken_message())}
+
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
     end
+  end
+
+  defp name_taken_message do
+    "Dieser Teamname ist bereits vergeben und das Team ist gerade verbunden. Wählt einen anderen Namen."
   end
 
   defp assign_form(socket, changeset) do

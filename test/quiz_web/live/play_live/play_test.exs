@@ -88,4 +88,19 @@ defmodule QuizWeb.PlayLive.PlayTest do
       assert html =~ ~s|preload="none"|
     end
   end
+
+  describe "presence tracking" do
+    test "a restored team counts as online and its name is guarded", %{conn: conn} do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, participant, token} = Play.enroll(game, "Team A")
+
+      refute Play.participant_online?(game, participant)
+
+      _lv = connect_and_restore(conn, game, token)
+
+      assert Play.participant_online?(game, participant)
+      assert {:error, :name_taken} = Play.enroll(game, "Team A")
+    end
+  end
 end

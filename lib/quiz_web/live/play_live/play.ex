@@ -224,7 +224,11 @@ defmodule QuizWeb.PlayLive.Play do
   def handle_event("restore_participant", %{"token" => token}, socket) do
     case Play.restore_participant(socket.assigns.game, token) do
       {:ok, participant} ->
-        if connected?(socket), do: Play.subscribe(socket.assigns.game)
+        if connected?(socket) do
+          Play.subscribe(socket.assigns.game)
+          # Presence dies with this process, freeing the seat for a rejoin.
+          Play.track_participant(socket.assigns.game, participant)
+        end
 
         {:noreply,
          socket

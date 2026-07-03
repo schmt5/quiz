@@ -112,6 +112,40 @@ defmodule QuizWeb.PlayLive.JoinTest do
     end
   end
 
+  describe "seat takeover protection" do
+    setup :open_game
+
+    test "the name of a connected team cannot be taken over", %{conn: conn, game: game} do
+      {:ok, _p, token} = Quiz.Play.enroll(game, "Team A")
+
+      # Browser 1: live in the play view (the JS hook restores the token).
+      {:ok, play_lv, _html} = live(conn, ~p"/play/#{game.join_code}")
+      render_hook(play_lv, "restore_participant", %{"token" => token})
+
+      # Browser 2: tries to enroll under the same name.
+      {:ok, lv, _html} = live(conn, ~p"/join")
+
+      html =
+        lv
+        |> form("#join-form", participant: %{name: "Team A", code: game.join_code})
+        |> render_submit()
+
+      assert html =~ "bereits vergeben"
+    end
+
+    test "an offline team can rejoin by retyping its name", %{conn: conn, game: game} do
+      {:ok, _p, _t} = Quiz.Play.enroll(game, "Team A")
+
+      {:ok, lv, _html} = live(conn, ~p"/join")
+
+      lv
+      |> form("#join-form", participant: %{name: "Team A", code: game.join_code})
+      |> render_submit()
+
+      assert_redirect(lv, ~p"/play/#{game.join_code}")
+    end
+  end
+
   describe "resuming a stored team" do
     setup :open_game
 
