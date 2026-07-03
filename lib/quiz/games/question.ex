@@ -10,6 +10,8 @@ defmodule Quiz.Games.Question do
 
     field :prompt, :string
     field :description, :string
+    field :media_image_key, :string
+    field :media_video_key, :string
     field :position, :integer
     embeds_one :data, Data, on_replace: :update
     field :game_id, :id
@@ -35,9 +37,18 @@ defmodule Quiz.Games.Question do
   def changeset(question, attrs, user_scope, mode \\ :publish) do
     changeset =
       question
-      |> cast(attrs, [:type, :prompt, :description, :position, :game_id])
+      |> cast(attrs, [
+        :type,
+        :prompt,
+        :description,
+        :media_image_key,
+        :media_video_key,
+        :position,
+        :game_id
+      ])
       |> validate_required(required_fields(mode))
       |> update_change(:description, &Quiz.HTML.sanitize_description/1)
+      |> resolve_media_exclusivity()
       |> maybe_reset_data_on_type_change()
 
     type = get_field(changeset, :type)
@@ -139,6 +150,30 @@ defmodule Quiz.Games.Question do
     |> cast(attrs, [:type, :position, :game_id])
     |> validate_required([:type, :position, :game_id])
     |> put_change(:user_id, user_scope.user.id)
+  end
+
+  # A question carries either an image or a video, never both. Whichever medium
+  # was set in this cast wins and clears the other; only setting both at once is
+  # an error. This runs in `:draft` mode too — media is optional, but a conflict
+  # is structural, not incompleteness.
+  defp resolve_media_exclusivity(changeset) do
+    image = fetch_change(changeset, :media_image_key)
+    video = fetch_change(changeset, :media_video_key)
+
+    cond do
+      match?({:ok, value} when not is_nil(value), image) and
+          match?({:ok, value} when not is_nil(value), video) ->
+        add_error(changeset, :media_video_key, "Bild oder Video – nicht beides")
+
+      match?({:ok, value} when not is_nil(value), image) ->
+        put_change(changeset, :media_video_key, nil)
+
+      match?({:ok, value} when not is_nil(value), video) ->
+        put_change(changeset, :media_image_key, nil)
+
+      true ->
+        changeset
+    end
   end
 
   defp maybe_reset_data_on_type_change(changeset) do

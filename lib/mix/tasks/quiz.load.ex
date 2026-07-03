@@ -186,7 +186,9 @@ defmodule Mix.Tasks.Quiz.Load do
         answer = Enum.random(["0", "1"])
 
         {us, result} =
-          timed_us(fn -> Play.submit_answer(game, participant, question, %{"answer" => answer}) end)
+          timed_us(fn ->
+            Play.submit_answer(game, participant, question, %{"answer" => answer})
+          end)
 
         case result do
           {:ok, _} -> {:ok, us}
@@ -306,11 +308,16 @@ defmodule Mix.Tasks.Quiz.Load do
 
     latency_line =
       case lat do
-        [] -> ""
-        _ -> "  |  latency p50 #{ms(percentile(lat, 50))} / p95 #{ms(percentile(lat, 95))} / max #{ms(Enum.max(lat))}"
+        [] ->
+          ""
+
+        _ ->
+          "  |  latency p50 #{ms(percentile(lat, 50))} / p95 #{ms(percentile(lat, 95))} / max #{ms(Enum.max(lat))}"
       end
 
-    info("  #{pad(label)}  #{ms(wall_us)} wall  |  #{ok_count} ok / #{err_count} err#{latency_line}")
+    info(
+      "  #{pad(label)}  #{ms(wall_us)} wall  |  #{ok_count} ok / #{err_count} err#{latency_line}"
+    )
 
     if err_count > 0, do: info("     ⚠ first errors: #{inspect(first_errors(results))}")
   end

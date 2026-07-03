@@ -127,7 +127,11 @@ defmodule Quiz.Stats do
           chosen
           |> Enum.group_by(&normalize/1)
           |> Enum.map(fn {_k, members} ->
-            %{label: most_common(members), count: length(members), pct: pct(length(members), total)}
+            %{
+              label: most_common(members),
+              count: length(members),
+              pct: pct(length(members), total)
+            }
           end)
           |> Enum.sort_by(& &1.count, :desc)
 

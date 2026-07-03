@@ -191,6 +191,7 @@ defmodule QuizWeb.RunLive.Host do
                 {@question.prompt}
               </h2>
               <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
+              <.question_media question={@question} />
 
               <%!-- Collecting answers: live answered count. --%>
               <div :if={!@game.revealing} class="flex items-center gap-2 text-lg text-base-content/60">

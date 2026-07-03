@@ -54,7 +54,10 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
           name="hero-x-mark"
           class="size-5 shrink-0 text-base-content/30"
         />
-        <span class={["break-words", (choice.correct && "font-bold text-base-content") || "text-base-content/70"]}>
+        <span class={[
+          "break-words",
+          (choice.correct && "font-bold text-base-content") || "text-base-content/70"
+        ]}>
           {choice.text}
         </span>
       </li>

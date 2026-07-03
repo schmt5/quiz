@@ -658,4 +658,174 @@ defmodule QuizWeb.QuestionLiveTest do
       assert positions[q3.id] == 3
     end
   end
+
+  describe "Question media (Bild oder Video)" do
+    setup [:create_game_and_question]
+
+    defp media_upload(live) do
+      file_input(live, "#question-form", :media_image, [
+        %{
+          last_modified: 1_700_000_000_000,
+          name: "media.png",
+          content: File.read!("test/support/fixtures/files/pin.png"),
+          type: "image/png"
+        }
+      ])
+    end
+
+    defp video_upload(live) do
+      file_input(live, "#question-form", :media_video, [
+        %{
+          last_modified: 1_700_000_000_000,
+          name: "clip.mp4",
+          content: <<0, 0, 0, 24, "ftypmp42fake video payload">>,
+          type: "video/mp4"
+        }
+      ])
+    end
+
+    defp local_storage_path(key) do
+      dir = Application.fetch_env!(:quiz, Quiz.Storage.Local)[:dir]
+      Path.join(dir, Path.relative_to(key, "uploads"))
+    end
+
+    test "the form shows the media section with Bild/Video tabs", %{
+      conn: conn,
+      game: game,
+      question: question
+    } do
+      {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      assert html =~ "Bild oder Video"
+      assert html =~ "media-tab-image"
+      assert html =~ "media-tab-video"
+      assert html =~ ~s|name="question[media_image_key]"|
+    end
+
+    test "uploading an image autosaves the media_image_key", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      render_upload(media_upload(live), "media.png")
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert String.starts_with?(saved.media_image_key, "uploads/#{scope.user.id}/")
+      assert String.ends_with?(saved.media_image_key, ".png")
+
+      dir = Application.fetch_env!(:quiz, Quiz.Storage.Local)[:dir]
+      stored_path = Path.join(dir, Path.relative_to(saved.media_image_key, "uploads"))
+      assert File.exists?(stored_path)
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+
+      # The re-rendered form shows the preview and the remove button.
+      html = render(live)
+      assert html =~ "remove-media-image"
+      assert html =~ "Bild ersetzen"
+    end
+
+    test "uploading a video autosaves the media_video_key and shows the preview", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      live |> element("#media-tab-video") |> render_click()
+      render_upload(video_upload(live), "clip.mp4")
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert String.starts_with?(saved.media_video_key, "uploads/#{scope.user.id}/")
+      assert String.ends_with?(saved.media_video_key, ".mp4")
+
+      stored_path = local_storage_path(saved.media_video_key)
+      assert File.exists?(stored_path)
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+
+      html = render(live)
+      assert html =~ "remove-media-video"
+      assert html =~ "Video ersetzen"
+    end
+
+    test "uploading a video clears a previously uploaded image", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      render_upload(media_upload(live), "media.png")
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.media_image_key
+
+      stored_path = local_storage_path(saved.media_image_key)
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+
+      live |> element("#media-tab-video") |> render_click()
+      render_upload(video_upload(live), "clip.mp4")
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.media_video_key
+      assert saved.media_image_key == nil
+    end
+
+    test "uploading an image clears a previously uploaded video", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      live |> element("#media-tab-video") |> render_click()
+      render_upload(video_upload(live), "clip.mp4")
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.media_video_key
+
+      stored_path = local_storage_path(saved.media_video_key)
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+
+      live |> element("#media-tab-image") |> render_click()
+      render_upload(media_upload(live), "media.png")
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.media_image_key
+      assert saved.media_video_key == nil
+    end
+
+    test "the remove buttons clear the stored media", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      render_upload(media_upload(live), "media.png")
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.media_image_key
+
+      stored_path = local_storage_path(saved.media_image_key)
+      on_exit(fn -> File.rm_rf(Path.dirname(stored_path)) end)
+
+      live |> element("#remove-media-image") |> render_click()
+      assert Quiz.Games.get_question!(scope, question.id).media_image_key == nil
+
+      live |> element("#media-tab-video") |> render_click()
+      render_upload(video_upload(live), "clip.mp4")
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.media_video_key
+
+      video_path = local_storage_path(saved.media_video_key)
+      on_exit(fn -> File.rm_rf(Path.dirname(video_path)) end)
+
+      live |> element("#remove-media-video") |> render_click()
+      assert Quiz.Games.get_question!(scope, question.id).media_video_key == nil
+    end
+  end
 end

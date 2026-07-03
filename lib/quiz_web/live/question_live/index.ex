@@ -249,6 +249,7 @@ defmodule QuizWeb.QuestionLive.Index do
                 question_type={@question_type}
                 selected_question={@selected_question}
                 uploads={@uploads}
+                media_tab={@media_tab}
               />
             </div>
 
@@ -278,6 +279,7 @@ defmodule QuizWeb.QuestionLive.Index do
                 </p>
                 <h2 class="text-xl font-bold">{q.prompt}</h2>
                 <.rich_text html={q.description} />
+                <.question_media question={q} class="max-w-md" />
                 <AnswerArea.answer_area question={AnswerArea.prepare_question(q)} />
               </article>
             </div>
@@ -433,6 +435,7 @@ defmodule QuizWeb.QuestionLive.Index do
   attr :question_type, :atom, required: true
   attr :selected_question, :map, required: true
   attr :uploads, :map, required: true
+  attr :media_tab, :atom, required: true
 
   defp question_form(assigns) do
     assigns =
@@ -471,6 +474,160 @@ defmodule QuizWeb.QuestionLive.Index do
         </div>
 
         <.input field={@form[:prompt]} type="textarea" label="Fragetext" />
+
+        <% media_key = media_image_key(@form) %>
+        <% video_key = media_video_key(@form) %>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-4">
+            <span class="block text-sm font-semibold">
+              Bild oder Video <span class="font-normal text-base-content/50">(optional)</span>
+            </span>
+            <div class="join" role="tablist" aria-label="Medientyp">
+              <button
+                type="button"
+                id="media-tab-image"
+                phx-click="media_tab"
+                phx-value-tab="image"
+                class={[
+                  "btn btn-sm join-item",
+                  (@media_tab == :image && "btn-primary") || "btn-soft"
+                ]}
+              >
+                <.icon name="hero-photo" class="size-4" /> Bild
+              </button>
+              <button
+                type="button"
+                id="media-tab-video"
+                phx-click="media_tab"
+                phx-value-tab="video"
+                class={[
+                  "btn btn-sm join-item",
+                  (@media_tab == :video && "btn-primary") || "btn-soft"
+                ]}
+              >
+                <.icon name="hero-play" class="size-4" /> Video
+              </button>
+            </div>
+          </div>
+
+          <div :if={@media_tab == :image} class="space-y-3">
+            <div
+              class="rounded-box border border-dashed border-base-300 p-4"
+              phx-drop-target={@uploads.media_image.ref}
+            >
+              <div class="flex items-center justify-between gap-4">
+                <div class="text-sm text-base-content/70">
+                  <p class="font-semibold">
+                    {if media_key, do: "Bild ersetzen", else: "Bild hochladen"}
+                  </p>
+                  <p class="text-xs text-base-content/50">
+                    JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
+                  </p>
+                </div>
+                <label class="btn btn-soft btn-sm">
+                  <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
+                  <.live_file_input upload={@uploads.media_image} class="sr-only" />
+                </label>
+              </div>
+
+              <p :for={err <- upload_errors(@uploads.media_image)} class="mt-2 text-error text-sm">
+                {upload_error_to_string(err)}
+              </p>
+              <p
+                :for={entry <- @uploads.media_image.entries}
+                :if={err = List.first(upload_errors(@uploads.media_image, entry))}
+                class="mt-2 text-error text-sm"
+              >
+                {upload_error_to_string(err)}
+              </p>
+            </div>
+
+            <%!-- Server-owned: written by the upload progress callback, never by
+                  the client; round-trips the persisted key through autosaves. --%>
+            <input type="hidden" name="question[media_image_key]" value={media_key} />
+
+            <div :if={media_key} class="space-y-2">
+              <img
+                src={Quiz.Storage.url(media_key)}
+                alt="Bild zur Frage"
+                class="max-h-48 rounded-box object-contain"
+              />
+              <button
+                type="button"
+                id="remove-media-image"
+                phx-click="remove_media_image"
+                class="btn btn-ghost btn-sm text-error"
+              >
+                <.icon name="hero-trash" class="size-4" /> Bild entfernen
+              </button>
+            </div>
+          </div>
+
+          <div :if={@media_tab == :video} class="space-y-3">
+            <div
+              class="rounded-box border border-dashed border-base-300 p-4"
+              phx-drop-target={@uploads.media_video.ref}
+            >
+              <div class="flex items-center justify-between gap-4">
+                <div class="text-sm text-base-content/70">
+                  <p class="font-semibold">
+                    {if video_key, do: "Video ersetzen", else: "Video hochladen"}
+                  </p>
+                  <p class="text-xs text-base-content/50">
+                    MP4 oder WEBM (H.264) · max. 50 MB. Ziehe eine Datei hierher oder wähle sie aus.
+                  </p>
+                </div>
+                <label class="btn btn-soft btn-sm">
+                  <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
+                  <.live_file_input upload={@uploads.media_video} class="sr-only" />
+                </label>
+              </div>
+
+              <div
+                :for={entry <- @uploads.media_video.entries}
+                :if={entry.progress > 0 and entry.progress < 100}
+                class="mt-3"
+              >
+                <progress class="progress progress-primary w-full" value={entry.progress} max="100">
+                </progress>
+              </div>
+
+              <p :for={err <- upload_errors(@uploads.media_video)} class="mt-2 text-error text-sm">
+                {video_upload_error_to_string(err)}
+              </p>
+              <p
+                :for={entry <- @uploads.media_video.entries}
+                :if={err = List.first(upload_errors(@uploads.media_video, entry))}
+                class="mt-2 text-error text-sm"
+              >
+                {video_upload_error_to_string(err)}
+              </p>
+            </div>
+
+            <%!-- Server-owned: written by the upload progress callback, never by
+                  the client; round-trips the persisted key through autosaves. --%>
+            <input type="hidden" name="question[media_video_key]" value={video_key} />
+
+            <div :if={video_key} class="space-y-2">
+              <video
+                src={Quiz.Storage.url(video_key)}
+                controls
+                preload="metadata"
+                playsinline
+                class="max-h-48 max-w-md rounded-box bg-black"
+              >
+              </video>
+              <button
+                type="button"
+                id="remove-media-video"
+                phx-click="remove_media_video"
+                class="btn btn-ghost btn-sm text-error"
+              >
+                <.icon name="hero-trash" class="size-4" /> Video entfernen
+              </button>
+            </div>
+          </div>
+        </div>
 
         <%!-- Beschreibung component is hidden for now (both creating and editing); markup and
               logic are kept in place so it can be re-enabled later. --%>
@@ -1358,8 +1515,11 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:question_type, nil)
      |> assign(:form, nil)
      |> assign(:save_status, nil)
-     |> assign(:pin_pending_params, nil)
+     |> assign(:pending_params, nil)
      |> assign(:pin_uploaded_key, nil)
+     |> assign(:media_uploaded_key, nil)
+     |> assign(:media_video_uploaded_key, nil)
+     |> assign(:media_tab, :image)
      |> allow_upload(:pin_image,
        accept: ~w(.jpg .jpeg .png .webp),
        max_entries: 1,
@@ -1370,6 +1530,20 @@ defmodule QuizWeb.QuestionLive.Index do
        # which keeps the upload lifecycle deterministic.
        auto_upload: true,
        progress: &handle_pin_image_progress/3
+     )
+     |> allow_upload(:media_image,
+       accept: ~w(.jpg .jpeg .png .webp),
+       max_entries: 1,
+       max_file_size: 5_000_000,
+       auto_upload: true,
+       progress: &handle_media_image_progress/3
+     )
+     |> allow_upload(:media_video,
+       accept: ~w(.mp4 .webm),
+       max_entries: 1,
+       max_file_size: 50_000_000,
+       auto_upload: true,
+       progress: &handle_media_video_progress/3
      )}
   end
 
@@ -1407,8 +1581,11 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:question_type, question.type)
     |> assign(:form, to_form(changeset))
     |> assign(:save_status, nil)
-    |> assign(:pin_pending_params, nil)
+    |> assign(:pending_params, nil)
     |> assign(:pin_uploaded_key, nil)
+    |> assign(:media_uploaded_key, nil)
+    |> assign(:media_video_uploaded_key, nil)
+    |> assign(:media_tab, if(question.media_video_key, do: :video, else: :image))
   end
 
   @impl true
@@ -1454,8 +1631,38 @@ defmodule QuizWeb.QuestionLive.Index do
   def handle_event("validate", %{"question" => question_params}, socket) do
     {:noreply,
      socket
-     |> assign(:pin_pending_params, question_params)
+     |> assign(:pending_params, question_params)
      |> autosave(question_params)}
+  end
+
+  # Pure UI: switching the media tab never clears anything — exclusivity is
+  # resolved at write time in the changeset the moment the other medium is set.
+  def handle_event("media_tab", %{"tab" => tab}, socket) when tab in ["image", "video"] do
+    {:noreply, assign(socket, :media_tab, String.to_existing_atom(tab))}
+  end
+
+  def handle_event("remove_media_image", _params, socket) do
+    params =
+      (socket.assigns.pending_params || base_media_params(socket))
+      |> Map.put("media_image_key", "")
+
+    {:noreply,
+     socket
+     |> assign(:media_uploaded_key, nil)
+     |> assign(:pending_params, params)
+     |> autosave(params)}
+  end
+
+  def handle_event("remove_media_video", _params, socket) do
+    params =
+      (socket.assigns.pending_params || base_media_params(socket))
+      |> Map.put("media_video_key", "")
+
+    {:noreply,
+     socket
+     |> assign(:media_video_uploaded_key, nil)
+     |> assign(:pending_params, params)
+     |> autosave(params)}
   end
 
   def handle_event("save", %{"question" => question_params}, socket) do
@@ -1517,9 +1724,12 @@ defmodule QuizWeb.QuestionLive.Index do
             socket
             |> assign(:selected_question, question)
             |> assign(:form, form)
-            # The uploaded key is now persisted on the record; clear the pending
-            # marker so we don't keep re-injecting it on later autosaves.
+            # The uploaded keys are now persisted on the record; clear the
+            # pending markers so we don't keep re-injecting them on later
+            # autosaves.
             |> assign(:pin_uploaded_key, nil)
+            |> assign(:media_uploaded_key, nil)
+            |> assign(:media_video_uploaded_key, nil)
             |> assign(:save_status, nil)
 
           {:error, :run_locked} ->
@@ -1588,7 +1798,7 @@ defmodule QuizWeb.QuestionLive.Index do
 
       case consumed do
         [{:ok, key} | _] ->
-          params = socket.assigns.pin_pending_params || base_pin_params(socket)
+          params = socket.assigns.pending_params || base_pin_params(socket)
 
           {:noreply,
            socket
@@ -1611,11 +1821,23 @@ defmodule QuizWeb.QuestionLive.Index do
     end
   end
 
-  # Merges a pending uploaded image key into the pin params. A no-op when no new
-  # file is awaiting persistence (editing without re-uploading, or non-pin types).
+  # Merges pending uploaded storage keys (pin background and/or question media)
+  # into the params. A no-op when no new file is awaiting persistence.
   defp inject_uploaded_key(socket, question_params) do
-    case socket.assigns[:pin_uploaded_key] do
-      key when is_binary(key) -> put_pin_image_key(question_params, key)
+    question_params =
+      case socket.assigns[:pin_uploaded_key] do
+        key when is_binary(key) -> put_pin_image_key(question_params, key)
+        _ -> question_params
+      end
+
+    question_params =
+      case socket.assigns[:media_uploaded_key] do
+        key when is_binary(key) -> Map.put(question_params, "media_image_key", key)
+        _ -> question_params
+      end
+
+    case socket.assigns[:media_video_uploaded_key] do
+      key when is_binary(key) -> Map.put(question_params, "media_video_key", key)
       _ -> question_params
     end
   end
@@ -1624,6 +1846,67 @@ defmodule QuizWeb.QuestionLive.Index do
     data = Map.get(params, "data", %{})
     pin = data |> Map.get("pin", %{}) |> Map.put("image_key", key)
     Map.put(params, "data", Map.put(data, "pin", pin))
+  end
+
+  # Consumes a question-media file (image or video) exactly once, the moment
+  # its upload finishes — same deterministic lifecycle as
+  # handle_pin_image_progress/3. The key is stashed in the given assign and
+  # injected into autosaves via inject_uploaded_key/2 until it is persisted.
+  def handle_media_image_progress(:media_image, entry, socket) do
+    handle_media_progress(:media_image, :media_uploaded_key, "Das Bild", entry, socket)
+  end
+
+  def handle_media_video_progress(:media_video, entry, socket) do
+    handle_media_progress(:media_video, :media_video_uploaded_key, "Das Video", entry, socket)
+  end
+
+  defp handle_media_progress(upload_name, assign_key, noun, entry, socket) do
+    if entry.done? do
+      consumed =
+        consume_uploaded_entries(socket, upload_name, fn %{path: path}, entry ->
+          {:ok,
+           Quiz.Storage.put(socket.assigns.current_scope, path,
+             content_type: entry.client_type,
+             filename: entry.client_name
+           )}
+        end)
+
+      case consumed do
+        [{:ok, key} | _] ->
+          params = socket.assigns.pending_params || base_media_params(socket)
+
+          {:noreply,
+           socket
+           |> assign(assign_key, key)
+           |> autosave(params)}
+
+        [{:error, _reason} | _] ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "#{noun} konnte nicht hochgeladen werden. Bitte versuch es erneut."
+           )}
+
+        [] ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  # Minimal, well-formed params used when a media action (upload/remove)
+  # happens before any "validate" has run, so there are no stashed form params
+  # yet. Leaves the type-specific data untouched.
+  defp base_media_params(socket) do
+    question = socket.assigns.selected_question
+
+    %{
+      "type" => Atom.to_string(question.type),
+      "prompt" => question.prompt || "",
+      "position" => to_string(question.position)
+    }
   end
 
   # Minimal, well-formed pin params used when the upload completes before any
@@ -1767,6 +2050,16 @@ defmodule QuizWeb.QuestionLive.Index do
     end
   end
 
+  defp media_image_key(form), do: media_key(form, :media_image_key)
+  defp media_video_key(form), do: media_key(form, :media_video_key)
+
+  defp media_key(form, field) do
+    case form[field].value do
+      key when is_binary(key) and key != "" -> key
+      _ -> nil
+    end
+  end
+
   @pin_defaults %{target_x: 0.5, target_y: 0.5, radius: 0.1, aspect_ratio: 1.0}
 
   defp pin_coord(form, field) do
@@ -1790,6 +2083,10 @@ defmodule QuizWeb.QuestionLive.Index do
   defp upload_error_to_string(:too_many_files), do: "Nur eine Datei erlaubt."
   defp upload_error_to_string(:not_accepted), do: "Nur JPG, PNG oder WEBP."
   defp upload_error_to_string(_), do: "Upload fehlgeschlagen."
+
+  defp video_upload_error_to_string(:too_large), do: "Datei ist zu groß (max. 50 MB)."
+  defp video_upload_error_to_string(:not_accepted), do: "Nur MP4 oder WEBM."
+  defp video_upload_error_to_string(err), do: upload_error_to_string(err)
 
   defp data_field_error(form, field) do
     case form.source.changes[:data] do

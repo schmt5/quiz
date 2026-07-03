@@ -61,7 +61,10 @@ defmodule QuizWeb.RunLive.ReviewTest do
       assert lv |> element(".btn-disabled", "Zurück") |> has_element?()
     end
 
-    test "last question replaces Weiter with the ranking call-to-action", %{conn: conn, game: game} do
+    test "last question replaces Weiter with the ranking call-to-action", %{
+      conn: conn,
+      game: game
+    } do
       {:ok, lv, html} = live(conn, ~p"/games/#{game}/review/2")
 
       refute html =~ "Weiter"
@@ -83,7 +86,10 @@ defmodule QuizWeb.RunLive.ReviewTest do
   end
 
   describe "every question type renders" do
-    test "sequence, matching and pin solutions render without crashing", %{conn: conn, scope: scope} do
+    test "sequence, matching and pin solutions render without crashing", %{
+      conn: conn,
+      scope: scope
+    } do
       game = game_fixture(scope)
       question_fixture(scope, %{game_id: game.id, position: 1, type: :sequence})
       question_fixture(scope, %{game_id: game.id, position: 2, type: :matching})

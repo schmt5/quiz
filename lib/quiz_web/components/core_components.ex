@@ -495,6 +495,42 @@ defmodule QuizWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a question's optional media (uploaded image or video) below the
+  question text.
+
+  Both are resolved from their storage key at render time. The video renders
+  with native controls and no autoplay (whoever watches presses play);
+  `preload="none"` keeps a room full of participant devices from all fetching
+  the file the moment the question opens.
+
+  ## Examples
+
+      <.question_media question={@question} />
+  """
+  attr :question, Quiz.Games.Question, required: true
+  attr :class, :any, default: nil
+
+  def question_media(assigns) do
+    ~H"""
+    <img
+      :if={@question.media_image_key}
+      src={Quiz.Storage.url(@question.media_image_key)}
+      alt=""
+      class={["w-full max-h-[45vh] rounded-box object-contain object-left", @class]}
+    />
+    <video
+      :if={@question.media_video_key}
+      src={Quiz.Storage.url(@question.media_video_key)}
+      controls
+      preload="none"
+      playsinline
+      class={["w-full max-h-[45vh] rounded-box bg-black", @class]}
+    >
+    </video>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

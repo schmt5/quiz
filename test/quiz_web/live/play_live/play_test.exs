@@ -58,4 +58,34 @@ defmodule QuizWeb.PlayLive.PlayTest do
       assert Play.get_answer(participant, question).grade == :zero
     end
   end
+
+  describe "question media" do
+    defp start_running_game(media_attrs) do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, Map.merge(%{game_id: game.id, position: 1}, media_attrs))
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, _participant, token} = Play.enroll(running, "Team A")
+      %{game: running, token: token}
+    end
+
+    test "renders the question image below the prompt", %{conn: conn} do
+      %{game: game, token: token} = start_running_game(%{media_image_key: "uploads/1/media.png"})
+
+      lv = connect_and_restore(conn, game, token)
+
+      assert render(lv) =~ Quiz.Storage.url("uploads/1/media.png")
+    end
+
+    test "renders the uploaded video for a video question", %{conn: conn} do
+      %{game: game, token: token} =
+        start_running_game(%{media_video_key: "uploads/1/clip.mp4"})
+
+      lv = connect_and_restore(conn, game, token)
+
+      html = render(lv)
+      assert html =~ ~s|<video src="#{Quiz.Storage.url("uploads/1/clip.mp4")}"|
+      assert html =~ ~s|preload="none"|
+    end
+  end
 end

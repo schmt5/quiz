@@ -81,6 +81,40 @@ defmodule QuizWeb.RunLive.HostTest do
     end
   end
 
+  describe "question media" do
+    test "renders the question image below the prompt", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        media_image_key: "uploads/1/media.png"
+      })
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, _lv, html} = live(conn, ~p"/games/#{running}/run")
+
+      assert html =~ Quiz.Storage.url("uploads/1/media.png")
+    end
+
+    test "renders the uploaded video without autoplay", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        media_video_key: "uploads/1/clip.mp4"
+      })
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, _lv, html} = live(conn, ~p"/games/#{running}/run")
+
+      assert html =~ ~s|<video src="#{Quiz.Storage.url("uploads/1/clip.mp4")}"|
+      assert html =~ ~s|preload="none"|
+      refute html =~ "autoplay"
+    end
+  end
+
   describe "per_question review mode (running)" do
     setup %{scope: scope} do
       game =

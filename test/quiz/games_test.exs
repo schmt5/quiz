@@ -941,4 +941,102 @@ defmodule Quiz.GamesTest do
       assert Games.incomplete_questions(scope, game) == []
     end
   end
+
+  describe "question media (image or video)" do
+    alias Quiz.Games.Question
+
+    import Quiz.AccountsFixtures, only: [user_scope_fixture: 0]
+    import Quiz.GamesFixtures
+
+    @video_key "uploads/1/clip.mp4"
+
+    test "an uploaded image key persists" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{media_image_key: "uploads/1/pic.png"})
+
+      assert updated.media_image_key == "uploads/1/pic.png"
+      assert updated.media_video_key == nil
+    end
+
+    test "an uploaded video key persists" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{media_video_key: @video_key})
+
+      assert updated.media_video_key == @video_key
+    end
+
+    test "media is optional: a question without media is still ready" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert question.media_image_key == nil
+      assert question.media_video_key == nil
+      assert Question.ready?(question)
+    end
+
+    test "setting a video clears an existing image" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+      {:ok, question} = Games.update_question(scope, question, %{media_image_key: "uploads/x"})
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{media_video_key: @video_key})
+
+      assert updated.media_video_key == @video_key
+      assert updated.media_image_key == nil
+    end
+
+    test "setting an image clears an existing video" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+      {:ok, question} = Games.update_question(scope, question, %{media_video_key: @video_key})
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{media_image_key: "uploads/x"})
+
+      assert updated.media_image_key == "uploads/x"
+      assert updated.media_video_key == nil
+    end
+
+    test "setting both media in one update is an error" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Games.update_question(scope, question, %{
+                 media_image_key: "uploads/x",
+                 media_video_key: @video_key
+               })
+
+      assert %{media_video_key: ["Bild oder Video – nicht beides"]} = errors_on(changeset)
+    end
+
+    test "removing media by submitting an empty value clears it" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+      {:ok, question} = Games.update_question(scope, question, %{media_image_key: "uploads/x"})
+
+      assert {:ok, %Question{media_image_key: nil}} =
+               Games.update_question(scope, question, %{"media_image_key" => ""})
+    end
+
+    test "media survives a question type change" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      question = question_fixture(scope, %{game_id: game.id})
+      {:ok, question} = Games.update_question(scope, question, %{media_image_key: "uploads/x"})
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{type: :text_input})
+
+      assert updated.type == :text_input
+      assert updated.media_image_key == "uploads/x"
+    end
+  end
 end

@@ -80,6 +80,7 @@ defmodule QuizWeb.RunLive.Review do
             {@question.prompt}
           </h2>
           <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
+          <.question_media question={@question} />
           <SolutionArea.solution_area question={@question} />
 
           <%!-- Optional anonymous answer distribution, revealed on demand and kept
