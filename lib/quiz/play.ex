@@ -49,21 +49,6 @@ defmodule Quiz.Play do
 
   defp topic(%Game{id: id}), do: "game:#{id}"
 
-  # Presence lives on its own topic: host and play views subscribe to the main
-  # topic and pattern-match plain tuples, so presence_diff broadcasts there
-  # would crash them.
-  defp presence_topic(%Game{id: id}), do: "game:#{id}:presence"
-
-  @doc "Marks the calling process as this team's live connection."
-  def track_participant(%Game{} = game, %Participant{id: id}) do
-    Quiz.Presence.track(self(), presence_topic(game), to_string(id), %{})
-  end
-
-  @doc "Whether this team currently has at least one live connection."
-  def participant_online?(%Game{} = game, %Participant{id: id}) do
-    Quiz.Presence.get_by_key(presence_topic(game), to_string(id)) != []
-  end
-
   ## Operator actions (scoped) ---------------------------------------------
 
   @doc """
@@ -202,28 +187,21 @@ defmodule Quiz.Play do
   end
 
   @doc """
-  Enrolls a team into the run. Returns `{:ok, participant, token}` where `token`
-  is a signed handle the client stores to reconnect later.
+  Enrolls a *new* team into the run. Returns `{:ok, participant, token}` where
+  `token` is a signed handle the client stores to reconnect later.
 
-  Get-or-create by `(game_id, trimmed name)`: if a team with that name is already
-  enrolled *and has no live connection*, we rebind to the existing record — with
-  its answers and score intact — and re-issue its token. This is how a team whose
-  `localStorage` token was lost (different in-app browser, cleared storage, new
-  device) gets back into *their* team: they just retype the same name. While the
-  team is actively connected, the name is first come, first serve and enrolling
-  with it returns `{:error, :name_taken}` — so a second team picking the same
-  name cannot take over the seat. Only a genuinely new name inserts a new
-  participant.
-
-  Note: a token issued to a device that later loses the seat to a legitimate
-  rejoin stays valid; if that device reconnects, both share the team (as before).
+  Names are strictly first come, first serve: enrolling with a name that already
+  exists in this game returns `{:error, :name_taken}`, whether or not that team
+  is currently connected. The signed token in the browser's `localStorage` is
+  the *only* way back into an existing team (`restore_participant/2`) — a team
+  that loses it must join under a new name.
   """
   def enroll(%Game{status: status} = game, name) when status in @joinable do
     trimmed = name |> to_string() |> String.trim()
 
     case Repo.get_by(Participant, game_id: game.id, name: trimmed) do
-      %Participant{} = participant ->
-        rebind_if_offline(game, participant)
+      %Participant{} ->
+        {:error, :name_taken}
 
       nil ->
         case %Participant{}
@@ -234,10 +212,9 @@ defmodule Quiz.Play do
             {:ok, participant, sign_token(participant)}
 
           {:error, changeset} ->
-            # Lost a race to a concurrent insert of the same name — rebind to the
-            # winner (subject to the same guard) instead of erroring.
+            # Lost a race to a concurrent insert of the same name.
             case Repo.get_by(Participant, game_id: game.id, name: trimmed) do
-              %Participant{} = participant -> rebind_if_offline(game, participant)
+              %Participant{} -> {:error, :name_taken}
               nil -> {:error, changeset}
             end
         end
@@ -245,33 +222,6 @@ defmodule Quiz.Play do
   end
 
   def enroll(%Game{}, _name), do: {:error, :not_joinable}
-
-  @doc """
-  Reconnects to an *existing* team by name, regardless of run status. Unlike
-  `enroll/2` this never creates a participant, so a team that lost its token can
-  still reclaim its spot — e.g. to reach the leaderboard after the run already
-  `:finished`, where `enroll/2` would refuse as `:not_joinable`. Guarded like
-  `enroll/2`: a team with a live connection cannot be reclaimed. Returns
-  `{:ok, participant, token}`, `{:error, :name_taken}` or `{:error, :not_found}`.
-  """
-  def reclaim_team(%Game{} = game, name) do
-    trimmed = name |> to_string() |> String.trim()
-
-    case Repo.get_by(Participant, game_id: game.id, name: trimmed) do
-      %Participant{} = participant -> rebind_if_offline(game, participant)
-      nil -> {:error, :not_found}
-    end
-  end
-
-  # Rejoin-by-name is only legitimate while the team has no live connection —
-  # otherwise typing an existing name would silently take over that team's seat.
-  defp rebind_if_offline(game, participant) do
-    if participant_online?(game, participant) do
-      {:error, :name_taken}
-    else
-      {:ok, participant, sign_token(participant)}
-    end
-  end
 
   @doc """
   Rebinds a returning participant from their signed token, asserting it belongs

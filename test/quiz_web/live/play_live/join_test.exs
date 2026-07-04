@@ -85,7 +85,7 @@ defmodule QuizWeb.PlayLive.JoinTest do
       refute html =~ "Kein Quiz mit der PIN"
     end
 
-    test "an existing team can reconnect to a finished quiz to see results",
+    test "an existing team cannot re-enroll by name into a finished quiz",
          %{conn: conn} do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :open})
@@ -94,11 +94,12 @@ defmodule QuizWeb.PlayLive.JoinTest do
 
       {:ok, lv, _html} = live(conn, ~p"/join")
 
-      lv
-      |> form("#join-form", participant: %{name: "Team A", code: done.join_code})
-      |> render_submit()
+      html =
+        lv
+        |> form("#join-form", participant: %{name: "Team A", code: done.join_code})
+        |> render_submit()
 
-      assert_redirect(lv, ~p"/play/#{done.join_code}")
+      assert html =~ "bereits beendet"
     end
 
     test "a valid code enrols and moves to the waiting room", %{conn: conn, game: game} do
@@ -115,14 +116,12 @@ defmodule QuizWeb.PlayLive.JoinTest do
   describe "seat takeover protection" do
     setup :open_game
 
-    test "the name of a connected team cannot be taken over", %{conn: conn, game: game} do
-      {:ok, _p, token} = Quiz.Play.enroll(game, "Team A")
+    test "an existing team name cannot be taken over, even while that team is offline",
+         %{conn: conn, game: game} do
+      {:ok, _p, _t} = Quiz.Play.enroll(game, "Team A")
 
-      # Browser 1: live in the play view (the JS hook restores the token).
-      {:ok, play_lv, _html} = live(conn, ~p"/play/#{game.join_code}")
-      render_hook(play_lv, "restore_participant", %{"token" => token})
-
-      # Browser 2: tries to enroll under the same name.
+      # Team A holds no live connection — retyping its name must still fail:
+      # only the stored token gets a team back in.
       {:ok, lv, _html} = live(conn, ~p"/join")
 
       html =
@@ -131,18 +130,6 @@ defmodule QuizWeb.PlayLive.JoinTest do
         |> render_submit()
 
       assert html =~ "bereits vergeben"
-    end
-
-    test "an offline team can rejoin by retyping its name", %{conn: conn, game: game} do
-      {:ok, _p, _t} = Quiz.Play.enroll(game, "Team A")
-
-      {:ok, lv, _html} = live(conn, ~p"/join")
-
-      lv
-      |> form("#join-form", participant: %{name: "Team A", code: game.join_code})
-      |> render_submit()
-
-      assert_redirect(lv, ~p"/play/#{game.join_code}")
     end
   end
 
@@ -158,6 +145,19 @@ defmodule QuizWeb.PlayLive.JoinTest do
 
       render_hook(lv, "try_resume", %{"token" => token})
       assert_redirect(lv, ~p"/play/#{game.join_code}")
+    end
+
+    test "a held token still resumes into a finished quiz (leaderboard access)",
+         %{conn: conn} do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, _p, token} = Quiz.Play.enroll(game, "Team A")
+      {:ok, done} = game |> Ecto.Changeset.change(status: :finished) |> Quiz.Repo.update()
+
+      {:ok, lv, _html} = live(conn, ~p"/join?code=#{done.join_code}")
+
+      render_hook(lv, "try_resume", %{"token" => token})
+      assert_redirect(lv, ~p"/play/#{done.join_code}")
     end
 
     test "no stored token drops to the join form", %{conn: conn, game: game} do

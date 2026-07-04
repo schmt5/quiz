@@ -12,7 +12,6 @@ defmodule Quiz.Application do
       Quiz.Repo,
       {DNSCluster, query: Application.get_env(:quiz, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Quiz.PubSub},
-      Quiz.Presence,
       # Start a worker by calling: Quiz.Worker.start_link(arg)
       # {Quiz.Worker, arg},
       # Start to serve requests, typically the last entry

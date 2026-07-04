@@ -10,6 +10,10 @@ defmodule QuizWeb.PlayLive.Join do
   does. So when we arrive with a code, we hold on a "checking" spinner while the
   `.ResumeOrJoin` hook reads `localStorage`; if a token is present and still valid
   we forward straight to `/play`, otherwise we fall through to the join form.
+
+  That stored token is the *only* way back into an existing team — enrolling
+  with an existing name is always refused, so a suspended or offline team can't
+  have its seat taken over by someone retyping its name.
   """
   use QuizWeb, :live_view
 
@@ -197,24 +201,18 @@ defmodule QuizWeb.PlayLive.Join do
            "Dieses Quiz wurde noch nicht gestartet. Warte, bis die Quizmaster:in es öffnet."
          )}
 
-      # A finished quiz won't take *new* teams, but a team that already exists and
-      # lost its token may still reconnect — to reach the published leaderboard.
+      # A finished quiz takes no new teams. Existing teams still reach the
+      # published leaderboard via their stored token (the resume path above).
       {:error, :ended} ->
-        with {:ok, game} <- Play.get_game_for_play(code),
-             {:ok, _participant, token} <- Play.reclaim_team(game, Map.get(params, "name", "")) do
-          {:noreply, enter_play(socket, game, token)}
-        else
-          {:error, :name_taken} -> {:noreply, assign(socket, :error, name_taken_message())}
-          _ -> {:noreply, assign(socket, :error, "Dieses Quiz ist bereits beendet.")}
-        end
+        {:noreply, assign(socket, :error, "Dieses Quiz ist bereits beendet.")}
 
       # Fallback for the rare race where the quiz stops accepting teams between
       # the lookup and enrollment.
       {:error, :not_joinable} ->
         {:noreply, assign(socket, :error, "Dieses Quiz nimmt gerade keine neuen Teams auf.")}
 
-      # The name belongs to a team that is currently connected — rejoining by
-      # name is only allowed once that team's connection is gone.
+      # Names are first come, first serve — only the stored token gets a team
+      # back in, never retyping the name.
       {:error, :name_taken} ->
         {:noreply, assign(socket, :error, name_taken_message())}
 
@@ -224,7 +222,8 @@ defmodule QuizWeb.PlayLive.Join do
   end
 
   defp name_taken_message do
-    "Dieser Teamname ist bereits vergeben und das Team ist gerade verbunden. Wählt einen anderen Namen."
+    "Dieser Teamname ist bereits vergeben. Wählt einen anderen Namen. " <>
+      "(Ist das euer Team? Öffnet das Quiz wieder im Browser, mit dem ihr beigetreten seid.)"
   end
 
   defp assign_form(socket, changeset) do
