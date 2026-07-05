@@ -3,10 +3,11 @@ defmodule QuizWeb.QuestionLive.Index do
 
   alias Quiz.Games
   alias Quiz.Games.Question
+  alias Quiz.Games.Question.NumberRange
   alias Quiz.Games.Question.Pin
   alias QuizWeb.QuestionLive.AnswerArea
 
-  @valid_types ~w(single_choice text_input sequence pin_on_image matching)
+  @valid_types ~w(single_choice text_input sequence pin_on_image matching number_range)
 
   @run_locked_message "Dieses Quiz ist abgeschlossen – Fragen können nicht mehr bearbeitet werden."
 
@@ -421,6 +422,33 @@ defmodule QuizWeb.QuestionLive.Index do
               <span class="block h-2 w-1/4 rounded bg-base-200"></span>
               <span class="text-base-content/40 text-xs">↔</span>
               <span class="block h-2 w-2/5 rounded bg-base-content/20"></span>
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="number_range"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        >
+          <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
+            N
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Zahlenschätzung</h2>
+          <p class="text-sm text-base-content/60">Zahl in einem Bereich schätzen</p>
+          <div class="mt-6 space-y-2">
+            <div class="relative h-1.5 rounded-full bg-base-200">
+              <span class="absolute left-1/3 top-1/2 h-3 w-0.5 -translate-y-1/2 rounded bg-base-content/30">
+              </span>
+              <span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success">
+              </span>
+              <span class="absolute right-1/4 top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-success/40">
+              </span>
+            </div>
+            <div class="flex justify-between font-mono text-[10px] text-base-content/50">
+              <span>min</span>
+              <span>max</span>
             </div>
           </div>
         </button>
@@ -1488,6 +1516,85 @@ defmodule QuizWeb.QuestionLive.Index do
                   {pairs_error}
                 </p>
               </fieldset>
+            <% :number_range -> %>
+              <fieldset class="mt-4 space-y-3">
+                <div role="alert" class="alert alert-info alert-soft">
+                  <.icon name="hero-information-circle" class="size-5 shrink-0" />
+                  <span class="text-sm">
+                    Teilnehmende geben eine Zahl ein. Alles zwischen Lösung minus und plus Toleranz zählt als richtig.
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label class="space-y-1">
+                    <span class="text-xs font-mono uppercase tracking-wider text-base-content/60">
+                      Minimum
+                    </span>
+                    <input
+                      type="number"
+                      step="1"
+                      name="question[data][number_range][min]"
+                      value={nr_field(@form, :min)}
+                      placeholder="z. B. 10"
+                      class="w-full rounded-box bg-base-200 border-none outline-none focus:ring-2 focus:ring-primary text-sm px-3 py-2"
+                    />
+                  </label>
+
+                  <label class="space-y-1">
+                    <span class="text-xs font-mono uppercase tracking-wider text-base-content/60">
+                      Maximum
+                    </span>
+                    <input
+                      type="number"
+                      step="1"
+                      name="question[data][number_range][max]"
+                      value={nr_field(@form, :max)}
+                      placeholder="z. B. 700"
+                      class="w-full rounded-box bg-base-200 border-none outline-none focus:ring-2 focus:ring-primary text-sm px-3 py-2"
+                    />
+                  </label>
+
+                  <label class="space-y-1">
+                    <span class="text-xs font-mono uppercase tracking-wider text-base-content/60">
+                      Lösung
+                    </span>
+                    <input
+                      type="number"
+                      step="1"
+                      name="question[data][number_range][solution]"
+                      value={nr_field(@form, :solution)}
+                      placeholder="z. B. 350"
+                      class="w-full rounded-box bg-base-200 border-none outline-none focus:ring-2 focus:ring-primary text-sm px-3 py-2"
+                    />
+                  </label>
+
+                  <label class="space-y-1">
+                    <span class="text-xs font-mono uppercase tracking-wider text-base-content/60">
+                      Toleranz (±)
+                    </span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      name="question[data][number_range][tolerance]"
+                      value={nr_field(@form, :tolerance)}
+                      placeholder="z. B. 20"
+                      class="w-full rounded-box bg-base-200 border-none outline-none focus:ring-2 focus:ring-primary text-sm px-3 py-2"
+                    />
+                  </label>
+                </div>
+
+                <p :if={band = number_range_band(@form)} class="text-xs text-base-content/50">
+                  Akzeptierter Bereich: {band}
+                </p>
+
+                <p
+                  :if={nr_error = data_field_error(@form, :number_range)}
+                  class="text-error text-sm"
+                >
+                  {nr_error}
+                </p>
+              </fieldset>
           <% end %>
         </.inputs_for>
       </div>
@@ -1983,6 +2090,7 @@ defmodule QuizWeb.QuestionLive.Index do
   defp type_letter(:sequence), do: "R"
   defp type_letter(:pin_on_image), do: "P"
   defp type_letter(:matching), do: "Z"
+  defp type_letter(:number_range), do: "N"
   defp type_letter(_), do: "?"
 
   defp choice_letter(index) when index in 0..25, do: <<?A + index>>
@@ -2042,6 +2150,32 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp pin_struct(_), do: nil
+
+  defp number_range_struct(%{source: %Ecto.Changeset{} = cs}) do
+    case Ecto.Changeset.get_field(cs, :data) do
+      %{number_range: %NumberRange{} = nr} -> nr
+      _ -> nil
+    end
+  end
+
+  defp number_range_struct(_), do: nil
+
+  defp nr_field(form, field) do
+    case number_range_struct(form) do
+      %NumberRange{} = nr -> Map.get(nr, field)
+      _ -> nil
+    end
+  end
+
+  defp number_range_band(form) do
+    case number_range_struct(form) do
+      %NumberRange{solution: s, tolerance: t} when is_integer(s) and is_integer(t) ->
+        "#{s - t} – #{s + t}"
+
+      _ ->
+        nil
+    end
+  end
 
   defp pin_image_key(form) do
     case pin_struct(form) do

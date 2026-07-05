@@ -97,6 +97,14 @@ defmodule Quiz.GamesFixtures do
             }
           }
 
+        :number_range ->
+          %{
+            type: :number_range,
+            prompt: "some prompt",
+            position: 42,
+            data: %{number_range: %{min: 10, max: 700, solution: 350, tolerance: 20}}
+          }
+
         _ ->
           %{
             type: :single_choice,

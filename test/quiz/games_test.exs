@@ -637,6 +637,74 @@ defmodule Quiz.GamesTest do
       refute Quiz.Games.Question.correct_answer?(q, "not a map")
     end
 
+    test "Question.correct_answer?/2 — number_range accepts guesses within tolerance" do
+      scope = user_scope_fixture()
+      q = question_fixture(scope, %{type: :number_range})
+      # solution 350, tolerance 20 -> [330, 370] inclusive
+
+      assert Quiz.Games.Question.correct_answer?(q, 350)
+      assert Quiz.Games.Question.correct_answer?(q, 330)
+      assert Quiz.Games.Question.correct_answer?(q, 370)
+      refute Quiz.Games.Question.correct_answer?(q, 329)
+      refute Quiz.Games.Question.correct_answer?(q, 371)
+      refute Quiz.Games.Question.correct_answer?(q, nil)
+      refute Quiz.Games.Question.correct_answer?(q, "350")
+    end
+
+    test "create_question/2 with number_range validates min < max and stores the range" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      base = %{
+        type: :number_range,
+        prompt: "Wie viele Liter Bier pro Jahr?",
+        position: 1,
+        game_id: game.id
+      }
+
+      assert {:ok, %Question{} = question} =
+               Games.create_question(
+                 scope,
+                 Map.put(base, :data, %{
+                   number_range: %{min: 10, max: 700, solution: 350, tolerance: 20}
+                 })
+               )
+
+      assert question.type == :number_range
+      assert question.data.number_range.min == 10
+      assert question.data.number_range.max == 700
+      assert question.data.number_range.solution == 350
+      assert question.data.number_range.tolerance == 20
+      assert question.data.choices == []
+
+      assert {:error, changeset} =
+               Games.create_question(
+                 scope,
+                 Map.put(base, :data, %{
+                   number_range: %{min: 700, max: 10, solution: 350, tolerance: 20}
+                 })
+               )
+
+      assert %{data: %{number_range: %{max: [_ | _]}}} = errors_on(changeset)
+    end
+
+    test "update_question/3 switching away from number_range clears the range" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope, %{type: :number_range})
+      assert question.data.number_range
+
+      update_attrs = %{
+        type: :text_input,
+        prompt: "now text",
+        position: 43,
+        data: %{solutions: [%{text: "Paris"}]}
+      }
+
+      assert {:ok, %Question{} = updated} = Games.update_question(scope, question, update_attrs)
+      assert updated.type == :text_input
+      assert is_nil(updated.data.number_range)
+    end
+
     test "create_question/2 with pin_on_image stores and clamps the pin" do
       scope = user_scope_fixture()
       game = game_fixture(scope)

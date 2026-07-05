@@ -148,6 +148,44 @@ defmodule QuizWeb.QuestionLive.StatsArea do
     """
   end
 
+  def stats_area(%{stats: %{type: :number_range}} = assigns) do
+    ~H"""
+    <.panel stats={@stats}>
+      <div class="space-y-6 pt-2">
+        <div class="relative h-12">
+          <%!-- The line itself. --%>
+          <div class="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-base-300">
+          </div>
+
+          <%!-- Every team's guess, translucent so overlaps darken into clusters. --%>
+          <div
+            :for={g <- @stats.points}
+            class="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/50 ring-2 ring-primary/70"
+            style={"left: #{pos(g, @stats.min, @stats.max)}%;"}
+          >
+          </div>
+
+          <%!-- Average marker. --%>
+          <div
+            :if={@stats.average}
+            class="absolute top-0 bottom-0 w-0.5 -translate-x-1/2 bg-base-content/70"
+            style={"left: #{pos(@stats.average, @stats.min, @stats.max)}%;"}
+          >
+            <span class="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap text-xs font-semibold text-base-content/70 tabular-nums">
+              ⌀ {@stats.average}
+            </span>
+          </div>
+        </div>
+
+        <div class="flex justify-between text-sm text-base-content/60 tabular-nums">
+          <span>{@stats.min}</span>
+          <span>{@stats.max}</span>
+        </div>
+      </div>
+    </.panel>
+    """
+  end
+
   def stats_area(assigns) do
     ~H"""
     <.panel stats={@stats}>
@@ -155,6 +193,14 @@ defmodule QuizWeb.QuestionLive.StatsArea do
     </.panel>
     """
   end
+
+  # Horizontal position (0..100%) of a guess on the min→max number line, clamped
+  # so out-of-range guesses stick to the ends rather than overflow the track.
+  defp pos(value, lo, hi) when is_integer(lo) and is_integer(hi) and hi > lo do
+    ((value - lo) / (hi - lo) * 100) |> max(0.0) |> min(100.0)
+  end
+
+  defp pos(_value, _lo, _hi), do: 50
 
   ## Internal --------------------------------------------------------------
 

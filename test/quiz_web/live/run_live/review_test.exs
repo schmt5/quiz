@@ -86,7 +86,7 @@ defmodule QuizWeb.RunLive.ReviewTest do
   end
 
   describe "every question type renders" do
-    test "sequence, matching and pin solutions render without crashing", %{
+    test "sequence, matching, pin and number_range solutions render without crashing", %{
       conn: conn,
       scope: scope
     } do
@@ -94,6 +94,7 @@ defmodule QuizWeb.RunLive.ReviewTest do
       question_fixture(scope, %{game_id: game.id, position: 1, type: :sequence})
       question_fixture(scope, %{game_id: game.id, position: 2, type: :matching})
       question_fixture(scope, %{game_id: game.id, position: 3, type: :pin_on_image})
+      question_fixture(scope, %{game_id: game.id, position: 4, type: :number_range})
       game = set_game_status(game, :finished)
 
       {:ok, _lv, html} = live(conn, ~p"/games/#{game}/review/1")
@@ -105,6 +106,12 @@ defmodule QuizWeb.RunLive.ReviewTest do
 
       {:ok, _lv, html} = live(conn, ~p"/games/#{game}/review/3")
       assert html =~ "uploads/test/fixture.png"
+
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/review/4")
+      # Sample solution and the accepted band (350 ± 20).
+      assert html =~ "350"
+      assert html =~ "330"
+      assert html =~ "370"
     end
   end
 
@@ -153,6 +160,32 @@ defmodule QuizWeb.RunLive.ReviewTest do
 
       assert html =~ "grid-rows-[1fr]"
       refute html =~ "Statistik einblenden"
+    end
+
+    test "number_range renders a number line with the average marker", %{
+      conn: conn,
+      scope: scope
+    } do
+      game = game_fixture(scope, %{show_statistics: true})
+
+      question =
+        question_fixture(scope, %{game_id: game.id, position: 1, type: :number_range})
+
+      running = set_game_status(game, :running)
+
+      for {name, guess} <- [{"t1", "340"}, {"t2", "360"}, {"t3", "500"}] do
+        {:ok, p, _tok} = Quiz.Play.enroll(running, name)
+        {:ok, _a} = Quiz.Play.submit_answer(running, p, question, %{"answer" => guess})
+      end
+
+      game = set_game_status(running, :finished)
+      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/review/1")
+
+      assert html =~ "Verteilung der Antworten"
+      # Average of 340/360/500 = 400, shown as a marker on the min→max line.
+      assert html =~ "⌀ 400"
+      assert html =~ ">10<"
+      assert html =~ ">700<"
     end
   end
 end

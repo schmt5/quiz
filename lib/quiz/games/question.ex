@@ -2,11 +2,11 @@ defmodule Quiz.Games.Question do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Quiz.Games.Question.{Data, Pair, Pin}
+  alias Quiz.Games.Question.{Data, NumberRange, Pair, Pin}
 
   schema "questions" do
     field :type, Ecto.Enum,
-      values: [:single_choice, :text_input, :sequence, :pin_on_image, :matching]
+      values: [:single_choice, :text_input, :sequence, :pin_on_image, :matching, :number_range]
 
     field :prompt, :string
     field :description, :string
@@ -90,6 +90,11 @@ defmodule Quiz.Games.Question do
     length(pairs) >= 2 and rights == Enum.uniq(rights)
   end
 
+  def ready?(%__MODULE__{type: :number_range, data: %Data{number_range: %NumberRange{} = nr}}) do
+    is_integer(nr.min) and is_integer(nr.max) and is_integer(nr.solution) and
+      is_integer(nr.tolerance) and nr.min < nr.max
+  end
+
   def ready?(%__MODULE__{}), do: false
 
   @doc """
@@ -131,6 +136,14 @@ defmodule Quiz.Games.Question do
     []
     |> add_if(length(pairs) < 2, "mindestens zwei Paare")
     |> add_if(rights != Enum.uniq(rights), "eindeutige Zuordnungen (rechte Spalte)")
+  end
+
+  defp data_missing(:number_range, %Data{number_range: nr}) do
+    ready? =
+      match?(%NumberRange{}, nr) and is_integer(nr.min) and is_integer(nr.max) and
+        is_integer(nr.solution) and is_integer(nr.tolerance) and nr.min < nr.max
+
+    add_if([], not ready?, "Minimum, Maximum, Lösung und Toleranz (Min < Max)")
   end
 
   defp data_missing(_type, _data), do: []
@@ -181,7 +194,14 @@ defmodule Quiz.Games.Question do
          %Data{} <- get_field(changeset, :data) do
       # Clear the existing embed in-place; on_replace: :update requires a map
       # (not a struct). cast_embed afterwards will populate from the new attrs.
-      put_embed(changeset, :data, %{choices: [], solutions: [], items: [], pairs: [], pin: nil})
+      put_embed(changeset, :data, %{
+        choices: [],
+        solutions: [],
+        items: [],
+        pairs: [],
+        pin: nil,
+        number_range: nil
+      })
     else
       _ -> changeset
     end
@@ -198,6 +218,8 @@ defmodule Quiz.Games.Question do
   - `:matching`: the answer is `%{pair_id => chosen_right_text}`; correct when
     every pair is matched to its own `right_text`. See `score_answer/2` for
     per-pair partial scoring.
+  - `:number_range`: the answer is an integer guess; correct when it lies within
+    `solution ± tolerance`.
   """
   def correct_answer?(%__MODULE__{type: :text_input, data: %Data{solutions: solutions}}, input) do
     normalized = input |> to_string() |> String.trim() |> String.downcase()
@@ -240,6 +262,14 @@ defmodule Quiz.Games.Question do
       {n, total} when total > 0 -> n == total
       _ -> false
     end
+  end
+
+  def correct_answer?(
+        %__MODULE__{type: :number_range, data: %Data{number_range: %NumberRange{} = nr}},
+        guess
+      )
+      when is_number(guess) do
+    abs(guess - nr.solution) <= nr.tolerance
   end
 
   def correct_answer?(_question, _input), do: false

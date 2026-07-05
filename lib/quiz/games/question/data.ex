@@ -10,7 +10,7 @@ defmodule Quiz.Games.Question.Data do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Quiz.Games.Question.{Choice, Item, Pair, Pin, Solution}
+  alias Quiz.Games.Question.{Choice, Item, NumberRange, Pair, Pin, Solution}
 
   @primary_key false
   embedded_schema do
@@ -19,6 +19,7 @@ defmodule Quiz.Games.Question.Data do
     embeds_many :items, Item, on_replace: :delete
     embeds_many :pairs, Pair, on_replace: :delete
     embeds_one :pin, Pin, on_replace: :update
+    embeds_one :number_range, NumberRange, on_replace: :update
   end
 
   @doc """
@@ -47,6 +48,7 @@ defmodule Quiz.Games.Question.Data do
     |> put_embed(:items, [])
     |> put_embed(:pairs, [])
     |> put_embed(:pin, nil)
+    |> put_embed(:number_range, nil)
     |> cast_embed(:choices,
       with: &Choice.changeset/2,
       sort_param: :choices_sort,
@@ -66,6 +68,7 @@ defmodule Quiz.Games.Question.Data do
     |> put_embed(:items, [])
     |> put_embed(:pairs, [])
     |> put_embed(:pin, nil)
+    |> put_embed(:number_range, nil)
     |> cast_embed(:solutions,
       with: &Solution.changeset/2,
       sort_param: :solutions_sort,
@@ -81,6 +84,7 @@ defmodule Quiz.Games.Question.Data do
     |> put_embed(:solutions, [])
     |> put_embed(:pairs, [])
     |> put_embed(:pin, nil)
+    |> put_embed(:number_range, nil)
     |> cast_embed(:items,
       with: &Item.changeset/2,
       sort_param: :items_sort,
@@ -96,6 +100,7 @@ defmodule Quiz.Games.Question.Data do
     |> put_embed(:solutions, [])
     |> put_embed(:items, [])
     |> put_embed(:pairs, [])
+    |> put_embed(:number_range, nil)
     |> cast_embed(:pin, with: &Pin.changeset/2, required: mode == :publish)
   end
 
@@ -106,6 +111,7 @@ defmodule Quiz.Games.Question.Data do
     |> put_embed(:solutions, [])
     |> put_embed(:items, [])
     |> put_embed(:pin, nil)
+    |> put_embed(:number_range, nil)
     |> cast_embed(:pairs,
       with: &Pair.changeset/2,
       sort_param: :pairs_sort,
@@ -113,6 +119,17 @@ defmodule Quiz.Games.Question.Data do
     )
     |> validate_unique_right_text()
     |> when_publish(mode, &validate_length(&1, :pairs, min: 2, message: "mind. zwei Paare"))
+  end
+
+  def changeset(data, attrs, :number_range, mode) do
+    data
+    |> cast(attrs, [])
+    |> put_embed(:choices, [])
+    |> put_embed(:solutions, [])
+    |> put_embed(:items, [])
+    |> put_embed(:pairs, [])
+    |> put_embed(:pin, nil)
+    |> cast_embed(:number_range, with: &NumberRange.changeset/2, required: mode == :publish)
   end
 
   # No type yet (initial render before the user picked one) — no-op.

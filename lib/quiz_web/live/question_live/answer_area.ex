@@ -444,6 +444,27 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     """
   end
 
+  def answer_area(%{question: %{type: :number_range, data: %{number_range: nr}}} = assigns)
+      when not is_nil(nr) do
+    ~H"""
+    <div class="space-y-2">
+      <input
+        type="number"
+        inputmode="numeric"
+        name="answer"
+        step="1"
+        min={@question.data.number_range.min}
+        max={@question.data.number_range.max}
+        placeholder="Zahl eingeben …"
+        class={["w-full h-14 text-lg", field_base_class(), field_state_class([])]}
+      />
+      <p class="text-sm text-base-content/60">
+        Schätze zwischen {@question.data.number_range.min} und {@question.data.number_range.max}
+      </p>
+    </div>
+    """
+  end
+
   def answer_area(assigns) do
     ~H"""
     <p class="text-sm text-base-content/60">Unbekannter Fragetyp.</p>
@@ -505,6 +526,14 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   def answer_summary(%{question: %{type: :pin_on_image}} = assigns) do
     ~H"""
     <p class="text-base font-semibold text-primary">Position markiert</p>
+    """
+  end
+
+  def answer_summary(%{question: %{type: :number_range}} = assigns) do
+    ~H"""
+    <p class="text-2xl font-display font-extrabold text-primary break-words">
+      {to_string(@answer)}
+    </p>
     """
   end
 

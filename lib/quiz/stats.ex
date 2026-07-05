@@ -16,6 +16,8 @@ defmodule Quiz.Stats do
     * `:matching` — `:pairs`, each with the per-left distribution of chosen
       right-sides (`:rows` + `:more`).
     * `:pin_on_image` — `:points` of `%{x, y}` for an overlay, plus `:image_key`.
+    * `:number_range` — `:points` (the raw integer guesses) for a number-line
+      dot plot, plus `:min`/`:max` bounds and the `:average` guess.
 
   Every result carries `:answered` (teams that gave a non-blank answer),
   `:total` (enrolled teams), and `:blank` (`total - answered`).
@@ -154,6 +156,18 @@ defmodule Quiz.Stats do
     })
   end
 
+  defp compute(%Question{type: :number_range, data: %{number_range: nr}}, values, total) do
+    guesses = for v <- values, is_integer(v), do: v
+
+    base(:number_range, length(guesses), total)
+    |> Map.merge(%{
+      min: nr && nr.min,
+      max: nr && nr.max,
+      points: guesses,
+      average: average(guesses)
+    })
+  end
+
   defp compute(%Question{type: type}, _values, total) do
     base(type, 0, total)
   end
@@ -166,6 +180,9 @@ defmodule Quiz.Stats do
 
   defp point(%{"x" => x, "y" => y}) when is_number(x) and is_number(y), do: %{x: x, y: y}
   defp point(_), do: nil
+
+  defp average([]), do: nil
+  defp average(nums), do: round(Enum.sum(nums) / length(nums))
 
   defp pct(_count, total) when total <= 0, do: 0
   defp pct(count, total), do: round(count * 100 / total)

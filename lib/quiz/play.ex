@@ -553,6 +553,19 @@ defmodule Quiz.Play do
     %{"x" => parse_float(ans["x"]), "y" => parse_float(ans["y"])}
   end
 
+  defp canonicalize(%Question{type: :number_range}, params) do
+    case params["answer"] do
+      v when is_binary(v) ->
+        case v |> String.trim() |> Integer.parse() do
+          {i, _} -> i
+          :error -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   defp canonicalize(_question, _params), do: nil
 
   defp parse_float(v) when is_number(v), do: v / 1

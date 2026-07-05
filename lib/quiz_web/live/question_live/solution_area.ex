@@ -129,6 +129,29 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
     """
   end
 
+  def solution_area(%{question: %{type: :number_range, data: %{number_range: nr}}} = assigns)
+      when not is_nil(nr) do
+    assigns = assign(assigns, :nr, nr)
+
+    ~H"""
+    <div class="space-y-2">
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+        Lösung
+      </p>
+      <div class="inline-flex items-baseline gap-3 rounded-box bg-success/10 px-4 py-3 ring-1 ring-success/30">
+        <.icon name="hero-check-circle" class="size-6 self-center text-success" />
+        <span class="font-display font-extrabold text-3xl text-base-content tabular-nums">
+          {@nr.solution}
+        </span>
+        <span class="text-base-content/70">
+          akzeptiert: {@nr.solution - @nr.tolerance} – {@nr.solution + @nr.tolerance}
+          <span class="text-base-content/50">(±{@nr.tolerance})</span>
+        </span>
+      </div>
+    </div>
+    """
+  end
+
   def solution_area(assigns) do
     ~H"""
     <p class="text-sm text-base-content/60">Keine Lösung hinterlegt.</p>

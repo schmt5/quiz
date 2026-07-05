@@ -90,6 +90,44 @@ defmodule Quiz.StatsTest do
     end
   end
 
+  describe "number_range" do
+    test "collects integer guesses, the bounds and the average" do
+      scope = user_scope_fixture()
+      game = running_game(scope)
+      question = question_fixture(scope, %{game_id: game.id, type: :number_range})
+
+      answer(game, question, "t1", %{"answer" => "340"})
+      answer(game, question, "t2", %{"answer" => "360"})
+      answer(game, question, "t3", %{"answer" => "500"})
+      # A blank / unparseable answer is dropped, not counted.
+      answer(game, question, "t4", %{"answer" => ""})
+      {:ok, _p, _tok} = Play.enroll(game, "t5")
+
+      stats = Stats.question_stats(question, 5)
+
+      assert stats.type == :number_range
+      assert stats.answered == 3
+      assert stats.total == 5
+      assert stats.blank == 2
+      assert stats.min == 10
+      assert stats.max == 700
+      assert Enum.sort(stats.points) == [340, 360, 500]
+      assert stats.average == 400
+    end
+
+    test "average is nil when nobody guessed" do
+      scope = user_scope_fixture()
+      game = running_game(scope)
+      question = question_fixture(scope, %{game_id: game.id, type: :number_range})
+
+      stats = Stats.question_stats(question, 0)
+
+      assert stats.answered == 0
+      assert stats.points == []
+      assert is_nil(stats.average)
+    end
+  end
+
   describe "sequence" do
     test "groups identical orderings, most common first, labelled by item text" do
       scope = user_scope_fixture()

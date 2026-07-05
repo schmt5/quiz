@@ -167,5 +167,6 @@ defmodule QuizWeb.CorrectionLive.Index do
   defp type_label(:sequence), do: "Reihenfolge"
   defp type_label(:matching), do: "Zuordnung"
   defp type_label(:pin_on_image), do: "Bildmarkierung"
+  defp type_label(:number_range), do: "Zahlenschätzung"
   defp type_label(_), do: "Frage"
 end
