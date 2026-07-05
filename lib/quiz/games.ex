@@ -214,6 +214,10 @@ defmodule Quiz.Games do
   Duplicates a game and all its questions into a fresh **draft** copy owned by
   the same user.
 
+  The game's intro/outro content (text and image keys) is copied too; as with
+  question media the image keys point at the same stored file, which is safe
+  since uploads are never deleted.
+
   Each question is copied with its prompt, description, position, media
   (image/video keys point at the same stored file — uploads are never deleted,
   so sharing keys is safe) and the full
@@ -233,7 +237,11 @@ defmodule Quiz.Games do
         create_game(scope, %{
           title: game.title <> " (Kopie)",
           review_mode: game.review_mode,
-          show_statistics: game.show_statistics
+          show_statistics: game.show_statistics,
+          intro_text: game.intro_text,
+          intro_image_key: game.intro_image_key,
+          outro_text: game.outro_text,
+          outro_image_key: game.outro_image_key
         })
 
       for question <- questions do

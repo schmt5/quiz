@@ -282,6 +282,25 @@ defmodule Quiz.GamesTest do
       assert c2.media_image_key == nil
     end
 
+    test "duplicate_game/2 copies intro/outro content (text and image keys)" do
+      scope = user_scope_fixture()
+
+      game =
+        game_fixture(scope, %{
+          intro_text: "Handys weg, pro Team eine Antwort.",
+          intro_image_key: "uploads/1/intro.png",
+          outro_text: "Danke fürs Mitspielen!",
+          outro_image_key: "uploads/1/outro.png"
+        })
+
+      assert {:ok, copy} = Games.duplicate_game(scope, game)
+
+      assert copy.intro_text == "Handys weg, pro Team eine Antwort."
+      assert copy.intro_image_key == "uploads/1/intro.png"
+      assert copy.outro_text == "Danke fürs Mitspielen!"
+      assert copy.outro_image_key == "uploads/1/outro.png"
+    end
+
     test "duplicate_game/2 refuses a game owned by someone else" do
       scope = user_scope_fixture()
       other_scope = user_scope_fixture()
