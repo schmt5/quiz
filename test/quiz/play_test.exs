@@ -309,6 +309,43 @@ defmodule Quiz.PlayTest do
     end
   end
 
+  describe "retreat_run/2" do
+    test "moves back to the previous question's position" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 5})
+      question_fixture(scope, %{game_id: game.id, position: 9})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, advanced} = Play.advance_run(scope, running)
+      Play.subscribe(advanced)
+
+      assert {:ok, %{status: :running, current_position: 5}} = Play.retreat_run(scope, advanced)
+      assert_received {:status_changed, %{current_position: 5}}
+    end
+
+    test "clears :revealing when retreating from a revealed question" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open, review_mode: :per_question})
+      question_fixture(scope, %{game_id: game.id, position: 5})
+      question_fixture(scope, %{game_id: game.id, position: 9})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, advanced} = Play.advance_run(scope, running)
+      {:ok, revealed} = Play.reveal_run(scope, advanced)
+
+      assert {:ok, %{status: :running, current_position: 5, revealing: false}} =
+               Play.retreat_run(scope, revealed)
+    end
+
+    test "is a no-op on the first question" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 5})
+      {:ok, running} = Play.start_run(scope, game)
+
+      assert {:ok, %{status: :running, current_position: 5}} = Play.retreat_run(scope, running)
+    end
+  end
+
   describe "submit_answer/4, get_answer/2 and count_answers/2" do
     test "scores and stores a correct single-choice answer" do
       scope = user_scope_fixture()

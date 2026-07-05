@@ -104,12 +104,36 @@ defmodule Quiz.Play do
     end
   end
 
+  @doc """
+  Moves the run back to the previous question (`running` stays, `current_position`
+  drops to the previous question's position). No-op on the first question. Always
+  clears `revealing` so a re-opened question collects answers again — the team is
+  sent back to see (and re-enter) what they submitted. Operator only.
+  """
+  def retreat_run(%Scope{} = scope, %Game{current_position: position} = game) do
+    case prev_position(game, position) do
+      nil -> {:ok, game}
+      prev -> transition(scope, game, %{current_position: prev, revealing: false})
+    end
+  end
+
   defp next_position(%Game{}, nil), do: nil
 
   defp next_position(%Game{id: game_id}, position) do
     Question
     |> where([q], q.game_id == ^game_id and q.position > ^position)
     |> order_by([q], asc: q.position)
+    |> limit(1)
+    |> select([q], q.position)
+    |> Repo.one()
+  end
+
+  defp prev_position(%Game{}, nil), do: nil
+
+  defp prev_position(%Game{id: game_id}, position) do
+    Question
+    |> where([q], q.game_id == ^game_id and q.position < ^position)
+    |> order_by([q], desc: q.position)
     |> limit(1)
     |> select([q], q.position)
     |> Repo.one()

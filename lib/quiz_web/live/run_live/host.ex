@@ -144,33 +144,41 @@ defmodule QuizWeb.RunLive.Host do
 
           <%!-- `per_question` mode inserts a reveal step: "Auswerten" closes the
                question and shows its solution/stats, then "Nächste Frage" advances.
-               `end` mode advances straight away, exactly as before. --%>
-          <button
-            :if={
-              @game.status == :running and @game.review_mode == :per_question and not @game.revealing
-            }
-            type="button"
-            phx-click="reveal"
-            class="btn btn-primary shrink-0"
-          >
-            <.icon name="hero-light-bulb" /> Auswerten
-          </button>
+               `end` mode advances straight away, exactly as before. "Vorherige Frage"
+               sends the room back one question (disabled on the first) so teams can
+               re-see and re-enter what they submitted. --%>
+          <div :if={@game.status == :running} class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              phx-click="retreat"
+              disabled={@q_number <= 1}
+              class="btn btn-ghost"
+            >
+              <.icon name="hero-arrow-left" /> Vorherige Frage
+            </button>
 
-          <button
-            :if={
-              @game.status == :running and
-                not (@game.review_mode == :per_question and not @game.revealing)
-            }
-            type="button"
-            phx-click="advance"
-            class="btn btn-primary shrink-0"
-          >
-            <%= if @q_number >= @q_total and @q_total > 0 do %>
-              <.icon name="hero-flag" /> Quiz beenden
-            <% else %>
-              Nächste Frage <.icon name="hero-arrow-right" />
-            <% end %>
-          </button>
+            <button
+              :if={@game.review_mode == :per_question and not @game.revealing}
+              type="button"
+              phx-click="reveal"
+              class="btn btn-primary"
+            >
+              <.icon name="hero-light-bulb" /> Auswerten
+            </button>
+
+            <button
+              :if={not (@game.review_mode == :per_question and not @game.revealing)}
+              type="button"
+              phx-click="advance"
+              class="btn btn-primary"
+            >
+              <%= if @q_number >= @q_total and @q_total > 0 do %>
+                <.icon name="hero-flag" /> Quiz beenden
+              <% else %>
+                Nächste Frage <.icon name="hero-arrow-right" />
+              <% end %>
+            </button>
+          </div>
 
           <div
             :if={@game.status in [:finished, :closed]}
@@ -359,6 +367,16 @@ defmodule QuizWeb.RunLive.Host do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Konnte nicht zur nächsten Frage wechseln.")}
+    end
+  end
+
+  def handle_event("retreat", _params, socket) do
+    case Play.retreat_run(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, game} ->
+        {:noreply, socket |> assign(:game, game) |> load_question()}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Konnte nicht zur vorherigen Frage wechseln.")}
     end
   end
 
