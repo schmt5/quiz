@@ -1,0 +1,70 @@
+<div class="flex flex-col min-h-screen bg-base-100">
+  <%!-- Header (brand · title · back), mirroring the leaderboard view. --%>
+  <div class="shrink-0 flex items-center justify-between gap-4 h-[84px] px-6 border-b border-base-300">
+    <div class="flex items-center gap-4 min-w-0">
+      <.link
+        href={~p"/"}
+        class="inline-flex items-baseline text-2xl font-extrabold tracking-tight shrink-0"
+      >
+        <span class="text-primary">Pub</span>
+        <span class="bg-primary text-secondary rounded-xl px-2 py-0.5">Quiz</span>
+      </.link>
+      <div class="min-w-0">
+        <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+          Sponsoren & Credits
+        </p>
+      </div>
+    </div>
+
+    <.link href={~p"/"} class="btn btn-ghost btn-circle" title="Zurück" aria-label="Zurück">
+      <.icon name="hero-arrow-left" class="size-6" />
+    </.link>
+  </div>
+
+  <div class="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
+    <div class="w-full max-w-xl rounded-box bg-base-100 ring-1 ring-base-300 p-8 sm:p-10">
+      <div class="divide-y divide-base-300">
+        <%!-- along events --%>
+        <div class="pb-8 text-center">
+          <img
+            src="https://images.waerweiss.ch/uploads/image/along-logo.png"
+            alt="along events"
+            class="mx-auto max-h-24 max-w-full object-contain"
+          />
+          <p class="mt-6 text-base-content/70">
+            <span class="font-display font-bold text-base-content">along events</span>
+            <br /> von Alina Haag und Celine Tschannen
+          </p>
+        </div>
+
+        <%!-- Gestaltung --%>
+        <div class="py-8 text-center">
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+            Gestaltet von
+          </p>
+          <p class="mt-2 font-display text-lg font-bold">Nico Stähli</p>
+          <p class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
+            <a href="mailto:nico@mail.ch" class="link link-primary">nico@mail.ch</a>
+            <span class="text-base-content/30" aria-hidden="true">·</span>
+            <a href="https://genauglich.ch" target="_blank" rel="noopener" class="link link-primary">
+              genauglich.ch
+            </a>
+          </p>
+        </div>
+
+        <%!-- Entwicklung --%>
+        <div class="pt-8 text-center">
+          <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+            Entwickelt von
+          </p>
+          <p class="mt-2 font-display text-lg font-bold">Thierry Schmidt</p>
+          <p class="mt-2 text-sm">
+            <a href="mailto:webwerk.studio@gmail.com" class="link link-primary">
+              webwerk.studio@gmail.com
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

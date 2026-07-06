@@ -4,4 +4,8 @@ defmodule QuizWeb.PageController do
   def home(conn, _params) do
     render(conn, :home)
   end
+
+  def sponsors(conn, _params) do
+    render(conn, :sponsors)
+  end
 end

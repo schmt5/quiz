@@ -43,6 +43,14 @@ defmodule QuizWeb.LeaderboardLive.Show do
           >
             <.icon name="hero-information-circle" class="size-6" />
           </button>
+          <.link
+            href={~p"/sponsors"}
+            title="Sponsoren & Credits"
+            aria-label="Sponsoren & Credits"
+            class="btn btn-ghost btn-circle"
+          >
+            <.icon name="hero-heart" class="size-6" />
+          </.link>
           <.link navigate={~p"/games/#{@game}"} class="btn btn-primary">
             <.icon name="hero-arrow-left" /> Zurück zum Quiz
           </.link>

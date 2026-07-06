@@ -21,6 +21,7 @@ defmodule QuizWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/sponsors", PageController, :sponsors
   end
 
   # Other scopes may use custom stacks.
