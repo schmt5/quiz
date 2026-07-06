@@ -325,6 +325,26 @@ defmodule QuizWeb.RunLive.Host do
             <span class="text-sm font-medium truncate">{participant.name}</span>
           </li>
         </ul>
+
+        <%!-- Fixer QR-Code, damit Nachzügler jederzeit beitreten können --%>
+        <div class="shrink-0 border-t border-base-300 p-4 flex items-center gap-3">
+          <div class="size-20 shrink-0 bg-white rounded-xl p-1.5 ring-1 ring-base-300">
+            {raw(@qr_svg)}
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-bold uppercase tracking-wider text-base-content/45">
+              Mitmachen
+            </p>
+            <div class="flex gap-1 mt-1">
+              <span
+                :for={char <- String.graphemes(@game.join_code)}
+                class="font-display font-extrabold text-lg text-primary"
+              >
+                {char}
+              </span>
+            </div>
+          </div>
+        </div>
       </aside>
     </div>
     """
