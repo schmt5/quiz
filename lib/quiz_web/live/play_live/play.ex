@@ -130,7 +130,7 @@ defmodule QuizWeb.PlayLive.Play do
               </div>
               <h2 class="mt-6 text-3xl font-extrabold text-primary">Antwort abgeschickt!</h2>
               <p class="mt-3 text-lg leading-snug text-base-content/55">
-                Der Quizmaster wertet aus und schaltet die nächste Frage frei.
+                Quizmaster:in wertet aus und schaltet die nächste Frage frei.
               </p>
 
               <div class="mt-6 rounded-2xl bg-base-100 ring-1 ring-base-300 p-5 text-left shadow-sm">
