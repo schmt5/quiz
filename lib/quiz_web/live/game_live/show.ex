@@ -252,8 +252,17 @@ defmodule QuizWeb.GameLive.Show do
 
   # Runtime status/grading broadcasts from the run topic keep the status-gated
   # action buttons in sync with the live run.
-  def handle_info({msg, %Quiz.Games.Game{id: id} = game}, %{assigns: %{game: %{id: id}}} = socket)
-      when msg in [:status_changed, :grading_published] do
+  def handle_info(
+        {:status_changed, %Quiz.Games.Game{id: id} = game},
+        %{assigns: %{game: %{id: id}}} = socket
+      ) do
+    {:noreply, assign(socket, :game, game)}
+  end
+
+  def handle_info(
+        {:grading_published, %Quiz.Games.Game{id: id} = game, _leaderboard},
+        %{assigns: %{game: %{id: id}}} = socket
+      ) do
     {:noreply, assign(socket, :game, game)}
   end
 

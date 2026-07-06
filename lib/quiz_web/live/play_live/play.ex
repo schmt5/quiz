@@ -283,8 +283,13 @@ defmodule QuizWeb.PlayLive.Play do
     {:noreply, socket}
   end
 
-  def handle_info({:grading_published, game}, socket) do
-    {:noreply, socket |> assign(:game, game) |> maybe_load_leaderboard()}
+  # The standings arrive precomputed in the broadcast (see
+  # `Play.publish_grading/2`) — render them as-is rather than having all
+  # participant screens hit the database for the same rows at the same instant.
+  # `maybe_load_leaderboard/1` below stays as the naturally staggered fallback
+  # for participants who (re)connect after publication.
+  def handle_info({:grading_published, game, leaderboard}, socket) do
+    {:noreply, socket |> assign(:game, game) |> assign(:leaderboard, leaderboard)}
   end
 
   # Ignore any other run broadcasts we don't act on, so a new message type can

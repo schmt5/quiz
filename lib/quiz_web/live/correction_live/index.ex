@@ -146,7 +146,7 @@ defmodule QuizWeb.CorrectionLive.Index do
     {:noreply, assign_overview(socket)}
   end
 
-  def handle_info({:grading_published, game}, socket) do
+  def handle_info({:grading_published, game, _leaderboard}, socket) do
     {:noreply, assign(socket, :game, game)}
   end
 

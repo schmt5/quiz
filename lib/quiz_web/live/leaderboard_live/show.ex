@@ -98,8 +98,8 @@ defmodule QuizWeb.LeaderboardLive.Show do
   end
 
   @impl true
-  def handle_info({:grading_published, game}, socket) do
-    {:noreply, socket |> assign(:game, game) |> assign_rows()}
+  def handle_info({:grading_published, game, rows}, socket) do
+    {:noreply, socket |> assign(:game, game) |> assign(:rows, rows)}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}

@@ -479,13 +479,24 @@ defmodule Quiz.PlayTest do
   end
 
   describe "publish_grading/2 and leaderboard/1" do
-    test "publish sets the flag and broadcasts" do
+    test "publish sets the flag and broadcasts the standings computed once" do
       scope = user_scope_fixture()
-      game = game_fixture(scope, %{status: :finished})
+      game = game_fixture(scope, %{status: :running})
+      question = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, team, _token} = Play.enroll(game, "Team A")
+      Play.submit_answer(game, team, question, %{"answer" => "0"})
       Play.subscribe(game)
 
-      assert {:ok, %{grading_published: true}} = Play.publish_grading(scope, game)
-      assert_received {:grading_published, %{grading_published: true}}
+      assert {:ok, %{grading_published: true} = published} = Play.publish_grading(scope, game)
+
+      # The broadcast carries the precomputed leaderboard so the (many)
+      # subscribed participant screens don't each query it themselves.
+      assert_received {:grading_published, %{grading_published: true}, leaderboard}
+      assert [%{participant: %{name: "Team A"}, score: 1.0, rank: 1}] = leaderboard
+
+      # Idempotent: re-publishing neither fails nor broadcasts the burst again.
+      assert {:ok, %{grading_published: true}} = Play.publish_grading(scope, published)
+      refute_received {:grading_published, _, _}
     end
 
     test "leaderboard sums points and ranks, ties shared" do

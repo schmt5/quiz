@@ -40,6 +40,27 @@ defmodule QuizWeb.PlayLive.PlayTest do
     end
   end
 
+  describe "publishing the grading" do
+    test "a connected participant renders the standings from the broadcast", %{conn: conn} do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, participant, token} = Play.enroll(running, "Team A")
+      Play.submit_answer(running, participant, question, %{"answer" => "0"})
+
+      lv = connect_and_restore(conn, running, token)
+
+      {:ok, finished} = Play.advance_run(scope, running)
+      {:ok, _published} = Play.publish_grading(scope, finished)
+
+      html = render(lv)
+      assert html =~ "Quiz zu Ende"
+      assert html =~ "Rangliste"
+      assert html =~ "Team A"
+    end
+  end
+
   describe "sequence answers are graded against the authoring order" do
     setup do
       scope = user_scope_fixture()

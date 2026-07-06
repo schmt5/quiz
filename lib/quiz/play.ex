@@ -17,6 +17,8 @@ defmodule Quiz.Play do
     * `{:participant_joined, %Participant{}}`
     * `{:status_changed, %Game{}}`
     * `{:answer_submitted, position}`
+    * `{:grading_published, %Game{}, leaderboard}` (standings precomputed once,
+      see `publish_grading/2`)
 
   """
 
@@ -469,14 +471,29 @@ defmodule Quiz.Play do
     end)
   end
 
-  @doc "Publishes the grading, revealing the leaderboard. Operator only."
+  @doc """
+  Publishes the grading, revealing the leaderboard. Operator only.
+
+  The final standings are computed *once* here and shipped inside the
+  `{:grading_published, game, leaderboard}` broadcast: the leaderboard is
+  identical for every viewer, so the hundreds of subscribed participant
+  screens render the payload instead of each running the full leaderboard
+  aggregation against the database at the same instant.
+
+  Idempotent: publishing an already-published game neither writes nor
+  broadcasts again, so a double-click can't fan the payload out twice.
+  """
   def publish_grading(%Scope{} = scope, %Game{} = game) do
     true = game.user_id == scope.user.id
 
-    with {:ok, game} <-
-           game |> Ecto.Changeset.change(grading_published: true) |> Repo.update() do
-      broadcast(game, {:grading_published, game})
+    if game.grading_published do
       {:ok, game}
+    else
+      with {:ok, game} <-
+             game |> Ecto.Changeset.change(grading_published: true) |> Repo.update() do
+        broadcast(game, {:grading_published, game, leaderboard(game)})
+        {:ok, game}
+      end
     end
   end
 

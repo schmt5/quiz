@@ -303,15 +303,15 @@ Checked explicitly so nobody re-litigates them under stress:
 
 ## Suggested order of work
 
-| # | Action | Type | Effort |
-|---|--------|------|--------|
-| 1 | A2 `check_origin` + verify on phone via `waerweiss.ch` | config | small |
-| 2 | A1 apply fly.toml scaling steps (+ A3 PHX_HOST for QR) | ops | small |
-| 3 | B5 catch-all `handle_info` in participant LiveView | code | 1 line |
-| 4 | B3 block deleting open/running games | code | small |
-| 5 | B2 lock question edits/reorder/delete while open/running | code | small |
-| 6 | B1 server-side reveal re-check in `submit_answer` | code | small |
-| 7 | C1 leaderboard computed once, shipped in broadcast | code | medium |
-| 8 | D1 "remove team" action on host roster | code | medium |
-| 9 | A5 LiveDashboard behind Basic Auth in prod | code | small |
-| 10 | A6 load test on prod-like target; A4 deploy freeze; B4/D4 runbook rules | ops | — |
+| # | Action | Type | Effort | Status |
+|---|--------|------|--------|--------|
+| 1 | A2 `check_origin` + verify on phone via `waerweiss.ch` | config | small | ✅ done (config + PHX_HOST; phone test pending after deploy) |
+| 2 | A1 apply fly.toml scaling steps | ops | small | open |
+| 3 | B5 catch-all `handle_info` in participant LiveView | code | 1 line | ✅ done |
+| 4 | B3 block deleting open/running games | code | small | open |
+| 5 | B2 lock question edits/reorder/delete while open/running | code | small | open |
+| 6 | B1 server-side reveal re-check in `submit_answer` | code | small | open |
+| 7 | C1 leaderboard computed once, shipped in broadcast (incl. B6 idempotency) | code | medium | ✅ done |
+| 8 | D1 "remove team" action on host roster | code | medium | open |
+| 9 | A5 LiveDashboard behind Basic Auth in prod | code | small | open |
+| 10 | A6 load test on prod-like target; A4 deploy freeze; B4/D4 runbook rules | ops | — | open |

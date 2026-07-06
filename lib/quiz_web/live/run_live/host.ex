@@ -437,7 +437,7 @@ defmodule QuizWeb.RunLive.Host do
   # The operator can publish the grading (from the correction view) while the
   # host/presenter screen is still open. Keep our game copy in sync; the screen
   # itself doesn't change, but this avoids crashing on the broadcast.
-  def handle_info({:grading_published, game}, socket) do
+  def handle_info({:grading_published, game, _leaderboard}, socket) do
     {:noreply, assign(socket, :game, game)}
   end
 
