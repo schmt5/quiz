@@ -47,12 +47,28 @@ constraint is CPU during render/diff bursts, which the dedicated-CPU VM covers.
    fly scale count 1 -a along-quiz
    ```
 
-2. **Size it up to a dedicated CPU.** Shared CPUs get throttled under sustained
-   load; a dedicated core gives predictable performance. `performance-1x` (1
-   dedicated core, 2 GB) is enough; `performance-2x` for headroom.
+2. **Size it up to a dedicated, multi-core CPU.** Shared CPUs get throttled under
+   sustained load; dedicated cores give guaranteed, predictable performance.
+
+   The bottleneck is **CPU during render/diff bursts**, not RAM (see below), so
+   buy **cores**, not memory. Recommended by safety margin:
+   - `performance-2x` (2 cores, 4 GB) — comfortable margin, the sensible default.
+   - `performance-4x` (4 cores, 8 GB) — maximum insurance; pick this if you want
+     zero worry and don't care about the extra cost (~$60 vs ~$30 for the 14-day
+     window).
+   - `performance-1x` (1 core, 2 GB) — the bare minimum; leaves no CPU headroom
+     for the render burst. Avoid for a high-stakes run.
    ```sh
-   fly scale vm performance-1x -a along-quiz
+   fly scale vm performance-4x -a along-quiz
    ```
+
+   **Why cores, not RAM:** each player is a tiny (few-KB) LiveView process, so
+   300 connections use single-digit MB — RAM sits idle. But when the host reveals
+   a question or publishes grading, one PubSub broadcast wakes **all 300 processes
+   at once**, and each re-renders its template and computes a diff. That's 300
+   CPU-bound renders in the same instant. The BEAM spreads them across every
+   available core, so more cores clear the burst proportionally faster; extra RAM
+   does nothing for it.
 
 3. **Keep it warm** so the first player doesn't hit a cold start. Edit
    `fly.toml`:

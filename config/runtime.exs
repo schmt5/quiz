@@ -81,6 +81,15 @@ if config_env() == :prod do
 
   config :quiz, QuizWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
+    # Every host the app is reachable under. Without an explicit list, Phoenix
+    # only accepts WebSocket connections whose Origin matches `url[:host]`
+    # (PHX_HOST) — pages on the other domains would load but LiveView would
+    # never connect (participants stuck on the "Verbinde …" spinner).
+    check_origin: [
+      "https://waerweiss.ch",
+      "https://www.waerweiss.ch",
+      "https://along-quiz.fly.dev"
+    ],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

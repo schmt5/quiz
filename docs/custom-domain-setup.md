@@ -40,20 +40,21 @@ DNS managed by **Cloudflare**.
 > the registrar (ownership + renewals).
 
 ### 4. Route the app to Fly.io (app: `along-quiz`)
-- [ ] Request certificates:
+- [x] Request certificates: ✅ **Done**
   ```bash
   fly certs add waerweiss.ch
-  fly certs add www.waerweiss.ch     # optional
-  fly ips list                        # note IPs if using A/AAAA at apex
+  fly certs add www.waerweiss.ch
   ```
-- [ ] In **Cloudflare → DNS**, add the records Fly asks for:
-  - `www` → **CNAME** → `along-quiz.fly.dev`
-  - apex `waerweiss.ch` → **A/AAAA** to the Fly IPs (or CNAME at apex).
-- [ ] Set **all app records to DNS-only (grey cloud)**.
-- [ ] Confirm the cert is issued:
-  ```bash
-  fly certs show waerweiss.ch
-  ```
+- [x] In **Cloudflare → DNS**, added the records Fly asked for (A + AAAA for
+      both hosts, not CNAME): ✅ **Done**
+  - `waerweiss.ch` → **A** → `66.241.125.246`
+  - `waerweiss.ch` → **AAAA** → `2a09:8280:1::12f:d6dc:0`
+  - `www.waerweiss.ch` → **A** → `66.241.125.246`
+  - `www.waerweiss.ch` → **AAAA** → `2a09:8280:1::12f:d6dc:0`
+- [x] Set **all app records to DNS-only (grey cloud)**. ✅ **Done**
+- [x] Confirm the cert is issued: ✅ **Done** — both `waerweiss.ch` and
+      `www.waerweiss.ch` show `Status = Issued` / verified via
+      `fly certs check <host>`.
 
 ### 5. Connect the images domain to R2
 - [x] Cloudflare → **R2** → your bucket → **Settings** → **Public access** →
@@ -74,7 +75,7 @@ The R2 public URL comes from the **`R2_PUBLIC_BASE_URL`** env var — read in
   ```
 
 ### 7. Verify
-- [ ] `https://waerweiss.ch` loads the app with a valid certificate.
+- [x] `https://waerweiss.ch` loads the app with a valid certificate. ✅ **Done**
 - [x] `https://images.waerweiss.ch/<some-key>` serves an image with a valid cert. ✅ **Done**
 - [x] Image response header shows `cf-cache-status: HIT` on a repeat request
       (confirms edge caching). ✅ **Done**
@@ -82,7 +83,7 @@ The R2 public URL comes from the **`R2_PUBLIC_BASE_URL`** env var — read in
 ---
 
 ## Next action
-You're done with Tasks 1, 2, 3, 5, and 6 (caching step in Task 5 skipped by
-choice). If you haven't already, finish **Task 4** (route `waerweiss.ch` /
-`www.waerweiss.ch` to Fly.io) — then move to **Task 7: Verify** everything end
-to end.
+All tasks are complete (caching step in Task 5 skipped by choice). The domain
+is fully live: `waerweiss.ch` and `www.waerweiss.ch` serve the app from
+Fly.io with valid certs, and `images.waerweiss.ch` serves R2 with edge
+caching.
