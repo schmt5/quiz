@@ -16,6 +16,30 @@ defmodule QuizWeb.PlayLive.PlayTest do
     lv
   end
 
+  describe "unknown run broadcasts" do
+    setup do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, _participant, token} = Play.enroll(running, "Team A")
+
+      %{game: running, token: token}
+    end
+
+    test "a message type this view doesn't handle never crashes it", %{
+      conn: conn,
+      game: game,
+      token: token
+    } do
+      lv = connect_and_restore(conn, game, token)
+
+      send(lv.pid, {:some_future_broadcast, :payload})
+
+      assert render(lv) =~ "Team A"
+    end
+  end
+
   describe "sequence answers are graded against the authoring order" do
     setup do
       scope = user_scope_fixture()

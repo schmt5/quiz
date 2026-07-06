@@ -287,6 +287,11 @@ defmodule QuizWeb.PlayLive.Play do
     {:noreply, socket |> assign(:game, game) |> maybe_load_leaderboard()}
   end
 
+  # Ignore any other run broadcasts we don't act on, so a new message type can
+  # never crash all participant screens at once mid-quiz (same guard as the
+  # host/presenter view).
+  def handle_info(_msg, socket), do: {:noreply, socket}
+
   defp maybe_load_leaderboard(socket) do
     if socket.assigns.game.grading_published do
       assign(socket, :leaderboard, Play.leaderboard(socket.assigns.game))
