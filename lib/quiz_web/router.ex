@@ -29,26 +29,18 @@ defmodule QuizWeb.Router do
   #   pipe_through :api
   # end
 
-  # LiveDashboard, in every environment, behind HTTP Basic Auth. Credentials
-  # come from the :dashboard_auth config (dev.exs / runtime.exs); without them
-  # the route answers 404, so a prod deploy missing the secret exposes nothing.
+  # LiveDashboard, in every environment, for logged-in users. Public
+  # registration is disabled, so every account is a quiz master — the login is
+  # the admin check. Should registration ever open up, this needs its own gate
+  # (the dashboard exposes process state, ETS tables, config, …).
   import Phoenix.LiveDashboard.Router
 
-  pipeline :admin_basic_auth do
-    plug :dashboard_auth
-  end
-
   scope "/admin" do
-    pipe_through [:browser, :admin_basic_auth]
+    pipe_through [:browser, :require_authenticated_user]
 
-    live_dashboard "/dashboard", metrics: QuizWeb.Telemetry
-  end
-
-  defp dashboard_auth(conn, _opts) do
-    case Application.get_env(:quiz, :dashboard_auth) do
-      nil -> conn |> send_resp(:not_found, "Not Found") |> halt()
-      credentials -> Plug.BasicAuth.basic_auth(conn, credentials)
-    end
+    live_dashboard "/dashboard",
+      metrics: QuizWeb.Telemetry,
+      on_mount: [{QuizWeb.UserAuth, :require_authenticated}]
   end
 
   ## Authentication routes

@@ -67,8 +67,6 @@ config :quiz, QuizWeb.Endpoint,
     ]
   ]
 
-# LiveDashboard credentials for /admin/dashboard (prod reads DASHBOARD_PASSWORD)
-config :quiz, :dashboard_auth, username: "admin", password: "admin"
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

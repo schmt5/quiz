@@ -77,14 +77,6 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  # LiveDashboard at /admin/dashboard. Without DASHBOARD_PASSWORD the route
-  # stays a 404 — set it via `fly secrets set DASHBOARD_PASSWORD=...`.
-  if dashboard_password = System.get_env("DASHBOARD_PASSWORD") do
-    config :quiz, :dashboard_auth,
-      username: System.get_env("DASHBOARD_USERNAME") || "quiz",
-      password: dashboard_password
-  end
-
   config :quiz, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :quiz, QuizWeb.Endpoint,

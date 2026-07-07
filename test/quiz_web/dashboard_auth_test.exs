@@ -1,53 +1,21 @@
 defmodule QuizWeb.DashboardAuthTest do
-  # Not async: these tests swap the global :dashboard_auth config.
-  use QuizWeb.ConnCase, async: false
+  use QuizWeb.ConnCase, async: true
+
+  import Quiz.AccountsFixtures
 
   describe "GET /admin/dashboard" do
-    test "answers 404 when no credentials are configured (prod without the secret)",
-         %{conn: conn} do
+    test "redirects anonymous visitors to the login", %{conn: conn} do
       conn = get(conn, "/admin/dashboard")
-      assert response(conn, 404)
+      assert redirected_to(conn) == ~p"/users/log-in"
     end
 
-    test "challenges for credentials when they are configured", %{conn: conn} do
-      configure_auth()
-
-      conn = get(conn, "/admin/dashboard")
-
-      assert response(conn, 401)
-      assert [<<"Basic", _::binary>>] = get_resp_header(conn, "www-authenticate")
-    end
-
-    test "rejects wrong credentials", %{conn: conn} do
-      configure_auth()
-
+    test "lets a logged-in quiz master through to the dashboard", %{conn: conn} do
       conn =
         conn
-        |> with_basic_auth("quiz", "wrong")
-        |> get("/admin/dashboard")
-
-      assert response(conn, 401)
-    end
-
-    test "lets the operator through to the dashboard with correct credentials",
-         %{conn: conn} do
-      configure_auth()
-
-      conn =
-        conn
-        |> with_basic_auth("quiz", "s3cret")
+        |> log_in_user(user_fixture())
         |> get("/admin/dashboard")
 
       assert redirected_to(conn) == "/admin/dashboard/home"
     end
-  end
-
-  defp configure_auth do
-    Application.put_env(:quiz, :dashboard_auth, username: "quiz", password: "s3cret")
-    on_exit(fn -> Application.delete_env(:quiz, :dashboard_auth) end)
-  end
-
-  defp with_basic_auth(conn, user, pass) do
-    put_req_header(conn, "authorization", "Basic " <> Base.encode64("#{user}:#{pass}"))
   end
 end

@@ -48,18 +48,18 @@ The host screen's QR code and the displayed join host are built from
 `PHX_HOST` in fly.toml is now set to `waerweiss.ch`, so the QR on the beamer
 points to the custom domain; A2's `check_origin` list covers all hosts.
 
-### A5. You are flying blind: no monitoring in prod
+### A5. Monitoring in prod — ✅ LiveDashboard mounted for logged-in users
 
-- No Sentry/error tracking; telemetry has no reporter
-  ([telemetry.ex](../lib/quiz_web/telemetry.ex)).
-- LiveDashboard is only mounted when `dev_routes` is set — which only
-  dev.exs does ([router.ex:33–46](../lib/quiz_web/router.ex)). The
-  scaling doc's "watch `/dashboard` during the run" step **does not work in
-  prod**.
+LiveDashboard is now mounted at **`/admin/dashboard`** in every environment,
+gated by the normal login ([router.ex](../lib/quiz_web/router.ex)). Public
+registration is disabled, so every account is a quiz master — no extra secret
+needed. (If registration ever opens up, the dashboard needs its own gate: it
+exposes process state, ETS tables, and config.)
 
-Before the event either mount LiveDashboard in prod behind
-`Plug.BasicAuth`, or plan to keep `fly logs -a along-quiz` open on a laptop
-during the whole run. Errors currently surface nowhere else.
+During the run, watch `https://waerweiss.ch/admin/dashboard` (Home →
+memory/atoms; Metrics → LiveView/Repo timings; Processes) alongside
+`fly logs -a along-quiz`. There is still no error tracker (Sentry etc.) —
+the dashboard + logs are the monitoring for this event.
 
 ### A6. Run the load test against prod-like infra
 
@@ -201,5 +201,5 @@ Checked explicitly so nobody re-litigates them under stress:
 | 3 | B5 catch-all `handle_info` in participant LiveView | code | 1 line | ✅ done |
 | 4 | C1 leaderboard computed once, shipped in broadcast (incl. B6 idempotency) | code | medium | ✅ done |
 | 5 | "remove team" action on host roster | code | medium | ✅ done |
-| 6 | A5 LiveDashboard behind Basic Auth in prod | code | small | open |
+| 6 | A5 LiveDashboard in prod (login-gated) | code | small | ✅ done |
 | 7 | A6 load test on prod-like target | ops | — | open |
