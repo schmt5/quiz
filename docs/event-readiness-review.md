@@ -129,13 +129,6 @@ during the quiz. Pool 50 should absorb it (verify via A6); the optional
 improvement is to include the question and numbering in the broadcast so
 participants don't query at all.
 
-### C3. One COUNT query per submitted answer (host screen)
-
-Every answer submission triggers `count_answers` on the host LiveView only
-([host.ex:433](../lib/quiz_web/live/run_live/host.ex)) — ~300 COUNTs per
-question, spread over the answering window. Fine as-is; listed so it isn't
-"discovered" during the event.
-
 ---
 
 ## D. Hardening / event-day risks
