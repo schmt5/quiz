@@ -208,16 +208,20 @@ defmodule QuizWeb.RunLive.Host do
             <.link
               :if={@review_position && @game.review_mode == :end}
               navigate={~p"/games/#{@game}/review/#{@review_position}"}
-              class="btn btn-primary"
+              class="btn btn-ghost"
             >
               <.icon name="hero-light-bulb" /> Lösungen besprechen
             </.link>
             <.link
+              :if={!@game.grading_published}
+              navigate={~p"/games/#{@game}/correction"}
+              class="btn btn-primary"
+            >
+              <.icon name="hero-check-circle" /> Korrigieren & veröffentlichen
+            </.link>
+            <.link
               navigate={~p"/games/#{@game}/leaderboard"}
-              class={[
-                "btn",
-                (@review_position && @game.review_mode == :end && "btn-ghost") || "btn-primary"
-              ]}
+              class={["btn", (@game.grading_published && "btn-primary") || "btn-ghost"]}
             >
               <.icon name="hero-trophy" /> Zur Rangliste
             </.link>

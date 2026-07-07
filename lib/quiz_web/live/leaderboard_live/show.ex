@@ -76,6 +76,9 @@ defmodule QuizWeb.LeaderboardLive.Show do
             <p class="text-base-content/60">
               Die Rangliste erscheint, sobald die Wertung veröffentlicht ist.
             </p>
+            <.link navigate={~p"/games/#{@game}/correction"} class="btn btn-primary mt-2">
+              <.icon name="hero-check-circle" /> Zur Korrektur
+            </.link>
           </div>
 
           <LeaderboardComponent.standings :if={@game.grading_published} rows={@rows} />
