@@ -44,24 +44,24 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     ~H"""
     <div id={"preview-sequence-#{@question.id}"} phx-hook=".PreviewSortable" phx-update="ignore">
       <input type="hidden" name="answer" data-answer />
-      <p class="mb-2 flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-base-content/50">
-        <.drag_grip class="size-3" /> Ziehen zum Sortieren
+      <p class="mb-2 flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-base-content/60">
+        <.drag_grip class="size-3.5" /> Ziehen zum Sortieren
       </p>
       <ul data-list class="space-y-2 list-none p-0">
         <li
           :for={item <- @question.data.items}
           data-id={item.id}
-          class="flex items-center gap-2 rounded-box bg-base-200 px-3 py-2 ring-1 ring-inset ring-base-300/60"
+          class="group flex items-stretch overflow-hidden rounded-box bg-base-200 ring-1 ring-inset ring-base-300/60"
         >
           <button
             type="button"
             data-handle
             aria-label="Sortieren"
-            class="grid place-items-center min-w-11 min-h-11 -my-1.5 cursor-grab active:cursor-grabbing text-base-content/50 hover:text-base-content/80 select-none touch-none"
+            class="grid place-items-center self-stretch px-3 min-w-11 bg-base-300 text-base-content/60 group-hover:text-base-content/90 hover:bg-base-300 active:bg-primary active:text-primary-content cursor-grab active:cursor-grabbing select-none touch-none transition-colors"
           >
             <.drag_grip class="size-4" />
           </button>
-          <span class="flex-1 text-sm">{item.text}</span>
+          <span class="flex-1 px-3 py-3 text-sm">{item.text}</span>
         </li>
       </ul>
     </div>
@@ -203,8 +203,8 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         </li>
       </ul>
 
-      <p class="mt-5 mb-2 flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-base-content/50">
-        <.drag_grip class="size-3" /> Ziehen zum Zuordnen
+      <p class="mt-5 mb-2 flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-base-content/60">
+        <.drag_grip class="size-3.5" /> Ziehen zum Zuordnen
       </p>
       <div
         data-pool
@@ -216,7 +216,9 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           class="match-chip inline-flex items-center justify-between gap-1.5 rounded-box border border-base-300 bg-base-100 pl-1.5 pr-3 py-2 text-sm font-medium shadow-sm cursor-grab active:cursor-grabbing select-none touch-none transition hover:shadow-md hover:-translate-y-px"
         >
           <span class="inline-flex min-w-0 items-center gap-1.5">
-            <.drag_grip class="size-3.5 opacity-50" />
+            <span class="grid place-items-center pr-1.5 mr-0.5 border-r border-current/20">
+              <.drag_grip class="size-4 opacity-70" />
+            </span>
             <span data-value class="truncate">{value}</span>
           </span>
           <button
