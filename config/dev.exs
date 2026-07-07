@@ -67,8 +67,8 @@ config :quiz, QuizWeb.Endpoint,
     ]
   ]
 
-# Enable dev routes for dashboard and mailbox
-config :quiz, dev_routes: true
+# LiveDashboard credentials for /admin/dashboard (prod reads DASHBOARD_PASSWORD)
+config :quiz, :dashboard_auth, username: "admin", password: "admin"
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

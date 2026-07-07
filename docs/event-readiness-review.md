@@ -6,12 +6,11 @@ against the code (file references included); a few scary-sounding hypotheses
 were checked and dismissed — see "Verified non-issues" at the end.
 
 **Verdict:** the app is architecturally sound — authorization, enrollment
-races, scoring math, and XSS handling all check out. The real risks are
-(1) infrastructure steps that are documented but not yet applied, (2) one
-likely-broken thing on the custom domain (WebSocket origin check), and
-(3) a handful of correctness gaps that only bite if the host does something
-unusual mid-run. Work through section A before the event; sections B–D are
-ranked fixes and runbook rules.
+races, scoring math, and XSS handling all check out. The WebSocket origin
+check on the custom domain, the participant-side crash protection, the
+grading-publish burst, and the remove-team gap have since been fixed (marked
+✅ below). The main remaining risk is the fly.toml scaling steps, which are
+documented but not yet applied; the rest is monitoring and the load test.
 
 ---
 
@@ -27,52 +26,27 @@ not been executed. Without it: cold start when the first players arrive, and
 a single shared CPU core choking on the 300-process render burst every time
 the host advances a question.
 
-### A2. WebSocket origin check vs. `waerweiss.ch` — likely broken, must test
+### A2. WebSocket origin check vs. `waerweiss.ch` — ✅ fixed in config
 
-There is **no `check_origin` setting anywhere** in config, so Phoenix falls
-back to checking WebSocket origins against the endpoint URL host — which is
-`PHX_HOST`, set to `along-quiz.fly.dev` in fly.toml:16. Meanwhile the custom
-domain `waerweiss.ch` is live (docs/custom-domain-setup.md).
+There was **no `check_origin` setting** in config, so Phoenix fell back to
+checking WebSocket origins against `PHX_HOST` (`along-quiz.fly.dev`), which
+rejected the LiveView socket on `waerweiss.ch` — participants hung on the
+"Verbinde …" spinner.
 
-- If `PHX_HOST` is still the fly.dev value: pages on `waerweiss.ch` load
-  (plain HTTP works), but the **LiveView socket is rejected — participants
-  hang forever on the "Verbinde …" spinner**. This failure is invisible in a
-  quick "does the page load" check.
-- If `PHX_HOST` was overridden via a Fly secret to `waerweiss.ch`: then
-  `www.waerweiss.ch` and `along-quiz.fly.dev` are the rejected origins
-  instead.
+**Fixed:** `config/runtime.exs` now sets an explicit list covering
+`https://waerweiss.ch`, `https://www.waerweiss.ch`, and
+`https://along-quiz.fly.dev`.
 
-**Fix:** add an explicit list in `config/runtime.exs`:
+**Remaining verification (after the next deploy):** join as a participant
+**from a phone via `https://waerweiss.ch`** and confirm the question actually
+updates when the host advances. Repeat for `www.`.
 
-```elixir
-config :quiz, QuizWeb.Endpoint,
-  check_origin: [
-    "https://waerweiss.ch",
-    "https://www.waerweiss.ch",
-    "https://along-quiz.fly.dev"
-  ]
-```
-
-**Verify:** `fly secrets list -a along-quiz` (is PHX_HOST overridden?), then
-join as a participant **from a phone via `https://waerweiss.ch`** and confirm
-the question actually updates when the host advances. Repeat for `www.`.
-
-### A3. QR code and "go to <host>" text follow `PHX_HOST`
+### A3. QR code and "go to <host>" text follow `PHX_HOST` — ✅ fixed
 
 The host screen's QR code and the displayed join host are built from
 `QuizWeb.Endpoint.url()` ([host.ex:493–509](../lib/quiz_web/live/run_live/host.ex)).
-If `PHX_HOST` is still `along-quiz.fly.dev`, the QR on the beamer sends 300
-people to the fly.dev domain instead of `waerweiss.ch`. Set `PHX_HOST` to the
-domain you want on screen (and keep A2's `check_origin` list covering all
-hosts).
-
-### A4. Freeze deploys during the event
-
-A rolling deploy (a) drops **every** WebSocket — all 300 participants
-reconnect at once — and (b) briefly runs two machines with clustering off,
-so PubSub splits and players on the new machine silently stop receiving
-updates (see scaling-for-event.md). Deploy the fly.toml/config changes well
-before doors open, then **do not deploy again until the event is over**.
+`PHX_HOST` in fly.toml is now set to `waerweiss.ch`, so the QR on the beamer
+points to the custom domain; A2's `check_origin` list covers all hosts.
 
 ### A5. You are flying blind: no monitoring in prod
 
@@ -102,83 +76,27 @@ latencies. This exercises exactly the hot paths listed in section C.
 
 ## B. Bugs (correctness)
 
-Ranked by event impact. None crash the app today, but each can corrupt data
-or confuse the room if triggered.
+Both findings below have since been fixed.
 
-### B1. The "answers closed" guard checks stale in-memory state
+### B5. Participant LiveView has no catch-all `handle_info` — ✅ fixed
 
-`Play.submit_answer/4` rejects submissions by pattern-matching
-`%Game{revealing: true}` — but that's the **caller's copy** of the game from
-LiveView assigns, not fresh DB state
-([play.ex:291](../lib/quiz/play.ex)). The docstring calls it a server-side
-guard; it isn't. A participant whose LiveView hasn't yet processed the
-reveal broadcast (slow venue Wi-Fi, congested mailbox) can still submit
-after the host reveals the solution, corrupting the stats the room is
-looking at. The window is normally sub-second but grows under load.
+`PlayLive.Play` handled exactly the four broadcast types of the day; the host
+screen has a defensive catch-all precisely so "a new message type can never
+crash the presenter screen". Without it, a future broadcast type would crash
+**all 300 participant processes simultaneously**.
 
-**Fix:** inside `submit_answer`, re-read `revealing`/`current_position` from
-the DB (or at least `Repo.reload` the game) before accepting.
+**Fixed:** catch-all `handle_info` added to the participant LiveView
+([play.ex:314](../lib/quiz_web/live/play_live/play.ex)), plus a regression
+test that sends an unknown message and asserts the view survives.
 
-### B2. Questions can be edited, deleted, and reordered while the game runs
+### B6. `publish_grading` is not idempotent — ✅ fixed
 
-`@locked_run_states` is only `[:finished, :closed]`
-([games.ex:463](../lib/quiz/games.ex)) — `:open` and `:running` are not
-locked. During a live run:
+It always wrote and always broadcast; a double-click published twice → every
+participant recomputed the leaderboard twice (see C1).
 
-- **Deleting the current question** orphans `current_position` → all 300
-  participants and the host see "Keine Frage verfügbar".
-- **Reordering** shifts positions underneath `current_position` → the run
-  jumps to an unexpected question.
-- **Editing choices/solutions** silently invalidates stored grades: grades
-  are computed at submit time and never recomputed, so already-submitted
-  answers stay graded against the old version.
-
-**Fix:** extend the lock to `:open`/`:running` (at minimum for delete and
-reposition). **Runbook rule until then: nobody touches the question editor
-once the lobby opens.**
-
-### B3. A running game can be deleted with one confirmed click
-
-The "Löschen" action in the games list works in any status — the only
-protection is a `data-confirm` dialog
-([index.ex:84–86](../lib/quiz_web/live/game_live/index.ex),
-[games.ex:138](../lib/quiz/games.ex)). Deleting cascades questions → answers:
-one misclick + reflexive "OK" during the event and the entire run (all
-answers, all grading) is unrecoverable.
-
-**Fix:** refuse deletion for `:open`/`:running` (and arguably `:finished`
-until grading is published).
-
-### B4. Re-submission overwrites manual grades
-
-The answer upsert replaces `grade` with the fresh auto-grade
-([play.ex:310](../lib/quiz/play.ex)). If the host retreats to a question
-*after* the corrector already hand-graded its text answers, any team that
-re-submits wipes its manual grade back to the auto value — silently.
-
-**Runbook rule:** correct only after the quiz is finished, and never use
-"Vorherige Frage" once correction has started. (Code fix: skip the grade
-column on conflict when a manual correction exists, or block retreat after
-correction begins.)
-
-### B5. Participant LiveView has no catch-all `handle_info`
-
-`PlayLive.Play` handles exactly the four current broadcast types
-([play.ex:274–288](../lib/quiz_web/live/play_live/play.ex)); the host screen
-has a defensive catch-all ([host.ex:446](../lib/quiz_web/live/run_live/host.ex))
-precisely so "a new message type can never crash the presenter screen".
-The participant side lacks that: the next commit that adds a broadcast type
-crashes **all 300 participant processes simultaneously** (they remount, but
-the room sees a collective flicker/spinner).
-
-**Fix:** one line — `def handle_info(_msg, socket), do: {:noreply, socket}`.
-
-### B6. `publish_grading` is not idempotent
-
-It always writes and always broadcasts ([play.ex:472–481](../lib/quiz/play.ex)).
-A double-click publishes twice → every participant recomputes the leaderboard
-twice (see C1). Minor on its own; cheap to guard with
-`if game.grading_published, do: {:ok, game}`.
+**Fixed:** `publish_grading` now returns `{:ok, game}` without writing or
+broadcasting when `grading_published` is already set
+([play.ex:513](../lib/quiz/play.ex)), covered by a `refute_received` test.
 
 ---
 
@@ -188,19 +106,18 @@ The DB pool is 50 and Postgres is oversized, so none of these are expected
 to fail outright — but they are the places that buckle first. All are
 exercised by `mix quiz.load` (A6).
 
-### C1. Publishing the grading → 300 simultaneous full-table leaderboard loads
+### C1. Publishing the grading → 300 simultaneous leaderboard loads — ✅ fixed
 
-On the `grading_published` broadcast, **every** participant LiveView calls
-`Play.leaderboard/1`, which loads *all answer rows of the game* plus *all
-participants* and ranks them in memory
-([play_live/play.ex:286–296](../lib/quiz_web/live/play_live/play.ex),
-[play.ex:487–503](../lib/quiz/play.ex)). With 300 teams × ~20 questions
-that's 300 concurrent copies of a ~6,000-row query + a 300-row query — the
-single heaviest burst in the app, at the emotional climax of the evening.
+On the `grading_published` broadcast, **every** participant LiveView used to
+call `Play.leaderboard/1` (all answer rows + all participants, ranked in
+memory) at the same instant — 300 concurrent copies of a ~6,000-row query,
+the single heaviest burst in the app, at the emotional climax of the evening.
 
-**Improvement:** compute the leaderboard once inside `publish_grading` and
-ship the rows in the broadcast payload; keep the on-demand path only for
-reconnects.
+**Fixed:** the leaderboard is computed **once** inside `publish_grading` and
+shipped in the broadcast payload
+(`{:grading_published, game, leaderboard}`, [play.ex:521](../lib/quiz/play.ex));
+participant, host, and leaderboard views render straight from the payload.
+The on-demand query path remains only as the reconnect fallback.
 
 ### C2. Every host click → ~900 simultaneous queries
 
@@ -223,16 +140,6 @@ question, spread over the answering window. Fine as-is; listed so it isn't
 
 ## D. Hardening / event-day risks
 
-### D1. No way to remove or rename a participant ⚠️
-
-The join QR is on the beamer all evening; anyone in the room can enroll with
-any name (≤ 50 chars, no filtering), and that name renders on the projector
-roster and the final leaderboard. There is **no host UI and no context
-function to kick or rename a team.** If someone joins as something obscene,
-your only options are raw SQL on prod or living with it on the big screen.
-This is the most likely *social* failure mode of the evening — consider a
-minimal "remove team" action on the host roster before the event.
-
 ### D2. No enrollment cap or rate limiting
 
 `get_game_by_join_code` and `enroll` are unauthenticated and unthrottled
@@ -245,19 +152,9 @@ game (e.g. reject enrollment past 400).
 
 `submit_answer` trusts `participant` and `question` from socket assigns and
 never asserts `participant.game_id == game.id` or
-`question.game_id == game.id` ([play.ex:295](../lib/quiz/play.ex)). Today's
+`question.game_id == game.id` ([play.ex:325](../lib/quiz/play.ex)). Today's
 call sites load both correctly; the asserts make future call sites unable to
 cross-contaminate games. Two lines.
-
-### D4. The localStorage token is the only way back into a team
-
-Signed token in `localStorage` per join code; if a team's browser clears it
-(private mode, "clear site data", switching devices), they cannot rejoin as
-themselves — the old name is blocked (`name_taken`) and their points are
-stranded on the orphaned team
-([play.ex:213–246](../lib/quiz/play.ex)). Token lifetime (24 h) is fine.
-**Brief the room: use one device per team and keep the same browser tab.**
-Know that the workaround for a locked-out team is "new name, points lost".
 
 ### D5. Question images depend on R2/Cloudflare at show time
 
@@ -266,12 +163,6 @@ CDN misbehaves, images 404 with no fallback. **Warm the cache** before the
 event by clicking through every question in the preview from the venue
 network — repeat views then serve from Cloudflare's edge
 (`cf-cache-status: HIT`).
-
-### D6. No HTTP health check in fly.toml (optional)
-
-fly.toml defines no `[[http_service.checks]]`, so Fly only knows the port is
-open, not that the app responds. A simple GET check on `/` speeds up
-automatic recovery if the app wedges. Optional for a single-machine run.
 
 ---
 
@@ -305,13 +196,10 @@ Checked explicitly so nobody re-litigates them under stress:
 
 | # | Action | Type | Effort | Status |
 |---|--------|------|--------|--------|
-| 1 | A2 `check_origin` + verify on phone via `waerweiss.ch` | config | small | ✅ done (config + PHX_HOST; phone test pending after deploy) |
+| 1 | A2 `check_origin` + A3 `PHX_HOST` = `waerweiss.ch` | config | small | ✅ done (phone test pending after deploy) |
 | 2 | A1 apply fly.toml scaling steps | ops | small | open |
 | 3 | B5 catch-all `handle_info` in participant LiveView | code | 1 line | ✅ done |
-| 4 | B3 block deleting open/running games | code | small | open |
-| 5 | B2 lock question edits/reorder/delete while open/running | code | small | open |
-| 6 | B1 server-side reveal re-check in `submit_answer` | code | small | open |
-| 7 | C1 leaderboard computed once, shipped in broadcast (incl. B6 idempotency) | code | medium | ✅ done |
-| 8 | D1 "remove team" action on host roster | code | medium | ✅ done |
-| 9 | A5 LiveDashboard behind Basic Auth in prod | code | small | open |
-| 10 | A6 load test on prod-like target; A4 deploy freeze; B4/D4 runbook rules | ops | — | open |
+| 4 | C1 leaderboard computed once, shipped in broadcast (incl. B6 idempotency) | code | medium | ✅ done |
+| 5 | "remove team" action on host roster | code | medium | ✅ done |
+| 6 | A5 LiveDashboard behind Basic Auth in prod | code | small | open |
+| 7 | A6 load test on prod-like target | ops | — | open |
