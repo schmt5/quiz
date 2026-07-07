@@ -312,6 +312,6 @@ Checked explicitly so nobody re-litigates them under stress:
 | 5 | B2 lock question edits/reorder/delete while open/running | code | small | open |
 | 6 | B1 server-side reveal re-check in `submit_answer` | code | small | open |
 | 7 | C1 leaderboard computed once, shipped in broadcast (incl. B6 idempotency) | code | medium | ✅ done |
-| 8 | D1 "remove team" action on host roster | code | medium | open |
+| 8 | D1 "remove team" action on host roster | code | medium | ✅ done |
 | 9 | A5 LiveDashboard behind Basic Auth in prod | code | small | open |
 | 10 | A6 load test on prod-like target; A4 deploy freeze; B4/D4 runbook rules | ops | — | open |

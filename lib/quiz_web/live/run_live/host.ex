@@ -54,6 +54,17 @@ defmodule QuizWeb.RunLive.Host do
             >
               <span class="size-2.5 shrink-0 rounded-full bg-success"></span>
               <span class="font-medium truncate">{participant.name}</span>
+              <button
+                type="button"
+                phx-click="remove_participant"
+                phx-value-id={participant.id}
+                data-confirm={"Team «#{participant.name}» wirklich entfernen?"}
+                title="Team entfernen"
+                aria-label={"Team #{participant.name} entfernen"}
+                class="ml-auto btn btn-ghost btn-xs btn-circle text-base-100/50 hover:text-base-100"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
             </li>
           </ul>
         </div>
@@ -323,6 +334,17 @@ defmodule QuizWeb.RunLive.Host do
           >
             <.icon name="hero-user-group" class="size-4 text-base-content/50" />
             <span class="text-sm font-medium truncate">{participant.name}</span>
+            <button
+              type="button"
+              phx-click="remove_participant"
+              phx-value-id={participant.id}
+              data-confirm={"Team «#{participant.name}» wirklich entfernen? Bereits gegebene Antworten werden gelöscht."}
+              title="Team entfernen"
+              aria-label={"Team #{participant.name} entfernen"}
+              class="ml-auto btn btn-ghost btn-xs btn-circle text-base-content/40 hover:text-error"
+            >
+              <.icon name="hero-x-mark" class="size-4" />
+            </button>
           </li>
         </ul>
 
@@ -414,6 +436,21 @@ defmodule QuizWeb.RunLive.Host do
     {:noreply, update(socket, :show_stats, &(!&1))}
   end
 
+  def handle_event("remove_participant", %{"id" => id}, socket) do
+    id = String.to_integer(id)
+
+    case Enum.find(socket.assigns.participants, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      participant ->
+        {:ok, _} =
+          Play.remove_participant(socket.assigns.current_scope, socket.assigns.game, participant)
+
+        {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_info({:participant_joined, participant}, socket) do
     # Dedup: a team can enroll in the gap between subscribe/3 and the initial
@@ -424,6 +461,18 @@ defmodule QuizWeb.RunLive.Host do
     else
       {:noreply, assign(socket, :participants, socket.assigns.participants ++ [participant])}
     end
+  end
+
+  # Their answers were cascade-deleted with them, so the answered count may
+  # have dropped too.
+  def handle_info({:participant_removed, participant}, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       :participants,
+       Enum.reject(socket.assigns.participants, &(&1.id == participant.id))
+     )
+     |> assign_answered_count()}
   end
 
   def handle_info({:status_changed, game}, socket) do

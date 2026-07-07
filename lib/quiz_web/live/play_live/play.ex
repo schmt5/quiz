@@ -279,6 +279,22 @@ defmodule QuizWeb.PlayLive.Play do
     {:noreply, socket}
   end
 
+  # The quizmaster removed a team. If it was ours, bounce back to the join
+  # page (our token is dead — restore would fail on the next mount anyway);
+  # any other team's removal is none of our business.
+  def handle_info({:participant_removed, %Play.Participant{id: id}}, socket) do
+    case socket.assigns.participant do
+      %{id: ^id} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Euer Team wurde von der Quizleitung entfernt.")
+         |> to_join()}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_info({:answer_submitted, _position}, socket) do
     {:noreply, socket}
   end

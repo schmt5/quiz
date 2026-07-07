@@ -15,6 +15,7 @@ defmodule Quiz.Play do
   `"game:\#{game.id}"`:
 
     * `{:participant_joined, %Participant{}}`
+    * `{:participant_removed, %Participant{}}`
     * `{:status_changed, %Game{}}`
     * `{:answer_submitted, position}`
     * `{:grading_published, %Game{}, leaderboard}` (standings precomputed once,
@@ -272,6 +273,32 @@ defmodule Quiz.Play do
     |> where([p], p.game_id == ^game.id)
     |> order_by([p], asc: p.inserted_at, asc: p.id)
     |> Repo.all()
+  end
+
+  @doc """
+  Removes a team from the run — the emergency lever for e.g. an offensive name
+  on the projector. Operator only.
+
+  The team's answers are deleted with it (DB-level cascade), so stats and the
+  leaderboard no longer count it, and the freed name can immediately be
+  enrolled again — remove + re-join doubles as the "rename a team" flow.
+  Broadcasts `{:participant_removed, %Participant{}}`: the removed team's own
+  screen bounces back to the join page, the host roster shrinks.
+
+  Idempotent: removing an already-removed team succeeds without broadcasting
+  again (two host screens can race on the same button).
+  """
+  def remove_participant(%Scope{} = scope, %Game{} = game, %Participant{} = participant) do
+    true = game.user_id == scope.user.id
+    true = participant.game_id == game.id
+
+    {count, _} =
+      Participant
+      |> where([p], p.id == ^participant.id)
+      |> Repo.delete_all()
+
+    if count == 1, do: broadcast(game, {:participant_removed, participant})
+    {:ok, participant}
   end
 
   defp sign_token(%Participant{id: id}) do

@@ -478,6 +478,49 @@ defmodule Quiz.PlayTest do
     end
   end
 
+  describe "remove_participant/3" do
+    test "deletes the team with its answers, frees the name, and broadcasts" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :running})
+      question = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, team, _token} = Play.enroll(game, "Team A")
+      {:ok, _} = Play.submit_answer(game, team, question, %{"answer" => "0"})
+      Play.subscribe(game)
+
+      assert {:ok, _} = Play.remove_participant(scope, game, team)
+
+      assert_received {:participant_removed, %{name: "Team A"}}
+      assert Play.list_participants(game) == []
+      # Answers went with the team (DB cascade), so it no longer scores.
+      assert Play.get_answer(team, question) == nil
+      # The freed name is enrollable again (remove + re-join = rename flow).
+      assert {:ok, _new_team, _new_token} = Play.enroll(game, "Team A")
+    end
+
+    test "removing an already-removed team succeeds without broadcasting again" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :running})
+      {:ok, team, _token} = Play.enroll(game, "Team A")
+      Play.subscribe(game)
+
+      assert {:ok, _} = Play.remove_participant(scope, game, team)
+      assert_received {:participant_removed, _}
+
+      assert {:ok, _} = Play.remove_participant(scope, game, team)
+      refute_received {:participant_removed, _}
+    end
+
+    test "only the game owner may remove a team" do
+      scope = user_scope_fixture()
+      other_scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :running})
+      {:ok, team, _token} = Play.enroll(game, "Team A")
+
+      assert_raise MatchError, fn -> Play.remove_participant(other_scope, game, team) end
+      assert [_] = Play.list_participants(game)
+    end
+  end
+
   describe "publish_grading/2 and leaderboard/1" do
     test "publish sets the flag and broadcasts the standings computed once" do
       scope = user_scope_fixture()

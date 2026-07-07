@@ -62,6 +62,23 @@ defmodule QuizWeb.RunLive.HostTest do
     end
   end
 
+  describe "removing a team from the roster" do
+    test "the roster shrinks after the remove button is clicked", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      {:ok, participant, _token} = Play.enroll(game, "Schlechter Name")
+
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
+      assert html =~ "Schlechter Name"
+
+      lv
+      |> element("#participant-#{participant.id} button[phx-click=remove_participant]")
+      |> render_click()
+
+      refute render(lv) =~ "Schlechter Name"
+      assert Play.list_participants(game) == []
+    end
+  end
+
   describe "intro & outro modals" do
     test "the lobby offers the intro modal when intro content exists",
          %{conn: conn, scope: scope} do

@@ -40,6 +40,37 @@ defmodule QuizWeb.PlayLive.PlayTest do
     end
   end
 
+  describe "removing a team" do
+    test "the removed team's screen is sent back to the join page", %{conn: conn} do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, participant, token} = Play.enroll(running, "Team A")
+
+      lv = connect_and_restore(conn, running, token)
+
+      {:ok, _} = Play.remove_participant(scope, running, participant)
+
+      assert_redirect(lv, ~p"/join?code=#{running.join_code}")
+    end
+
+    test "other teams' screens are unaffected", %{conn: conn} do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, kicked, _kicked_token} = Play.enroll(running, "Kicked")
+      {:ok, _stays, token} = Play.enroll(running, "Stays")
+
+      lv = connect_and_restore(conn, running, token)
+
+      {:ok, _} = Play.remove_participant(scope, running, kicked)
+
+      assert render(lv) =~ "Stays"
+    end
+  end
+
   describe "publishing the grading" do
     test "a connected participant renders the standings from the broadcast", %{conn: conn} do
       scope = user_scope_fixture()
