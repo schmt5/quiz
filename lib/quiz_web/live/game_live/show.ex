@@ -273,5 +273,8 @@ defmodule QuizWeb.GameLive.Show do
   defp humanize_type(:single_choice), do: "Single-Choice"
   defp humanize_type(:text_input), do: "Texteingabe"
   defp humanize_type(:sequence), do: "Reihenfolge"
+  defp humanize_type(:number_range), do: "Zahlenschätzung"
+  defp humanize_type(:pin_on_image), do: "Pin auf Bild"
+  defp humanize_type(:matching), do: "Zuordnung"
   defp humanize_type(other), do: to_string(other)
 end
