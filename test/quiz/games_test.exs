@@ -282,6 +282,27 @@ defmodule Quiz.GamesTest do
       assert c2.media_image_key == nil
     end
 
+    test "duplicate_game/2 copies the solution explanation (text and image key)" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        type: :text_input,
+        prompt: "Augenfarbe von Messi?",
+        solution_text: "Auf dem Foto sieht man es deutlich.",
+        solution_image_key: "uploads/messi.jpg",
+        data: %{solutions: [%{text: "braun"}]}
+      })
+
+      assert {:ok, copy} = Games.duplicate_game(scope, game)
+
+      [c1] = Games.list_questions_for_game(scope, copy)
+      assert c1.solution_text == "Auf dem Foto sieht man es deutlich."
+      assert c1.solution_image_key == "uploads/messi.jpg"
+    end
+
     test "duplicate_game/2 copies intro/outro content (text and image keys)" do
       scope = user_scope_fixture()
 

@@ -220,8 +220,8 @@ defmodule Quiz.Games do
 
   Each question is copied with its prompt, description, position, media
   (image/video keys point at the same stored file — uploads are never deleted,
-  so sharing keys is safe) and the full
-  answer payload (`data`: choices, solutions, items, pairs, pin). Runtime and
+  so sharing keys is safe), the solution explanation (text and image key) and
+  the full answer payload (`data`: choices, solutions, items, pairs, pin). Runtime and
   participant data is intentionally *not* copied — the copy starts a clean run,
   so there are no enrollments, submitted answers or corrections, the
   `current_position` is empty, `grading_published` is `false`, and a brand-new
@@ -253,6 +253,8 @@ defmodule Quiz.Games do
           data: question.data,
           media_image_key: question.media_image_key,
           media_video_key: question.media_video_key,
+          solution_image_key: question.solution_image_key,
+          solution_text: question.solution_text,
           game_id: copy.id,
           user_id: scope.user.id
         })
