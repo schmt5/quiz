@@ -1597,6 +1597,76 @@ defmodule QuizWeb.QuestionLive.Index do
               </fieldset>
           <% end %>
         </.inputs_for>
+
+        <% solution_key = solution_image_key(@form) %>
+        <div class="mt-8 space-y-3 border-t border-base-300 pt-6">
+          <div>
+            <span class="block text-sm font-semibold">
+              Lösungserklärung <span class="font-normal text-base-content/50">(optional)</span>
+            </span>
+            <p class="text-xs text-base-content/50">
+              Text und/oder Bild – wird bei der Lösungsbesprechung zusammen mit der Musterlösung
+              gezeigt.
+            </p>
+          </div>
+
+          <.input
+            field={@form[:solution_text]}
+            type="textarea"
+            placeholder="z. B. warum diese Antwort richtig ist"
+          />
+
+          <div
+            class="rounded-box border border-dashed border-base-300 p-4"
+            phx-drop-target={@uploads.solution_image.ref}
+          >
+            <div class="flex items-center justify-between gap-4">
+              <div class="text-sm text-base-content/70">
+                <p class="font-semibold">
+                  {if solution_key, do: "Bild ersetzen", else: "Bild hochladen"}
+                </p>
+                <p class="text-xs text-base-content/50">
+                  JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
+                </p>
+              </div>
+              <label class="btn btn-soft btn-sm">
+                <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
+                <.live_file_input upload={@uploads.solution_image} class="sr-only" />
+              </label>
+            </div>
+
+            <p :for={err <- upload_errors(@uploads.solution_image)} class="mt-2 text-error text-sm">
+              {upload_error_to_string(err)}
+            </p>
+            <p
+              :for={entry <- @uploads.solution_image.entries}
+              :if={err = List.first(upload_errors(@uploads.solution_image, entry))}
+              class="mt-2 text-error text-sm"
+            >
+              {upload_error_to_string(err)}
+            </p>
+          </div>
+
+          <%!-- Server-owned: written by the upload progress callback, never by
+                the client; round-trips the persisted key through autosaves. --%>
+          <input type="hidden" name="question[solution_image_key]" value={solution_key} />
+
+          <div :if={solution_key} class="space-y-2">
+            <img
+              src={Quiz.Storage.url(solution_key)}
+              alt="Bild zur Lösungserklärung"
+              class="max-h-48 rounded-box object-contain"
+            />
+            <button
+              type="button"
+              id="remove-solution-image"
+              phx-click="remove_solution_image"
+              class="btn btn-ghost btn-sm text-error"
+            >
+              <.icon name="hero-trash" class="size-4" /> Bild entfernen
+            </button>
+          </div>
+        </div>
       </div>
     </.form>
     """
@@ -1626,6 +1696,7 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:pin_uploaded_key, nil)
      |> assign(:media_uploaded_key, nil)
      |> assign(:media_video_uploaded_key, nil)
+     |> assign(:solution_uploaded_key, nil)
      |> assign(:media_tab, :image)
      |> allow_upload(:pin_image,
        accept: ~w(.jpg .jpeg .png .webp),
@@ -1651,6 +1722,13 @@ defmodule QuizWeb.QuestionLive.Index do
        max_file_size: 50_000_000,
        auto_upload: true,
        progress: &handle_media_video_progress/3
+     )
+     |> allow_upload(:solution_image,
+       accept: ~w(.jpg .jpeg .png .webp),
+       max_entries: 1,
+       max_file_size: 5_000_000,
+       auto_upload: true,
+       progress: &handle_solution_image_progress/3
      )}
   end
 
@@ -1692,6 +1770,7 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:pin_uploaded_key, nil)
     |> assign(:media_uploaded_key, nil)
     |> assign(:media_video_uploaded_key, nil)
+    |> assign(:solution_uploaded_key, nil)
     |> assign(:media_tab, if(question.media_video_key, do: :video, else: :image))
   end
 
@@ -1756,6 +1835,18 @@ defmodule QuizWeb.QuestionLive.Index do
     {:noreply,
      socket
      |> assign(:media_uploaded_key, nil)
+     |> assign(:pending_params, params)
+     |> autosave(params)}
+  end
+
+  def handle_event("remove_solution_image", _params, socket) do
+    params =
+      (socket.assigns.pending_params || base_media_params(socket))
+      |> Map.put("solution_image_key", "")
+
+    {:noreply,
+     socket
+     |> assign(:solution_uploaded_key, nil)
      |> assign(:pending_params, params)
      |> autosave(params)}
   end
@@ -1837,6 +1928,7 @@ defmodule QuizWeb.QuestionLive.Index do
             |> assign(:pin_uploaded_key, nil)
             |> assign(:media_uploaded_key, nil)
             |> assign(:media_video_uploaded_key, nil)
+            |> assign(:solution_uploaded_key, nil)
             |> assign(:save_status, nil)
 
           {:error, :run_locked} ->
@@ -1943,8 +2035,14 @@ defmodule QuizWeb.QuestionLive.Index do
         _ -> question_params
       end
 
-    case socket.assigns[:media_video_uploaded_key] do
-      key when is_binary(key) -> Map.put(question_params, "media_video_key", key)
+    question_params =
+      case socket.assigns[:media_video_uploaded_key] do
+        key when is_binary(key) -> Map.put(question_params, "media_video_key", key)
+        _ -> question_params
+      end
+
+    case socket.assigns[:solution_uploaded_key] do
+      key when is_binary(key) -> Map.put(question_params, "solution_image_key", key)
       _ -> question_params
     end
   end
@@ -1965,6 +2063,10 @@ defmodule QuizWeb.QuestionLive.Index do
 
   def handle_media_video_progress(:media_video, entry, socket) do
     handle_media_progress(:media_video, :media_video_uploaded_key, "Das Video", entry, socket)
+  end
+
+  def handle_solution_image_progress(:solution_image, entry, socket) do
+    handle_media_progress(:solution_image, :solution_uploaded_key, "Das Bild", entry, socket)
   end
 
   defp handle_media_progress(upload_name, assign_key, noun, entry, socket) do
@@ -2186,6 +2288,7 @@ defmodule QuizWeb.QuestionLive.Index do
 
   defp media_image_key(form), do: media_key(form, :media_image_key)
   defp media_video_key(form), do: media_key(form, :media_video_key)
+  defp solution_image_key(form), do: media_key(form, :solution_image_key)
 
   defp media_key(form, field) do
     case form[field].value do

@@ -257,6 +257,7 @@ defmodule QuizWeb.RunLive.Host do
                    panel (same pattern as the end-of-game Review screen). --%>
               <div :if={@game.revealing} class="space-y-6">
                 <SolutionArea.solution_area question={@question} />
+                <SolutionArea.solution_explanation question={@question} />
 
                 <div :if={@game.show_statistics} class="pt-2">
                   <button

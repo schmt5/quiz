@@ -157,4 +157,38 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
     <p class="text-sm text-base-content/60">Keine Lösung hinterlegt.</p>
     """
   end
+
+  @doc """
+  Optional author-provided explanation of the solution (free text and/or an
+  image), rendered right below `solution_area/1` on the presenter screens.
+  Renders nothing when the question has neither.
+  """
+  attr :question, :map, required: true
+
+  def solution_explanation(assigns) do
+    ~H"""
+    <div
+      :if={@question.solution_image_key || @question.solution_text not in [nil, ""]}
+      class="space-y-2"
+    >
+      <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
+        Erklärung
+      </p>
+      <%!-- phx-no-format keeps the text flush with the tags: whitespace-pre-line
+            would otherwise render the template's own indentation newlines as
+            visible blank lines. --%>
+      <p
+        :if={@question.solution_text not in [nil, ""]}
+        class="text-lg text-base-content/80 whitespace-pre-line break-words"
+        phx-no-format
+      >{@question.solution_text}</p>
+      <img
+        :if={@question.solution_image_key}
+        src={Quiz.Storage.url(@question.solution_image_key)}
+        alt="Bild zur Lösungserklärung"
+        class="max-h-96 w-auto rounded-box object-contain"
+      />
+    </div>
+    """
+  end
 end

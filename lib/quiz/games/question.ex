@@ -12,6 +12,8 @@ defmodule Quiz.Games.Question do
     field :description, :string
     field :media_image_key, :string
     field :media_video_key, :string
+    field :solution_image_key, :string
+    field :solution_text, :string
     field :position, :integer
     embeds_one :data, Data, on_replace: :update
     field :game_id, :id
@@ -43,6 +45,8 @@ defmodule Quiz.Games.Question do
         :description,
         :media_image_key,
         :media_video_key,
+        :solution_image_key,
+        :solution_text,
         :position,
         :game_id
       ])
