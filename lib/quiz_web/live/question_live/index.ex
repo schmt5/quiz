@@ -543,7 +543,7 @@ defmodule QuizWeb.QuestionLive.Index do
               class="rounded-box border border-dashed border-base-300 p-4"
               phx-drop-target={@uploads.media_image.ref}
             >
-              <div class="flex items-center justify-between gap-4">
+              <div class="space-y-2">
                 <div class="text-sm text-base-content/70">
                   <p class="font-semibold">
                     {if media_key, do: "Bild ersetzen", else: "Bild hochladen"}
@@ -552,10 +552,7 @@ defmodule QuizWeb.QuestionLive.Index do
                     JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
                   </p>
                 </div>
-                <label class="btn btn-soft btn-sm">
-                  <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
-                  <.live_file_input upload={@uploads.media_image} class="sr-only" />
-                </label>
+                <.live_file_input upload={@uploads.media_image} class="file-input w-full" />
               </div>
 
               <p :for={err <- upload_errors(@uploads.media_image)} class="mt-2 text-error text-sm">
@@ -596,7 +593,7 @@ defmodule QuizWeb.QuestionLive.Index do
               class="rounded-box border border-dashed border-base-300 p-4"
               phx-drop-target={@uploads.media_video.ref}
             >
-              <div class="flex items-center justify-between gap-4">
+              <div class="space-y-2">
                 <div class="text-sm text-base-content/70">
                   <p class="font-semibold">
                     {if video_key, do: "Video ersetzen", else: "Video hochladen"}
@@ -605,10 +602,7 @@ defmodule QuizWeb.QuestionLive.Index do
                     MP4 oder WEBM (H.264) · max. 50 MB. Ziehe eine Datei hierher oder wähle sie aus.
                   </p>
                 </div>
-                <label class="btn btn-soft btn-sm">
-                  <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
-                  <.live_file_input upload={@uploads.media_video} class="sr-only" />
-                </label>
+                <.live_file_input upload={@uploads.media_video} class="file-input w-full" />
               </div>
 
               <div
@@ -1168,7 +1162,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   class="rounded-box border border-dashed border-base-300 p-4"
                   phx-drop-target={@uploads.pin_image.ref}
                 >
-                  <div class="flex items-center justify-between gap-4">
+                  <div class="space-y-2">
                     <div class="text-sm text-base-content/70">
                       <p class="font-semibold">
                         {if has_image, do: "Bild ersetzen", else: "Bild hochladen"}
@@ -1177,10 +1171,7 @@ defmodule QuizWeb.QuestionLive.Index do
                         JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
                       </p>
                     </div>
-                    <label class="btn btn-soft btn-sm">
-                      <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
-                      <.live_file_input upload={@uploads.pin_image} class="sr-only" />
-                    </label>
+                    <.live_file_input upload={@uploads.pin_image} class="file-input w-full" />
                   </div>
 
                   <p
@@ -1620,7 +1611,7 @@ defmodule QuizWeb.QuestionLive.Index do
             class="rounded-box border border-dashed border-base-300 p-4"
             phx-drop-target={@uploads.solution_image.ref}
           >
-            <div class="flex items-center justify-between gap-4">
+            <div class="space-y-2">
               <div class="text-sm text-base-content/70">
                 <p class="font-semibold">
                   {if solution_key, do: "Bild ersetzen", else: "Bild hochladen"}
@@ -1629,10 +1620,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   JPG, PNG oder WEBP · max. 5 MB. Ziehe eine Datei hierher oder wähle sie aus.
                 </p>
               </div>
-              <label class="btn btn-soft btn-sm">
-                <.icon name="hero-arrow-up-tray" class="size-4" /> Datei wählen
-                <.live_file_input upload={@uploads.solution_image} class="sr-only" />
-              </label>
+              <.live_file_input upload={@uploads.solution_image} class="file-input w-full" />
             </div>
 
             <p :for={err <- upload_errors(@uploads.solution_image)} class="mt-2 text-error text-sm">
