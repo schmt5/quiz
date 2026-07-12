@@ -118,6 +118,39 @@ mix quiz.load --participants 300 --questions 5 --mode herd --subscribers
 mix quiz.load --participants 300 --mode jitter --spread 3000 --subscribers
 ```
 
+For **real numbers, run it on the production machine** (your laptop's Postgres ≠
+Fly's). The core lives in `Quiz.LoadTest` (Mix-free, like `Quiz.Release`) so it
+works inside the release:
+
+```sh
+fly ssh console -a along-quiz
+# small validation run first:
+/app/bin/quiz eval 'Quiz.LoadTest.run(participants: 50, questions: 2)'
+# then full load:
+/app/bin/quiz eval 'Quiz.LoadTest.run(participants: 300, questions: 5, mode: :herd, subscribers: true)'
+```
+
+How the prod run behaves:
+
+- `bin/quiz eval` does **not** attach to the running app — it boots a second,
+  separate BEAM process on the same machine (no web server; `PHX_SERVER` is
+  unset) that runs the test and **exits by itself** when done. Nothing to clean
+  up afterwards.
+- That second process opens its **own DB pool (50 connections)**, so Postgres
+  sees ~100 connections during the test (web app + test). Expected — don't be
+  alarmed in monitoring.
+- **Results print to stdout of the SSH session**: one line per phase (JOIN,
+  Q1/N answers … with wall time, ok/err counts, latency p50/p95/max), then the
+  DB-pool block. Watch `/admin/dashboard` (LiveDashboard) in the browser at the
+  same time.
+- If you abort mid-run (Ctrl+C) or it crashes, the end-of-run cleanup may not
+  execute — delete the leftover "LOAD TEST …" game manually in the app.
+- `questions: N` is the number of questions in the throwaway game; every
+  simulated participant answers each one. The fixture always creates
+  single-choice questions — representative for load, since the expensive parts
+  (answer upsert, host COUNT, PubSub broadcast) are the same for every question
+  type (free-text is graded later in correction, so it's even cheaper live).
+
 Read the output:
 
 - **`queries over 50ms`** in the DB-pool section > 0 → the pool is saturating;
@@ -125,10 +158,8 @@ Read the output:
 - **answer `p95` / `max` latency** climbing into hundreds of ms → contention.
 - **`err`** counts > 0 → something actually failed under load.
 
-Caveats: run it against a **prod-like target** for meaningful numbers (your laptop's
-Postgres ≠ Fly's) — e.g. on the Fly machine via `fly ssh console` then
-`/app/bin/quiz eval "Mix.Tasks.Quiz.Load.run([...])"`, or point a local run at a
-staging DB. Watch `/dashboard` (LiveDashboard) at the same time. Full options:
+The test creates real load and throwaway data in the prod DB (cleaned up at the
+end) — run it in a quiet window, not while a real quiz is live. Full options:
 `mix help quiz.load`.
 
 ## If you ever want 2+ machines (NOT for this event)
