@@ -117,7 +117,7 @@ defmodule QuizWeb.RunLive.Host do
         </p>
 
         <div class="bg-white rounded-3xl shadow-sm ring-1 ring-base-300 p-6">
-          <div class="size-56 sm:size-64">{raw(@qr_svg)}</div>
+          <div class="size-72 sm:size-80 xl:size-96">{raw(@qr_svg)}</div>
         </div>
 
         <div class="flex w-full max-w-xs items-center gap-3 text-base-content/45">
