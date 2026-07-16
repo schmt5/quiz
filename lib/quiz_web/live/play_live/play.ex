@@ -125,7 +125,7 @@ defmodule QuizWeb.PlayLive.Play do
 
           <div :if={!@game.revealing && @submitted} class="py-6">
             <div class="rounded-[2rem] bg-base-100 p-8 text-center shadow-sm">
-              <div class="mx-auto grid size-20 place-items-center rounded-full bg-warning">
+              <div class="mx-auto grid size-20 place-items-center rounded-full bg-secondary">
                 <.icon name="hero-check" class="size-10 text-primary" />
               </div>
               <h2 class="mt-6 text-3xl font-extrabold text-primary">Antwort abgeschickt!</h2>
