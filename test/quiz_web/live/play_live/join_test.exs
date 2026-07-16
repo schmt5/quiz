@@ -102,6 +102,23 @@ defmodule QuizWeb.PlayLive.JoinTest do
       assert html =~ "bereits beendet"
     end
 
+    test "a valid PIN whose enrollment the operator locked says the doors are closed",
+         %{conn: conn} do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      {:ok, locked} = Quiz.Play.set_enrollment_locked(scope, game, true)
+
+      {:ok, lv, _html} = live(conn, ~p"/join")
+
+      html =
+        lv
+        |> form("#join-form", participant: %{name: "Latecomer", code: locked.join_code})
+        |> render_submit()
+
+      assert html =~ "Anmeldung für dieses Quiz ist geschlossen"
+      refute html =~ "Kein Quiz mit der PIN"
+    end
+
     test "a valid code enrols and moves to the waiting room", %{conn: conn, game: game} do
       {:ok, lv, _html} = live(conn, ~p"/join")
 

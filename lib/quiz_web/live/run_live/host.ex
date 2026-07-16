@@ -31,6 +31,12 @@ defmodule QuizWeb.RunLive.Host do
             <p class="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-base-100/55">
               Teams bereit
             </p>
+            <p
+              :if={@game.enrollment_locked}
+              class="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-warning"
+            >
+              Anmeldung gesperrt
+            </p>
           </div>
         </div>
 
@@ -78,6 +84,8 @@ defmodule QuizWeb.RunLive.Host do
           >
             <.icon name="hero-play" /> Quiz starten
           </button>
+          <.enrollment_toggle :if={!@game.enrollment_locked} game={@game} class="btn-lg text-base-100" />
+          <.enrollment_toggle :if={@game.enrollment_locked} game={@game} class="btn-lg" />
           <button
             :if={Game.intro?(@game)}
             type="button"
@@ -159,6 +167,8 @@ defmodule QuizWeb.RunLive.Host do
                sends the room back one question (disabled on the first) so teams can
                re-see and re-enter what they submitted. --%>
           <div :if={@game.status == :running} class="flex items-center gap-2 shrink-0">
+            <.enrollment_toggle game={@game} compact />
+
             <button
               type="button"
               phx-click="retreat"
@@ -377,6 +387,40 @@ defmodule QuizWeb.RunLive.Host do
     """
   end
 
+  # Operator lever to stop / resume new enrollments (see `Play.enroll/2`). Shown
+  # in both the lobby and the running header; `compact` renders it icon-only for
+  # the tight running toolbar. The colour flips to `btn-warning` while locked so
+  # the current state is obvious at a glance, and the label states the *action*.
+  attr :game, Game, required: true
+  attr :compact, :boolean, default: false
+  attr :class, :string, default: nil
+
+  defp enrollment_toggle(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click="toggle_enrollment"
+      title={
+        if @game.enrollment_locked,
+          do: "Anmeldung wieder öffnen",
+          else: "Keine neuen Teams mehr zulassen"
+      }
+      aria-label={if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"}
+      class={[
+        "btn",
+        if(@game.enrollment_locked, do: "btn-warning", else: "btn-ghost"),
+        @compact && "btn-circle",
+        @class
+      ]}
+    >
+      <.icon name={if @game.enrollment_locked, do: "hero-lock-closed", else: "hero-lock-open"} />
+      <span :if={!@compact}>
+        {if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"}
+      </span>
+    </button>
+    """
+  end
+
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     game = Games.get_game!(socket.assigns.current_scope, id)
@@ -439,6 +483,22 @@ defmodule QuizWeb.RunLive.Host do
 
   def handle_event("toggle_stats", _params, socket) do
     {:noreply, update(socket, :show_stats, &(!&1))}
+  end
+
+  def handle_event("toggle_enrollment", _params, socket) do
+    game = socket.assigns.game
+
+    case Play.set_enrollment_locked(
+           socket.assigns.current_scope,
+           game,
+           !game.enrollment_locked
+         ) do
+      {:ok, game} ->
+        {:noreply, assign(socket, :game, game)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Die Anmeldung konnte nicht umgeschaltet werden.")}
+    end
   end
 
   def handle_event("remove_participant", %{"id" => id}, socket) do

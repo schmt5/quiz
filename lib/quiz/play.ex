@@ -222,7 +222,12 @@ defmodule Quiz.Play do
   is currently connected. The signed token in the browser's `localStorage` is
   the *only* way back into an existing team (`restore_participant/2`) — a team
   that loses it must join under a new name.
+
+  Returns `{:error, :enrollment_locked}` when the operator has closed the doors
+  via `set_enrollment_locked/3`, regardless of the run's status.
   """
+  def enroll(%Game{enrollment_locked: true}, _name), do: {:error, :enrollment_locked}
+
   def enroll(%Game{status: status} = game, name) when status in @joinable do
     trimmed = name |> to_string() |> String.trim()
 
@@ -299,6 +304,29 @@ defmodule Quiz.Play do
 
     if count == 1, do: broadcast(game, {:participant_removed, participant})
     {:ok, participant}
+  end
+
+  @doc """
+  Opens or closes the run's doors to *new* enrollments. Operator only.
+
+  This is the manual capacity lever: with a large crowd all joining at once,
+  the operator watches the live team count and flips this to stop growth (e.g.
+  to protect performance) without ending the run. It is intentionally not tied
+  to the `:open`/`:running` status — both accept teams — so it works in either.
+
+  Already-enrolled teams keep playing; only `enroll/2` consults the flag, and it
+  re-reads the game from the DB on every join, so the lock takes effect at once
+  without any real-time notification. Deliberately does *not* broadcast: the
+  acting host updates its own copy from the return value, and waking every
+  connected team's LiveView would cost a needless re-render each for a change
+  they never see — the opposite of what this performance lever is for.
+  """
+  def set_enrollment_locked(%Scope{} = scope, %Game{} = game, locked) when is_boolean(locked) do
+    true = game.user_id == scope.user.id
+
+    game
+    |> Ecto.Changeset.change(enrollment_locked: locked)
+    |> Repo.update()
   end
 
   defp sign_token(%Participant{id: id}) do

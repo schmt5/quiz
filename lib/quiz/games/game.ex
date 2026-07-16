@@ -39,6 +39,13 @@ defmodule Quiz.Games.Game do
     field :grading_published, :boolean, default: false
     field :show_statistics, :boolean, default: false
 
+    # When true, the run rejects *new* enrollments regardless of status — the
+    # operator's manual "close the doors" lever (see `Quiz.Play.enroll/2` and
+    # `set_enrollment_locked/3`). Existing teams are unaffected. Deliberately
+    # not part of the status state machine: locking is orthogonal to whether the
+    # quiz is `:open` or `:running`, both of which otherwise accept teams.
+    field :enrollment_locked, :boolean, default: false
+
     # When the solution/stats review happens: `:end` (after the whole run, via the
     # Review walkthrough) or `:per_question` (the host reveals each question inline
     # during the run before advancing). `revealing` is the runtime sub-phase of

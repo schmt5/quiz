@@ -79,6 +79,40 @@ defmodule QuizWeb.RunLive.HostTest do
     end
   end
 
+  describe "locking enrollment from the lobby" do
+    test "the toggle closes and re-opens the doors, flipping label and DB flag",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
+      assert html =~ "Anmeldung sperren"
+      refute html =~ "Anmeldung gesperrt"
+
+      # Lock it.
+      html = lv |> element("button[phx-click=toggle_enrollment]") |> render_click()
+      assert html =~ "Anmeldung gesperrt"
+      assert html =~ "Anmeldung öffnen"
+      assert Quiz.Repo.reload(game).enrollment_locked
+
+      # And back open.
+      html = lv |> element("button[phx-click=toggle_enrollment]") |> render_click()
+      assert html =~ "Anmeldung sperren"
+      refute html =~ "Anmeldung gesperrt"
+      refute Quiz.Repo.reload(game).enrollment_locked
+    end
+
+    test "the toggle is available during a running quiz too", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
+      {:ok, running} = Play.start_run(scope, game)
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
+
+      lv |> element("button[phx-click=toggle_enrollment]") |> render_click()
+      assert Quiz.Repo.reload(running).enrollment_locked
+    end
+  end
+
   describe "intro & outro modals" do
     test "the lobby offers the intro modal when intro content exists",
          %{conn: conn, scope: scope} do

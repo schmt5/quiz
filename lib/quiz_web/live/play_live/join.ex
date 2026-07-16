@@ -211,6 +211,16 @@ defmodule QuizWeb.PlayLive.Join do
       {:error, :not_joinable} ->
         {:noreply, assign(socket, :error, "Dieses Quiz nimmt gerade keine neuen Teams auf.")}
 
+      # The operator has manually closed the doors (capacity/performance). The
+      # PIN is right — the field stays as-is, editing it wouldn't help.
+      {:error, :enrollment_locked} ->
+        {:noreply,
+         assign(
+           socket,
+           :error,
+           "Die Anmeldung für dieses Quiz ist geschlossen – es werden keine neuen Teams mehr zugelassen."
+         )}
+
       # Names are first come, first serve — only the stored token gets a team
       # back in, never retyping the name.
       {:error, :name_taken} ->

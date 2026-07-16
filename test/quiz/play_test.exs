@@ -163,6 +163,29 @@ defmodule Quiz.PlayTest do
       assert {:error, :not_joinable} = Play.enroll(game, "Too Late")
     end
 
+    test "rejects enrollment once the operator has locked it, in :open and :running" do
+      scope = user_scope_fixture()
+
+      for status <- [:open, :running] do
+        game = game_fixture(scope, %{status: status})
+        {:ok, locked} = Play.set_enrollment_locked(scope, game, true)
+
+        assert {:error, :enrollment_locked} = Play.enroll(locked, "Denied")
+        assert [] = Play.list_participants(locked)
+      end
+    end
+
+    test "re-opening enrollment lets teams join again" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+
+      {:ok, locked} = Play.set_enrollment_locked(scope, game, true)
+      assert {:error, :enrollment_locked} = Play.enroll(locked, "First")
+
+      {:ok, reopened} = Play.set_enrollment_locked(scope, locked, false)
+      assert {:ok, %Participant{}, _token} = Play.enroll(reopened, "First")
+    end
+
     test "enrolling with an existing team name is refused" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :open})
@@ -197,6 +220,32 @@ defmodule Quiz.PlayTest do
       game = game_fixture(scope, %{status: :open})
 
       assert {:error, :invalid} = Play.restore_participant(game, "not-a-token")
+    end
+  end
+
+  describe "set_enrollment_locked/3" do
+    test "toggles the flag without broadcasting to connected teams" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      Play.subscribe(game)
+
+      assert {:ok, %{enrollment_locked: true} = locked} =
+               Play.set_enrollment_locked(scope, game, true)
+
+      assert {:ok, %{enrollment_locked: false}} =
+               Play.set_enrollment_locked(scope, locked, false)
+
+      # No real-time fan-out: enforcement is a DB re-read in enroll/2, so waking
+      # every team's LiveView would be pure waste.
+      refute_received {:status_changed, _}
+    end
+
+    test "refuses a game owned by another user" do
+      scope = user_scope_fixture()
+      other = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+
+      assert_raise MatchError, fn -> Play.set_enrollment_locked(other, game, true) end
     end
   end
 
