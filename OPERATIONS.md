@@ -131,6 +131,14 @@ fly machine list --app upg-airy-water-745
 fly secrets list --app along-quiz       # DATABASE_URL etc. (values hidden)
 ```
 
+## Gotchas
+
+- **You cannot `fly deploy` while Postgres is stopped.** The `release_command`
+  (`/app/bin/migrate`) runs DB migrations and will fail with
+  `Postgrex.Protocol ... failed to connect: tcp recv (idle): closed`, aborting
+  the release. **Always start Postgres first, then deploy.** If you only want to
+  resize the web VM without a deploy, use `fly scale vm` instead (no migration runs).
+
 ## Notes
 
 - While Postgres is stopped, the web app will error on any DB access — expected in idle mode.
