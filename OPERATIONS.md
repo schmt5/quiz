@@ -3,8 +3,9 @@
 How to scale the quiz down between events and bring it back up for the next one.
 
 - **Web app:** `along-quiz` on Fly.io (this repo, configured via `fly.toml`), region `fra`
-- **Database:** **Neon** serverless Postgres — project `<neon-project-name>`, region
-  AWS `eu-central-1` (Frankfurt). Managed in the [Neon console](https://console.neon.tech),
+- **Database:** **Neon** serverless Postgres 18 — project `quiz`, database `neondb`,
+  endpoint `ep-dry-pine-b2qq9i49.c-6.eu-central-1.aws.neon.tech`, region AWS
+  `eu-central-1` (Frankfurt). Managed in the [Neon console](https://console.neon.tech),
   no config in this repo. The connection string lives in the `DATABASE_URL` Fly secret.
 - **Uploads:** Cloudflare R2 (`R2_*` secrets), independent of both.
 
