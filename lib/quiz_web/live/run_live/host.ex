@@ -84,7 +84,11 @@ defmodule QuizWeb.RunLive.Host do
           >
             <.icon name="hero-play" /> Quiz starten
           </button>
-          <.enrollment_toggle :if={!@game.enrollment_locked} game={@game} class="btn-lg text-base-100" />
+          <.enrollment_toggle
+            :if={!@game.enrollment_locked}
+            game={@game}
+            class="btn-lg text-base-100"
+          />
           <.enrollment_toggle :if={@game.enrollment_locked} game={@game} class="btn-lg" />
           <button
             :if={Game.intro?(@game)}
