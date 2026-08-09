@@ -26,7 +26,7 @@ Production configuration is read at runtime from environment variables
 
 | Variable | Description |
 | --- | --- |
-| `DATABASE_URL` | Postgres URL, e.g. `ecto://USER:PASS@HOST/DATABASE` |
+| `DATABASE_URL` | Postgres URL, e.g. `postgresql://USER:PASS@HOST/DATABASE`. Production runs on [Neon](https://neon.com) — use the **direct** (unpooled) endpoint. TLS is enabled unconditionally in `config/runtime.exs`; a `?sslmode=…` query is ignored by Postgrex, so leave it off. |
 | `SECRET_KEY_BASE` | Cookie/secret signing key — generate with `mix phx.gen.secret` |
 | `PHX_HOST` | Public hostname; used for generated URLs and the QR join link |
 | `PHX_SERVER` | Set to `true` to start the HTTP endpoint under a release |
@@ -36,8 +36,8 @@ Production configuration is read at runtime from environment variables
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `4000` | HTTP listen port |
-| `POOL_SIZE` | `10` | Database connection pool size |
-| `ECTO_IPV6` | — | Set to `true`/`1` to connect to the database over IPv6 |
+| `POOL_SIZE` | `20` | Database connection pool size (per machine — Neon's compute has a `max_connections` ceiling) |
+| `ECTO_IPV6` | — | Set to `true`/`1` to connect to the database over IPv6. Not set in production: Neon's endpoint is IPv4. |
 | `DNS_CLUSTER_QUERY` | — | DNS query for clustering nodes |
 
 ### Object storage (uploads)

@@ -56,9 +56,14 @@ if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :quiz, Quiz.Repo,
-    # ssl: true,
     url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "50"),
+    # Neon requires TLS. Postgrex >= 0.18 verifies the server certificate: `ssl: true`
+    # expands to the OS CA store (`:public_key.cacerts_get()`), `verify: :verify_peer`
+    # and the https hostname check, and derives SNI from the hostname — which is how
+    # Neon routes to the right endpoint. Note that `sslmode=require` in the URL query
+    # is ignored by Postgrex, so this key is what actually enables TLS.
+    ssl: true,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "20"),
     # For machines with several cores, consider starting multiple pools of `pool_size`
     # pool_count: 4,
     socket_options: maybe_ipv6

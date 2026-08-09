@@ -16,7 +16,6 @@ kill_signal = 'SIGTERM'
   # Canonical host: drives generated URLs (join QR code, "go to <host>" text).
   # WebSocket origins are covered separately by check_origin in runtime.exs.
   PHX_HOST = 'waerweiss.ch'
-  ECTO_IPV6 = "true"
   PORT = '8080'
 
 [http_service]

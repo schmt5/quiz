@@ -5,16 +5,17 @@ Do this **shortly before** the event and scale back down afterwards.
 
 ## TL;DR
 
-Run **one bigger, always-on app machine**. Don't touch Postgres — it's already
-oversized for this. The single-machine setup avoids a PubSub bug (see below).
+Run **one bigger, always-on app machine**. Check that Neon's compute can scale up
+(autoscaling max ≥ 2 CU) and wake it before players arrive. The single-machine
+setup avoids a PubSub bug (see below).
 
 ## Current state (for reference)
 
 | Component | What's deployed | Notes |
 |---|---|---|
 | App `along-quiz` | 2× `shared-cpu-1x` / 1 GB, both auto-stopped | `min_machines_running = 0` → cold start |
-| DB `upg-airy-water-745` | 3-node Postgres Flex (1 primary + 2 replicas), `shared-cpu-2x` / 4 GB each | Already plenty — **do not scale up** |
-| DB pool | `POOL_SIZE` default now **50** (`config/runtime.exs`) | Was 10; hard-coded to 50 |
+| DB | **Neon** (serverless Postgres, AWS `eu-central-1`), direct/unpooled endpoint | Autosuspends when idle; scales compute on demand. Check the autoscaling **max** is ≥ 2 CU. |
+| DB pool | `POOL_SIZE` default **20** (`config/runtime.exs`), per machine | Bounded by Neon's `max_connections` (~112 at 0.25 CU, ~450 at 1 CU) |
 
 ## Why one big machine, not two small ones
 
@@ -78,11 +79,18 @@ constraint is CPU during render/diff bursts, which the dedicated-CPU VM covers.
    ```
    Then redeploy (or `fly deploy`) to apply the `fly.toml` change.
 
-4. **Confirm `POOL_SIZE` = 50** (already the default in `config/runtime.exs`).
-   No action needed unless a `POOL_SIZE` secret/env overrides it — check with:
+4. **Check the DB pool and Neon's headroom.** `POOL_SIZE` defaults to 20
+   (`config/runtime.exs`); a `POOL_SIZE` secret overrides it — check with:
    ```sh
    fly secrets list -a along-quiz
    ```
+   In the Neon console, confirm the autoscaling **max** is at least 2 CU. Raising
+   `POOL_SIZE` only helps if `max_connections` on the compute allows it — with one
+   pinned app machine, 20–50 connections is well within budget even at 0.25 CU.
+
+5. **Wake the database** so the first player doesn't pay the cold-start. Neon
+   autosuspends after a few minutes idle; the first connection takes ~1–3 s. Just
+   loading the app once before the event is enough.
 
 ## Verify before players arrive
 
@@ -119,7 +127,7 @@ mix quiz.load --participants 300 --mode jitter --spread 3000 --subscribers
 ```
 
 For **real numbers, run it on the production machine** (your laptop's Postgres ≠
-Fly's). The core lives in `Quiz.LoadTest` (Mix-free, like `Quiz.Release`) so it
+Neon over the network). The core lives in `Quiz.LoadTest` (Mix-free, like `Quiz.Release`) so it
 works inside the release:
 
 ```sh
@@ -136,9 +144,10 @@ How the prod run behaves:
   separate BEAM process on the same machine (no web server; `PHX_SERVER` is
   unset) that runs the test and **exits by itself** when done. Nothing to clean
   up afterwards.
-- That second process opens its **own DB pool (50 connections)**, so Postgres
-  sees ~100 connections during the test (web app + test). Expected — don't be
-  alarmed in monitoring.
+- That second process opens its **own DB pool** of `POOL_SIZE` connections, so
+  Neon sees roughly double the usual connection count during the test (web app +
+  test). Expected — don't be alarmed in monitoring, but keep
+  `2 × POOL_SIZE` comfortably under the compute's `max_connections`.
 - **Results print to stdout of the SSH session**: one line per phase (JOIN,
   Q1/N answers … with wall time, ok/err counts, latency p50/p95/max), then the
   DB-pool block. Watch `/admin/dashboard` (LiveDashboard) in the browser at the
