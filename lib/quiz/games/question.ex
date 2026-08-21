@@ -13,6 +13,7 @@ defmodule Quiz.Games.Question do
     field :media_image_key, :string
     field :media_video_key, :string
     field :solution_image_key, :string
+    field :solution_video_key, :string
     field :solution_text, :string
     field :position, :integer
     embeds_one :data, Data, on_replace: :update
@@ -46,13 +47,15 @@ defmodule Quiz.Games.Question do
         :media_image_key,
         :media_video_key,
         :solution_image_key,
+        :solution_video_key,
         :solution_text,
         :position,
         :game_id
       ])
       |> validate_required(required_fields(mode))
       |> update_change(:description, &Quiz.HTML.sanitize_description/1)
-      |> resolve_media_exclusivity()
+      |> resolve_media_exclusivity(:media_image_key, :media_video_key)
+      |> resolve_media_exclusivity(:solution_image_key, :solution_video_key)
       |> maybe_reset_data_on_type_change()
 
     type = get_field(changeset, :type)
@@ -169,24 +172,25 @@ defmodule Quiz.Games.Question do
     |> put_change(:user_id, user_scope.user.id)
   end
 
-  # A question carries either an image or a video, never both. Whichever medium
+  # A medium slot carries either an image or a video, never both. Whichever one
   # was set in this cast wins and clears the other; only setting both at once is
   # an error. This runs in `:draft` mode too — media is optional, but a conflict
-  # is structural, not incompleteness.
-  defp resolve_media_exclusivity(changeset) do
-    image = fetch_change(changeset, :media_image_key)
-    video = fetch_change(changeset, :media_video_key)
+  # is structural, not incompleteness. Applied to both slots: the question's own
+  # media and the solution explanation.
+  defp resolve_media_exclusivity(changeset, image_field, video_field) do
+    image = fetch_change(changeset, image_field)
+    video = fetch_change(changeset, video_field)
 
     cond do
       match?({:ok, value} when not is_nil(value), image) and
           match?({:ok, value} when not is_nil(value), video) ->
-        add_error(changeset, :media_video_key, "Bild oder Video – nicht beides")
+        add_error(changeset, video_field, "Bild oder Video – nicht beides")
 
       match?({:ok, value} when not is_nil(value), image) ->
-        put_change(changeset, :media_video_key, nil)
+        put_change(changeset, video_field, nil)
 
       match?({:ok, value} when not is_nil(value), video) ->
-        put_change(changeset, :media_image_key, nil)
+        put_change(changeset, image_field, nil)
 
       true ->
         changeset

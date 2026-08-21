@@ -254,6 +254,7 @@ defmodule Quiz.Games do
           media_image_key: question.media_image_key,
           media_video_key: question.media_video_key,
           solution_image_key: question.solution_image_key,
+          solution_video_key: question.solution_video_key,
           solution_text: question.solution_text,
           game_id: copy.id,
           user_id: scope.user.id

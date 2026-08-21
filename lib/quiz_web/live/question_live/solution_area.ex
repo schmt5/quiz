@@ -160,15 +160,18 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
 
   @doc """
   Optional author-provided explanation of the solution (free text and/or an
-  image), rendered right below `solution_area/1` on the presenter screens.
-  Renders nothing when the question has neither.
+  image or a video), rendered right below `solution_area/1` on the presenter
+  screens. Renders nothing when the question has none of them.
   """
   attr :question, :map, required: true
 
   def solution_explanation(assigns) do
     ~H"""
     <div
-      :if={@question.solution_image_key || @question.solution_text not in [nil, ""]}
+      :if={
+        @question.solution_image_key || @question.solution_video_key ||
+          @question.solution_text not in [nil, ""]
+      }
       class="space-y-2"
     >
       <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
@@ -188,6 +191,16 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
         alt="Bild zur Lösungserklärung"
         class="max-h-96 w-auto rounded-box object-contain"
       />
+      <%!-- preload="none": the clip is only fetched once the host presses play. --%>
+      <video
+        :if={@question.solution_video_key}
+        src={Quiz.Storage.url(@question.solution_video_key)}
+        controls
+        preload="none"
+        playsinline
+        class="max-h-96 w-auto rounded-box bg-black"
+      >
+      </video>
     </div>
     """
   end

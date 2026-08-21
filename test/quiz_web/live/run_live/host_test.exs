@@ -285,4 +285,75 @@ defmodule QuizWeb.RunLive.HostTest do
       assert html =~ "Statistik einblenden"
     end
   end
+
+  describe "solution explanation (revealing)" do
+    setup %{scope: scope} do
+      game =
+        game_fixture(scope, %{status: :open, review_mode: :per_question})
+
+      %{game: game}
+    end
+
+    defp reveal_with_explanation(conn, scope, game, explanation_attrs) do
+      question_fixture(
+        scope,
+        Map.merge(
+          %{
+            game_id: game.id,
+            position: 1,
+            type: :text_input,
+            prompt: "Hauptstadt von Frankreich?"
+          },
+          explanation_attrs
+        )
+      )
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
+
+      lv |> element("button", "Auswerten") |> render_click()
+    end
+
+    test "an explanation image and text are shown on reveal", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      html =
+        reveal_with_explanation(conn, scope, game, %{
+          solution_text: "Seit 987 die Hauptstadt.",
+          solution_image_key: "uploads/1/erklaerung.png"
+        })
+
+      assert html =~ "Erklärung"
+      assert html =~ "Seit 987 die Hauptstadt."
+      assert html =~ Quiz.Storage.url("uploads/1/erklaerung.png")
+    end
+
+    test "an explanation video is shown on reveal, without autoplay", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      html =
+        reveal_with_explanation(conn, scope, game, %{
+          solution_video_key: "uploads/1/erklaerung.mp4"
+        })
+
+      assert html =~ "Erklärung"
+      assert html =~ ~s|src="#{Quiz.Storage.url("uploads/1/erklaerung.mp4")}"|
+      assert html =~ ~s|preload="none"|
+      refute html =~ "autoplay"
+    end
+
+    test "nothing is rendered when the question has no explanation", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      html = reveal_with_explanation(conn, scope, game, %{})
+
+      refute html =~ "Erklärung"
+    end
+  end
 end

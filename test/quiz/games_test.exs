@@ -303,6 +303,27 @@ defmodule Quiz.GamesTest do
       assert c1.solution_image_key == "uploads/messi.jpg"
     end
 
+    test "duplicate_game/2 copies a solution explanation video key" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        type: :text_input,
+        prompt: "Welcher Knoten?",
+        solution_text: "Im Video ab Sekunde 5 zu sehen.",
+        solution_video_key: "uploads/1/knoten.mp4",
+        data: %{solutions: [%{text: "Palstek"}]}
+      })
+
+      assert {:ok, copy} = Games.duplicate_game(scope, game)
+
+      [c1] = Games.list_questions_for_game(scope, copy)
+      assert c1.solution_text == "Im Video ab Sekunde 5 zu sehen."
+      assert c1.solution_video_key == "uploads/1/knoten.mp4"
+    end
+
     test "duplicate_game/2 copies intro/outro content (text and image keys)" do
       scope = user_scope_fixture()
 
@@ -1211,6 +1232,105 @@ defmodule Quiz.GamesTest do
 
       assert updated.type == :text_input
       assert updated.media_image_key == "uploads/x"
+    end
+  end
+
+  describe "solution explanation media (image or video)" do
+    alias Quiz.Games.Question
+
+    import Quiz.AccountsFixtures, only: [user_scope_fixture: 0]
+    import Quiz.GamesFixtures
+
+    @solution_video_key "uploads/1/erklaerung.mp4"
+
+    test "an uploaded solution video key persists alongside the explanation text" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{
+                 solution_text: "Siehe Video",
+                 solution_video_key: @solution_video_key
+               })
+
+      assert updated.solution_video_key == @solution_video_key
+      assert updated.solution_text == "Siehe Video"
+      assert updated.solution_image_key == nil
+    end
+
+    test "setting a solution video clears an existing solution image" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      {:ok, question} =
+        Games.update_question(scope, question, %{solution_image_key: "uploads/1/bild.png"})
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{solution_video_key: @solution_video_key})
+
+      assert updated.solution_video_key == @solution_video_key
+      assert updated.solution_image_key == nil
+    end
+
+    test "setting a solution image clears an existing solution video" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      {:ok, question} =
+        Games.update_question(scope, question, %{solution_video_key: @solution_video_key})
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{solution_image_key: "uploads/1/bild.png"})
+
+      assert updated.solution_image_key == "uploads/1/bild.png"
+      assert updated.solution_video_key == nil
+    end
+
+    test "setting both solution media in one update is an error" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Games.update_question(scope, question, %{
+                 solution_image_key: "uploads/1/bild.png",
+                 solution_video_key: @solution_video_key
+               })
+
+      assert %{solution_video_key: ["Bild oder Video – nicht beides"]} = errors_on(changeset)
+    end
+
+    test "the question's own media is unaffected by the solution media" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      {:ok, question} =
+        Games.update_question(scope, question, %{media_image_key: "uploads/1/frage.png"})
+
+      assert {:ok, %Question{} = updated} =
+               Games.update_question(scope, question, %{solution_video_key: @solution_video_key})
+
+      assert updated.media_image_key == "uploads/1/frage.png"
+      assert updated.solution_video_key == @solution_video_key
+    end
+
+    test "removing the solution video by submitting an empty value clears it" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      {:ok, question} =
+        Games.update_question(scope, question, %{solution_video_key: @solution_video_key})
+
+      assert {:ok, %Question{solution_video_key: nil}} =
+               Games.update_question(scope, question, %{"solution_video_key" => ""})
+    end
+
+    test "the solution explanation stays optional: a question without it is ready" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope)
+
+      assert question.solution_image_key == nil
+      assert question.solution_video_key == nil
+      assert Question.ready?(question)
     end
   end
 end
