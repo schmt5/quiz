@@ -271,6 +271,7 @@ defmodule QuizWeb.GameLive.Show do
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp humanize_type(:single_choice), do: "Single-Choice"
+  defp humanize_type(:multiple_choice), do: "Multiple-Choice"
   defp humanize_type(:text_input), do: "Texteingabe"
   defp humanize_type(:sequence), do: "Reihenfolge"
   defp humanize_type(:number_range), do: "Zahlenschätzung"

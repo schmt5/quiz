@@ -1,5 +1,5 @@
-## End-to-end playtest seed: one confirmed moderator + a game with all five
-## question types, opened and started so a run is live immediately.
+## End-to-end playtest seed: one confirmed moderator + a game with a question of
+## each type, opened and started so a run is live immediately.
 ##
 ##   mix run priv/repo/playtest_seed.exs
 ##
@@ -36,15 +36,28 @@ questions = [
     data: %{choices: [%{text: "Blau", correct: true}, %{text: "Grün", correct: false}]}
   },
   %{
+    type: :multiple_choice,
+    prompt: "Welche dieser Städte liegen in Europa?",
+    position: 3,
+    data: %{
+      choices: [
+        %{text: "Lissabon", correct: true},
+        %{text: "Oslo", correct: true},
+        %{text: "Kairo", correct: false},
+        %{text: "Lima", correct: false}
+      ]
+    }
+  },
+  %{
     type: :sequence,
     prompt: "Sortiere chronologisch (älteste zuerst)",
-    position: 3,
+    position: 4,
     data: %{items: [%{text: "Antike"}, %{text: "Mittelalter"}, %{text: "Neuzeit"}]}
   },
   %{
     type: :matching,
     prompt: "Ordne Land und Hauptstadt zu",
-    position: 4,
+    position: 5,
     data: %{
       pairs: [
         %{left_text: "Frankreich", right_text: "Paris"},
@@ -56,7 +69,7 @@ questions = [
   %{
     type: :pin_on_image,
     prompt: "Markiere die Mitte des Bildes",
-    position: 5,
+    position: 6,
     data: %{
       pin: %{
         image_key: "uploads/test/fixture.png",

@@ -411,6 +411,33 @@ defmodule Quiz.PlayTest do
       assert Play.count_answers(game, 1) == 1
     end
 
+    test "stores a multiple-choice answer as a sorted list of indices" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :running})
+
+      question =
+        question_fixture(scope, %{game_id: game.id, position: 1, type: :multiple_choice})
+
+      {:ok, participant, _t} = Play.enroll(game, "Team A")
+
+      assert {:ok, %Answer{grade: :full, payload: %{"value" => [0, 1]}}} =
+               Play.submit_answer(game, participant, question, %{"answer" => ["1", "0"]})
+    end
+
+    test "a multiple-choice submission without any tick stores an empty list" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :running})
+
+      question =
+        question_fixture(scope, %{game_id: game.id, position: 1, type: :multiple_choice})
+
+      {:ok, participant, _t} = Play.enroll(game, "Team A")
+
+      # An unticked checkbox group posts no `answer` key at all.
+      assert {:ok, %Answer{grade: :zero, payload: %{"value" => []}}} =
+               Play.submit_answer(game, participant, question, %{})
+    end
+
     test "resubmitting upserts the same row (latest wins)" do
       scope = user_scope_fixture()
       game = game_fixture(scope, %{status: :running})
@@ -466,6 +493,30 @@ defmodule Quiz.PlayTest do
       assert Play.auto_grade(q, %{p1 => r1, p2 => r2, p3 => r3}) == :full
       assert Play.auto_grade(q, %{p1 => r1, p2 => r2, p3 => "wrong"}) == :half
       assert Play.auto_grade(q, %{p1 => "x", p2 => "y", p3 => "z"}) == :zero
+    end
+  end
+
+  describe "auto_grade/2 for multiple_choice" do
+    setup do
+      scope = user_scope_fixture()
+      # choices: A correct, B correct, C incorrect
+      %{q: question_fixture(scope, %{type: :multiple_choice, position: 1})}
+    end
+
+    test "every correct option and nothing else earns full", %{q: q} do
+      assert Play.auto_grade(q, [0, 1]) == :full
+    end
+
+    test "a partial selection earns half", %{q: q} do
+      assert Play.auto_grade(q, [0]) == :half
+      # one hit more than the single wrong pick
+      assert Play.auto_grade(q, [0, 1, 2]) == :half
+    end
+
+    test "as many wrong picks as hits earns zero", %{q: q} do
+      assert Play.auto_grade(q, [0, 2]) == :zero
+      assert Play.auto_grade(q, [2]) == :zero
+      assert Play.auto_grade(q, []) == :zero
     end
   end
 

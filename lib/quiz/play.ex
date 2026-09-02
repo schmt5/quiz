@@ -373,10 +373,12 @@ defmodule Quiz.Play do
   end
 
   @doc """
-  The automatic verdict for an answer: `:matching` earns `:half` for a partial
-  match, otherwise `:full`/`:zero` from `Question.correct_answer?/2`.
+  The automatic verdict for an answer: `:matching` and `:multiple_choice` earn
+  `:half` for a partial match, otherwise `:full`/`:zero` from
+  `Question.correct_answer?/2`.
   """
-  def auto_grade(%Question{type: :matching} = question, canonical) do
+  def auto_grade(%Question{type: type} = question, canonical)
+      when type in [:matching, :multiple_choice] do
     case Question.score_answer(question, canonical) do
       {n, total} when total > 0 and n == total -> :full
       {n, _total} when n > 0 -> :half
@@ -604,6 +606,27 @@ defmodule Quiz.Play do
 
       _ ->
         nil
+    end
+  end
+
+  # Checkboxes post as `answer[]`, so the value is a list of strings — or absent
+  # entirely when nothing was ticked.
+  defp canonicalize(%Question{type: :multiple_choice}, params) do
+    case params["answer"] do
+      values when is_list(values) ->
+        values
+        |> Enum.map(fn v ->
+          case v |> to_string() |> Integer.parse() do
+            {i, _} when i >= 0 -> i
+            _ -> nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+        |> Enum.sort()
+
+      _ ->
+        []
     end
   end
 

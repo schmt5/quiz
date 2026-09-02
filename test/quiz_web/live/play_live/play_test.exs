@@ -135,6 +135,77 @@ defmodule QuizWeb.PlayLive.PlayTest do
     end
   end
 
+  describe "multiple choice answers" do
+    setup do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+
+      # choices: A correct, B correct, C incorrect
+      question =
+        question_fixture(scope, %{game_id: game.id, position: 1, type: :multiple_choice})
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, participant, token} = Play.enroll(running, "Team A")
+
+      %{game: running, question: question, participant: participant, token: token}
+    end
+
+    test "the answer area offers checkboxes and says several answers are possible",
+         %{conn: conn, game: game, token: token} do
+      html = conn |> connect_and_restore(game, token) |> render()
+
+      assert html =~ "Mehrere Antworten möglich"
+      assert html =~ ~s|type="checkbox"|
+      assert html =~ ~s|name="answer[]"|
+    end
+
+    test "ticking every correct option and nothing else earns full credit",
+         %{conn: conn, game: game, question: question, participant: participant, token: token} do
+      lv = connect_and_restore(conn, game, token)
+
+      lv
+      |> form("form[phx-submit=answer_submit]")
+      |> render_submit(%{"answer" => ["0", "1"]})
+
+      assert Play.get_answer(participant, question).grade == :full
+    end
+
+    test "ticking only part of the correct options earns half credit",
+         %{conn: conn, game: game, question: question, participant: participant, token: token} do
+      lv = connect_and_restore(conn, game, token)
+
+      lv
+      |> form("form[phx-submit=answer_submit]")
+      |> render_submit(%{"answer" => ["0"]})
+
+      assert Play.get_answer(participant, question).grade == :half
+    end
+
+    test "one correct plus one wrong tick earns nothing",
+         %{conn: conn, game: game, question: question, participant: participant, token: token} do
+      lv = connect_and_restore(conn, game, token)
+
+      lv
+      |> form("form[phx-submit=answer_submit]")
+      |> render_submit(%{"answer" => ["0", "2"]})
+
+      assert Play.get_answer(participant, question).grade == :zero
+    end
+
+    test "the submitted summary lists every picked option",
+         %{conn: conn, game: game, token: token} do
+      lv = connect_and_restore(conn, game, token)
+
+      html =
+        lv
+        |> form("form[phx-submit=answer_submit]")
+        |> render_submit(%{"answer" => ["0", "1"]})
+
+      assert html =~ "A"
+      assert html =~ "B"
+    end
+  end
+
   describe "question media" do
     defp start_running_game(media_attrs) do
       scope = user_scope_fixture()

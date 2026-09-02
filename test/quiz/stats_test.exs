@@ -51,6 +51,45 @@ defmodule Quiz.StatsTest do
     end
   end
 
+  describe "multiple_choice" do
+    test "counts every tick per option while answered still counts teams" do
+      scope = user_scope_fixture()
+      game = running_game(scope)
+
+      question =
+        question_fixture(scope, %{
+          game_id: game.id,
+          type: :multiple_choice,
+          data: %{
+            choices: [
+              %{text: "A", correct: true},
+              %{text: "B", correct: true},
+              %{text: "C", correct: false}
+            ]
+          }
+        })
+
+      answer(game, question, "t1", %{"answer" => ["0", "1"]})
+      answer(game, question, "t2", %{"answer" => ["0", "1"]})
+      answer(game, question, "t3", %{"answer" => ["0"]})
+      # Ticking nothing is not an answer.
+      answer(game, question, "t4", %{})
+
+      stats = Stats.question_stats(question, 4)
+
+      assert stats.type == :multiple_choice
+      assert stats.answered == 3
+      assert stats.total == 4
+      assert stats.blank == 1
+
+      assert [%{label: "A", count: 3}, %{label: "B", count: 2}, %{label: "C", count: 0}] =
+               stats.rows
+
+      # Ticks, not teams: the percentages may add up to more than 100.
+      assert Enum.sum(Enum.map(stats.rows, & &1.pct)) > 100
+    end
+  end
+
   describe "text_input" do
     test "groups case-insensitively and labels with the most common spelling" do
       scope = user_scope_fixture()

@@ -7,7 +7,7 @@ defmodule QuizWeb.QuestionLive.Index do
   alias Quiz.Games.Question.Pin
   alias QuizWeb.QuestionLive.AnswerArea
 
-  @valid_types ~w(single_choice text_input sequence pin_on_image matching number_range)
+  @valid_types ~w(single_choice multiple_choice text_input sequence pin_on_image matching number_range)
 
   @run_locked_message "Dieses Quiz ist abgeschlossen – Fragen können nicht mehr bearbeitet werden."
 
@@ -327,6 +327,33 @@ defmodule QuizWeb.QuestionLive.Index do
             </div>
             <div class="flex items-center gap-2">
               <span class="inline-block size-3 rounded-full border border-base-300"></span>
+              <span class="block h-2 w-2/5 rounded bg-base-200"></span>
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          phx-click="create"
+          phx-value-type="multiple_choice"
+          class="group w-full text-left rounded-box border border-base-300 bg-base-100 p-6 hover:border-base-content/40 hover:shadow-sm transition"
+        >
+          <div class="flex items-center justify-center size-9 rounded-md bg-success/20 text-success font-mono font-bold">
+            M
+          </div>
+          <h2 class="mt-4 text-lg font-bold">Multiple-Choice</h2>
+          <p class="text-sm text-base-content/60">Mehrere richtige Antworten</p>
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="inline-block size-3 rounded-sm bg-base-content"></span>
+              <span class="block h-2 w-2/3 rounded bg-base-200"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-block size-3 rounded-sm border border-base-300"></span>
+              <span class="block h-2 w-1/2 rounded bg-base-200"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="inline-block size-3 rounded-sm bg-base-content"></span>
               <span class="block h-2 w-2/5 rounded bg-base-200"></span>
             </div>
           </div>
@@ -932,6 +959,96 @@ defmodule QuizWeb.QuestionLive.Index do
                     },
                   };
                 </script>
+              </fieldset>
+            <% :multiple_choice -> %>
+              <fieldset class="mt-8 space-y-3">
+                <div class="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-base-content/60">
+                  <span>Antwortoptionen · Wähle alle richtigen aus</span>
+                  <span>{choices_summary(@form)}</span>
+                </div>
+
+                <ul id="choices-list" class="space-y-2 list-none p-0">
+                  <.inputs_for :let={c} field={d[:choices]}>
+                    <li
+                      id={"choice-#{c.index}"}
+                      class={[
+                        "choice-row group flex items-center gap-2 rounded-box bg-base-200 px-2 py-2 transition",
+                        choice_correct?(c) && "ring-2 ring-success ring-inset"
+                      ]}
+                    >
+                      <input
+                        type="hidden"
+                        name="question[data][choices_sort][]"
+                        value={c.index}
+                      />
+
+                      <span class={[
+                        "flex items-center justify-center size-8 rounded-md font-mono font-bold text-sm shrink-0",
+                        choice_correct?(c) && "bg-success/20 text-success",
+                        !choice_correct?(c) && "bg-base-100 text-base-content/70"
+                      ]}>
+                        {choice_letter(c.index)}
+                      </span>
+
+                      <input
+                        type="text"
+                        name={c[:text].name}
+                        id={c[:text].id}
+                        value={c[:text].value}
+                        placeholder="Antworttext"
+                        class="flex-1 bg-transparent border-none outline-none focus:ring-0 text-sm py-1"
+                      />
+
+                      <input type="hidden" name={c[:correct].name} value="false" />
+                      <label class={[
+                        "flex items-center gap-2 px-2 cursor-pointer text-xs",
+                        choice_correct?(c) && "text-success font-semibold"
+                      ]}>
+                        <input
+                          type="checkbox"
+                          name={c[:correct].name}
+                          id={c[:correct].id}
+                          value="true"
+                          checked={choice_correct?(c)}
+                          class="peer sr-only"
+                        />
+                        <span class="size-5 rounded border-2 border-base-300 grid place-items-center transition peer-checked:bg-success peer-checked:border-success">
+                          <span class="text-white text-[10px] leading-none opacity-0 peer-checked:opacity-100">
+                            ✓
+                          </span>
+                        </span>
+                        <span :if={choice_correct?(c)}>Richtig</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        name="question[data][choices_drop][]"
+                        value={c.index}
+                        phx-click={JS.dispatch("change")}
+                        class="text-base-content/40 hover:text-error px-2 text-lg leading-none"
+                        aria-label="Option entfernen"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  </.inputs_for>
+                </ul>
+
+                <input type="hidden" name="question[data][choices_drop][]" />
+
+                <button
+                  type="button"
+                  name="question[data][choices_sort][]"
+                  value="new"
+                  phx-click={JS.dispatch("change")}
+                  class="w-full rounded-box border border-dashed border-base-300 px-3 py-3 text-sm text-base-content/70 hover:border-base-content/40 hover:text-base-content transition flex items-center justify-center gap-1"
+                >
+                  <span class="text-base">+</span> Option hinzufügen
+                </button>
+
+                <p :if={choices_error = data_field_error(@form, :choices)} class="text-error text-sm">
+                  {choices_error}
+                </p>
               </fieldset>
             <% :text_input -> %>
               <fieldset class="mt-8 space-y-3">
@@ -2325,6 +2442,7 @@ defmodule QuizWeb.QuestionLive.Index do
   defp selected?(_, _), do: false
 
   defp type_letter(:single_choice), do: "S"
+  defp type_letter(:multiple_choice), do: "M"
   defp type_letter(:text_input), do: "T"
   defp type_letter(:sequence), do: "R"
   defp type_letter(:pin_on_image), do: "P"

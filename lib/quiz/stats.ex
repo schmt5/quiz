@@ -11,6 +11,8 @@ defmodule Quiz.Stats do
 
     * `:single_choice` / `:text_input` — `:rows` of `%{label, count, pct}`,
       most-common first.
+    * `:multiple_choice` — the same `:rows`, but one per option and counted per
+      *tick*, so the percentages can add up to more than 100 %.
     * `:sequence` — `:rows` of distinct orderings (`%{labels, count, pct}`),
       most-common first, with `:more` counting any collapsed tail.
     * `:matching` — `:pairs`, each with the per-left distribution of chosen
@@ -71,6 +73,29 @@ defmodule Quiz.Stats do
 
     answered = counts |> Map.values() |> Enum.sum()
     base(:single_choice, answered, total) |> Map.put(:rows, rows)
+  end
+
+  # Unlike `:single_choice`, a value here is a *list* of indices: an option's count
+  # is how many teams ticked it, while `:answered` still counts teams, not ticks.
+  defp compute(%Question{type: :multiple_choice, data: %{choices: choices}}, values, total) do
+    n = length(choices)
+
+    lists =
+      for v <- values, is_list(v), do: Enum.filter(v, &(is_integer(&1) and &1 >= 0 and &1 < n))
+
+    counts = lists |> List.flatten() |> Enum.frequencies()
+
+    rows =
+      choices
+      |> Enum.with_index()
+      |> Enum.map(fn {choice, i} ->
+        count = Map.get(counts, i, 0)
+        %{label: choice.text, count: count, pct: pct(count, total)}
+      end)
+      |> Enum.sort_by(& &1.count, :desc)
+
+    answered = Enum.count(lists, &(&1 != []))
+    base(:multiple_choice, answered, total) |> Map.put(:rows, rows)
   end
 
   defp compute(%Question{type: :text_input}, values, total) do

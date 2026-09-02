@@ -576,6 +576,100 @@ defmodule Quiz.GamesTest do
       refute Quiz.Games.Question.correct_answer?(q, 99)
     end
 
+    test "create_question/2 with valid multiple_choice data allows several correct choices" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      attrs = %{
+        type: :multiple_choice,
+        prompt: "Which of these are prime?",
+        position: 1,
+        game_id: game.id,
+        data: %{
+          choices: [
+            %{text: "2", correct: true},
+            %{text: "3", correct: true},
+            %{text: "4", correct: false}
+          ]
+        }
+      }
+
+      assert {:ok, %Question{} = question} = Games.create_question(scope, attrs)
+      assert question.type == :multiple_choice
+      assert Enum.map(question.data.choices, & &1.correct) == [true, true, false]
+      assert question.data.solutions == []
+      assert question.data.items == []
+      assert question.data.pairs == []
+      assert is_nil(question.data.pin)
+      assert is_nil(question.data.number_range)
+    end
+
+    test "create_question/2 rejects a multiple_choice without any correct choice" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope)
+
+      attrs = %{
+        type: :multiple_choice,
+        prompt: "?",
+        position: 1,
+        game_id: game.id,
+        data: %{choices: [%{text: "A", correct: false}, %{text: "B", correct: false}]}
+      }
+
+      assert {:error, changeset} = Games.create_question(scope, attrs)
+
+      assert %{data: %{choices: ["mindestens eine Antwort muss richtig sein"]}} =
+               errors_on(changeset)
+    end
+
+    test "update_question/3 switching to multiple_choice clears the other embeds" do
+      scope = user_scope_fixture()
+      question = question_fixture(scope, %{type: :sequence})
+
+      update_attrs = %{
+        type: :multiple_choice,
+        data: %{
+          choices: [
+            %{text: "A", correct: true},
+            %{text: "B", correct: true}
+          ]
+        }
+      }
+
+      assert {:ok, %Question{} = updated} = Games.update_question(scope, question, update_attrs)
+      assert updated.type == :multiple_choice
+      assert updated.data.items == []
+      assert Enum.map(updated.data.choices, & &1.text) == ["A", "B"]
+    end
+
+    test "Question.correct_answer?/2 — multiple_choice needs every correct index and no other" do
+      scope = user_scope_fixture()
+      # choices: A correct, B correct, C incorrect
+      q = question_fixture(scope, %{type: :multiple_choice})
+
+      assert Quiz.Games.Question.correct_answer?(q, [0, 1])
+      # a subset is not enough
+      refute Quiz.Games.Question.correct_answer?(q, [0])
+      # a wrong pick spoils an otherwise complete answer
+      refute Quiz.Games.Question.correct_answer?(q, [0, 1, 2])
+      refute Quiz.Games.Question.correct_answer?(q, [2])
+      refute Quiz.Games.Question.correct_answer?(q, [])
+      refute Quiz.Games.Question.correct_answer?(q, 0)
+    end
+
+    test "Question.score_answer/2 — multiple_choice subtracts wrong picks from hits" do
+      scope = user_scope_fixture()
+      q = question_fixture(scope, %{type: :multiple_choice})
+
+      assert Quiz.Games.Question.score_answer(q, [0, 1]) == {2, 2}
+      assert Quiz.Games.Question.score_answer(q, [0]) == {1, 2}
+      assert Quiz.Games.Question.score_answer(q, [0, 2]) == {0, 2}
+      assert Quiz.Games.Question.score_answer(q, [0, 1, 2]) == {1, 2}
+      assert Quiz.Games.Question.score_answer(q, []) == {0, 2}
+      # duplicate indices must not inflate the score, out-of-range ones are dropped
+      assert Quiz.Games.Question.score_answer(q, [0, 0, 99]) == {1, 2}
+    end
+
     test "Question.correct_answer?/2 — sequence compares ordered item ids" do
       scope = user_scope_fixture()
       q = question_fixture(scope, %{type: :sequence})
@@ -1086,6 +1180,45 @@ defmodule Quiz.GamesTest do
                  ]
                }
              })
+    end
+
+    test "ready?/1 accepts a multiple_choice with several correct answers" do
+      assert Question.ready?(%Question{
+               type: :multiple_choice,
+               prompt: "?",
+               data: %Quiz.Games.Question.Data{
+                 choices: [
+                   %Quiz.Games.Question.Choice{text: "A", correct: true},
+                   %Quiz.Games.Question.Choice{text: "B", correct: true},
+                   %Quiz.Games.Question.Choice{text: "C", correct: false}
+                 ]
+               }
+             })
+    end
+
+    test "ready?/1 is false for a multiple_choice without any correct answer" do
+      refute Question.ready?(%Question{
+               type: :multiple_choice,
+               prompt: "?",
+               data: %Quiz.Games.Question.Data{
+                 choices: [
+                   %Quiz.Games.Question.Choice{text: "A", correct: false},
+                   %Quiz.Games.Question.Choice{text: "B", correct: false}
+                 ]
+               }
+             })
+    end
+
+    test "missing_requirements/1 spells out what a multiple_choice skeleton still needs" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      {:ok, skeleton} = Games.create_question(scope, game, :multiple_choice)
+
+      assert Question.missing_requirements(skeleton) == [
+               "ein Fragetext",
+               "mindestens zwei Antwortmöglichkeiten",
+               "mindestens eine als richtig markierte Antwort"
+             ]
     end
 
     test "ready?/1 is true for a complete question" do

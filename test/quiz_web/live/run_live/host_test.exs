@@ -303,6 +303,51 @@ defmodule QuizWeb.RunLive.HostTest do
     end
   end
 
+  describe "revealing a multiple_choice question" do
+    setup %{scope: scope} do
+      game =
+        game_fixture(scope, %{status: :open, review_mode: :per_question, show_statistics: true})
+
+      question =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 1,
+          type: :multiple_choice,
+          prompt: "Welche dieser Städte liegen in Europa?",
+          data: %{
+            choices: [
+              %{text: "Lissabon", correct: true},
+              %{text: "Oslo", correct: true},
+              %{text: "Kairo", correct: false}
+            ]
+          }
+        })
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, participant, _token} = Play.enroll(running, "Team A")
+
+      {:ok, _answer} =
+        Play.submit_answer(running, participant, question, %{"answer" => ["0", "1"]})
+
+      %{game: running, question: question}
+    end
+
+    test "the solution marks every correct option and the stats note multiple picks",
+         %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      html = lv |> element("button", "Auswerten") |> render_click()
+
+      assert html =~ "Lissabon"
+      assert html =~ "Oslo"
+      assert html =~ "Kairo"
+
+      html = lv |> element("button", "Statistik einblenden") |> render_click()
+
+      assert html =~ "Mehrfachnennungen möglich"
+    end
+  end
+
   describe "solution explanation (revealing)" do
     setup %{scope: scope} do
       game =

@@ -32,8 +32,10 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
     """
   end
 
-  def solution_area(%{question: %{type: :single_choice, data: %{choices: choices}}} = assigns)
-      when choices != [] do
+  # `:single_choice` and `:multiple_choice` reveal identically: correct options in
+  # green, the rest greyed out — the number of green rows is the only difference.
+  def solution_area(%{question: %{type: type, data: %{choices: choices}}} = assigns)
+      when type in [:single_choice, :multiple_choice] and choices != [] do
     ~H"""
     <ul class="space-y-2 list-none p-0">
       <li

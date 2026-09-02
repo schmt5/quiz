@@ -97,6 +97,20 @@ defmodule Quiz.GamesFixtures do
             }
           }
 
+        :multiple_choice ->
+          %{
+            type: :multiple_choice,
+            prompt: "some prompt",
+            position: 42,
+            data: %{
+              choices: [
+                %{text: "A", correct: true},
+                %{text: "B", correct: true},
+                %{text: "C", correct: false}
+              ]
+            }
+          }
+
         :number_range ->
           %{
             type: :number_range,

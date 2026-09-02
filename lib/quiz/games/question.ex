@@ -6,7 +6,15 @@ defmodule Quiz.Games.Question do
 
   schema "questions" do
     field :type, Ecto.Enum,
-      values: [:single_choice, :text_input, :sequence, :pin_on_image, :matching, :number_range]
+      values: [
+        :single_choice,
+        :multiple_choice,
+        :text_input,
+        :sequence,
+        :pin_on_image,
+        :matching,
+        :number_range
+      ]
 
     field :prompt, :string
     field :description, :string
@@ -85,6 +93,10 @@ defmodule Quiz.Games.Question do
     length(choices) >= 2 and Enum.count(choices, & &1.correct) == 1
   end
 
+  def ready?(%__MODULE__{type: :multiple_choice, data: %Data{choices: choices}}) do
+    length(choices) >= 2 and Enum.any?(choices, & &1.correct)
+  end
+
   def ready?(%__MODULE__{type: :text_input, data: %Data{solutions: solutions}}),
     do: solutions != []
 
@@ -126,6 +138,15 @@ defmodule Quiz.Games.Question do
     []
     |> add_if(length(choices) < 2, "mindestens zwei Antwortmöglichkeiten")
     |> add_if(Enum.count(choices, & &1.correct) != 1, "eine als richtig markierte Antwort")
+  end
+
+  defp data_missing(:multiple_choice, %Data{choices: choices}) do
+    []
+    |> add_if(length(choices) < 2, "mindestens zwei Antwortmöglichkeiten")
+    |> add_if(
+      not Enum.any?(choices, & &1.correct),
+      "mindestens eine als richtig markierte Antwort"
+    )
   end
 
   defp data_missing(:text_input, %Data{solutions: solutions}),
@@ -221,6 +242,9 @@ defmodule Quiz.Games.Question do
   - `:text_input`: case-insensitive + whitespace-trimmed comparison against any
     configured solution.
   - `:single_choice`: the answer is the 0-based index of the chosen choice.
+  - `:multiple_choice`: the answer is a list of 0-based indices; correct only when
+    every correct choice was picked and no incorrect one was. See `score_answer/2`
+    for the partial scoring.
   - `:pin_on_image`: the answer is `%{"x" => float, "y" => float}` (normalized
     `0..1`); correct when it falls within the target's tolerance radius.
   - `:matching`: the answer is `%{pair_id => chosen_right_text}`; correct when
@@ -241,6 +265,14 @@ defmodule Quiz.Games.Question do
       when is_integer(index) do
     case Enum.at(choices, index) do
       %{correct: true} -> true
+      _ -> false
+    end
+  end
+
+  def correct_answer?(%__MODULE__{type: :multiple_choice} = question, indices)
+      when is_list(indices) do
+    case score_answer(question, indices) do
+      {n, total} when total > 0 -> n == total
       _ -> false
     end
   end
@@ -283,12 +315,20 @@ defmodule Quiz.Games.Question do
   def correct_answer?(_question, _input), do: false
 
   @doc """
-  Scores a `:matching` answer as `{correct_count, total}` for partial credit.
+  Scores a `:matching` or `:multiple_choice` answer as `{score, total}` for
+  partial credit.
 
-  The answer is `%{pair_id => chosen_right_text}`. A pair counts as correct when
-  the chosen value equals its `right_text` (whitespace-trimmed, case-insensitive,
-  like `:text_input`). Returns `{0, 0}` for non-matching questions or a
-  non-map answer.
+  For `:matching` the answer is `%{pair_id => chosen_right_text}`. A pair counts as
+  correct when the chosen value equals its `right_text` (whitespace-trimmed,
+  case-insensitive, like `:text_input`).
+
+  For `:multiple_choice` the answer is a list of 0-based indices. Wrong picks are
+  subtracted from the hits (floored at zero), so `score == total` means "every
+  correct option and nothing else" — which is exactly what `correct_answer?/2`
+  checks — while a merely partial selection stays above zero and earns `:half`
+  in `Quiz.Play.auto_grade/2`.
+
+  Returns `{0, 0}` for any other question type or a malformed answer.
   """
   def score_answer(%__MODULE__{type: :matching, data: %Data{pairs: pairs}}, answer)
       when is_map(answer) do
@@ -303,7 +343,44 @@ defmodule Quiz.Games.Question do
     {correct, total}
   end
 
+  def score_answer(%__MODULE__{type: :multiple_choice, data: %Data{choices: choices}}, indices)
+      when is_list(indices) do
+    correct =
+      choices
+      |> Enum.with_index()
+      |> Enum.filter(fn {choice, _i} -> choice.correct end)
+      |> MapSet.new(fn {_choice, i} -> i end)
+
+    # Out-of-range indices can only come from a crafted request; drop them rather
+    # than letting them count as wrong picks.
+    n = length(choices)
+
+    picked =
+      indices
+      |> Enum.map(&to_index/1)
+      |> Enum.filter(&(is_integer(&1) and &1 < n))
+      |> MapSet.new()
+
+    hits = picked |> MapSet.intersection(correct) |> MapSet.size()
+    wrong = picked |> MapSet.difference(correct) |> MapSet.size()
+
+    {max(hits - wrong, 0), MapSet.size(correct)}
+  end
+
   def score_answer(_question, _answer), do: {0, 0}
+
+  # Indices survive a JSONB round-trip as integers, but a raw form value may still
+  # arrive as a string; anything else is not a choice index.
+  defp to_index(i) when is_integer(i) and i >= 0, do: i
+
+  defp to_index(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {i, ""} when i >= 0 -> i
+      _ -> nil
+    end
+  end
+
+  defp to_index(_), do: nil
 
   defp normalize(value), do: value |> to_string() |> String.trim() |> String.downcase()
 

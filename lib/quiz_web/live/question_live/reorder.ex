@@ -268,6 +268,7 @@ defmodule QuizWeb.QuestionLive.Reorder do
   defp pad(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")
 
   defp humanize_type(:single_choice), do: "Single-Choice"
+  defp humanize_type(:multiple_choice), do: "Multiple-Choice"
   defp humanize_type(:text_input), do: "Texteingabe"
   defp humanize_type(:sequence), do: "Reihenfolge"
   defp humanize_type(:pin_on_image), do: "Pin auf Bild"

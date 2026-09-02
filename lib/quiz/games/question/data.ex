@@ -32,7 +32,8 @@ defmodule Quiz.Games.Question.Data do
       This lets an author save a half-finished question and complete it later.
     * `:publish` — additionally enforces the *completeness* rules a playable
       question needs (enough choices/items/pairs, exactly one correct answer, a
-      pin image, at least one solution). Applied when a quiz leaves `:draft`
+      pin image, at least one solution; for `:multiple_choice` *at least* one
+      correct answer instead of exactly one). Applied when a quiz leaves `:draft`
       (see `Quiz.Games.open-gate`) and whenever a live question is edited.
 
   `validate_unique_right_text/1` is deliberately *structural* (always on): a
@@ -58,6 +59,26 @@ defmodule Quiz.Games.Question.Data do
       changeset
       |> validate_length(:choices, min: 2, message: "mind. zwei Antwortmöglichkeiten")
       |> validate_exactly_one_correct()
+    end)
+  end
+
+  def changeset(data, attrs, :multiple_choice, mode) do
+    data
+    |> cast(attrs, [])
+    |> put_embed(:solutions, [])
+    |> put_embed(:items, [])
+    |> put_embed(:pairs, [])
+    |> put_embed(:pin, nil)
+    |> put_embed(:number_range, nil)
+    |> cast_embed(:choices,
+      with: &Choice.changeset/2,
+      sort_param: :choices_sort,
+      drop_param: :choices_drop
+    )
+    |> when_publish(mode, fn changeset ->
+      changeset
+      |> validate_length(:choices, min: 2, message: "mind. zwei Antwortmöglichkeiten")
+      |> validate_at_least_one_correct()
     end)
   end
 
@@ -168,6 +189,18 @@ defmodule Quiz.Games.Question.Data do
       1 -> changeset
       0 -> add_error(changeset, :choices, "eine Antwort muss als richtig markiert sein")
       _ -> add_error(changeset, :choices, "nur eine Antwort darf als richtig markiert sein")
+    end
+  end
+
+  # `:multiple_choice` deliberately has no upper bound — marking several (or even
+  # all but one) options correct is a legitimate question.
+  defp validate_at_least_one_correct(changeset) do
+    changeset
+    |> get_field(:choices, [])
+    |> Enum.any?(& &1.correct)
+    |> case do
+      true -> changeset
+      false -> add_error(changeset, :choices, "mindestens eine Antwort muss richtig sein")
     end
   end
 end

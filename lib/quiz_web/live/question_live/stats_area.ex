@@ -21,9 +21,16 @@ defmodule QuizWeb.QuestionLive.StatsArea do
     """
   end
 
-  def stats_area(%{stats: %{type: :single_choice}} = assigns) do
+  def stats_area(%{stats: %{type: type}} = assigns)
+      when type in [:single_choice, :multiple_choice] do
     ~H"""
     <.panel stats={@stats}>
+      <p
+        :if={@stats.type == :multiple_choice}
+        class="mb-3 text-xs text-base-content/50"
+      >
+        Mehrfachnennungen möglich – die Prozente können zusammen über 100 % ergeben.
+      </p>
       <div class="space-y-3">
         <div :for={row <- @stats.rows} class="space-y-1">
           <div class="flex items-baseline justify-between gap-3">

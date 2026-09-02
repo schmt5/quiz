@@ -164,6 +164,7 @@ defmodule QuizWeb.CorrectionLive.Index do
 
   defp type_label(:text_input), do: "Texteingabe"
   defp type_label(:single_choice), do: "Auswahl"
+  defp type_label(:multiple_choice), do: "Multiple-Choice"
   defp type_label(:sequence), do: "Reihenfolge"
   defp type_label(:matching), do: "Zuordnung"
   defp type_label(:pin_on_image), do: "Bildmarkierung"

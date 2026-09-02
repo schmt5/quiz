@@ -40,6 +40,27 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     """
   end
 
+  def answer_area(%{question: %{type: :multiple_choice}} = assigns) do
+    ~H"""
+    <p class="mb-2 text-[11px] font-mono uppercase tracking-wider text-base-content/60">
+      Mehrere Antworten möglich
+    </p>
+    <ul class="space-y-2 list-none p-0">
+      <li :for={{choice, idx} <- Enum.with_index(@question.data.choices)}>
+        <label class="flex items-center gap-3 rounded-box bg-base-200 px-3 py-2 cursor-pointer hover:bg-base-300 transition">
+          <input
+            type="checkbox"
+            name="answer[]"
+            value={idx}
+            class="checkbox checkbox-primary"
+          />
+          <span class="text-sm">{choice.text}</span>
+        </label>
+      </li>
+    </ul>
+    """
+  end
+
   def answer_area(%{question: %{type: :sequence}} = assigns) do
     ~H"""
     <div id={"preview-sequence-#{@question.id}"} phx-hook=".PreviewSortable" phx-update="ignore">
@@ -498,6 +519,20 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     """
   end
 
+  def answer_summary(%{question: %{type: :multiple_choice}} = assigns) do
+    assigns = assign(assigns, :choices, choices_at(assigns.question, assigns.answer))
+
+    ~H"""
+    <p :if={@choices == []} class="text-xl font-bold text-primary">—</p>
+    <ul :if={@choices != []} class="list-none p-0 space-y-1">
+      <li :for={text <- @choices} class="flex items-baseline gap-2">
+        <span class="text-primary/50">•</span>
+        <span class="text-xl font-bold text-primary break-words">{text}</span>
+      </li>
+    </ul>
+    """
+  end
+
   def answer_summary(%{question: %{type: :sequence}} = assigns) do
     assigns = assign(assigns, :ordered, sequence_texts(assigns.question, assigns.answer))
 
@@ -553,6 +588,15 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   end
 
   defp choice_at(_question, _index), do: nil
+
+  defp choices_at(%{data: %{choices: choices}}, indices) when is_list(indices) do
+    for index <- indices,
+        is_integer(index),
+        %{text: text} <- [Enum.at(choices, index)],
+        do: text
+  end
+
+  defp choices_at(_question, _indices), do: []
 
   defp sequence_texts(%{data: %{items: items}}, ids) when is_list(ids) do
     by_id = Map.new(items, &{&1.id, &1.text})

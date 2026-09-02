@@ -181,6 +181,47 @@ defmodule QuizWeb.QuestionLiveTest do
       assert html =~ "Antwortoptionen"
     end
 
+    test "creating a multiple-choice question autosaves several correct options", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+
+      live |> element(~s|button[phx-value-type="multiple_choice"]|) |> render_click()
+
+      [question] = Quiz.Games.list_questions_for_game(scope, game)
+      assert question.type == :multiple_choice
+
+      html = render(live)
+      assert html =~ ~s|value="multiple_choice"|
+      assert html =~ "Wähle alle richtigen aus"
+      # The single-select hook must not be wired up here, or the second tick
+      # would be undone in the browser before autosave sees it.
+      refute html =~ "SingleCorrect"
+
+      render_change(live, "validate", %{
+        "question" => %{
+          "type" => "multiple_choice",
+          "prompt" => "Which of these are prime?",
+          "position" => "42",
+          "data" => %{
+            "choices_sort" => ["0", "1", "2"],
+            "choices" => %{
+              "0" => %{"text" => "2", "correct" => "true"},
+              "1" => %{"text" => "3", "correct" => "true"},
+              "2" => %{"text" => "4", "correct" => "false"}
+            }
+          }
+        }
+      })
+
+      saved = Quiz.Games.get_question!(scope, question.id)
+      assert saved.prompt == "Which of these are prime?"
+      assert Enum.map(saved.data.choices, & &1.correct) == [true, true, false]
+      assert render(live) =~ "3 Optionen · 2 richtig"
+    end
+
     test "a freshly created question starts blank and shows a placeholder label", %{
       conn: conn,
       scope: scope,
