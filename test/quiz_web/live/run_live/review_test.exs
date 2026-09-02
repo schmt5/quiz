@@ -85,6 +85,28 @@ defmodule QuizWeb.RunLive.ReviewTest do
     assert to == ~p"/games/#{game}/run"
   end
 
+  describe "image lightboxes" do
+    test "the question and solution images enlarge into lightboxes", %{conn: conn, scope: scope} do
+      game = game_fixture(scope)
+
+      question =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 1,
+          type: :text_input,
+          media_image_key: "uploads/1/media.png",
+          solution_image_key: "uploads/1/erklaerung.png"
+        })
+
+      game = set_game_status(game, :finished)
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/review/1")
+
+      assert has_element?(lv, "dialog#zoom-media-#{question.id}")
+      assert has_element?(lv, "dialog#zoom-solution-#{question.id}")
+    end
+  end
+
   describe "every question type renders" do
     test "sequence, matching, pin and number_range solutions render without crashing", %{
       conn: conn,

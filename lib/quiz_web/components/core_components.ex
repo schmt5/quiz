@@ -550,6 +550,99 @@ defmodule QuizWeb.CoreComponents do
   end
 
   @doc """
+  Wraps an image – or an image composite such as the pin overlays – in a
+  click-to-enlarge lightbox for the presenter screens.
+
+  The `:trigger` slot renders inline inside a real `<button>`; the default slot
+  renders the same content again, as large as the viewport allows, inside a
+  native `<dialog>` (DaisyUI modal, method 1 – the same mechanics as
+  `content_modal/1`). Escape, the X button and the backdrop all close it, and
+  the dialog lives in the browser's top layer, so a scrolling or width-capped
+  container around it makes no difference.
+
+  ## Examples
+
+      <.image_lightbox id="zoom-solution-42">
+        <:trigger><img src={url} class="max-h-96" /></:trigger>
+        <img src={url} class="max-h-[90dvh] max-w-[92vw] object-contain" />
+      </.image_lightbox>
+  """
+  attr :id, :string, required: true
+  attr :label, :string, default: "Bild vergrössern"
+  attr :trigger_class, :any, default: nil
+  slot :trigger, required: true
+  slot :inner_block, required: true
+
+  def image_lightbox(assigns) do
+    ~H"""
+    <%!-- getElementById instead of the `<id>.showModal()` named-access form used
+          for content_modal, so that ids may contain dashes. --%>
+    <button
+      type="button"
+      aria-label={@label}
+      title={@label}
+      onclick={"document.getElementById('#{@id}').showModal()"}
+      class={[
+        "block cursor-zoom-in rounded-box",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+        @trigger_class
+      ]}
+    >
+      {render_slot(@trigger)}
+    </button>
+
+    <%!-- DaisyUI's .modal is a centered grid in which only .modal-box and
+          .modal-backdrop pin themselves to cell 1/1; any other child would be
+          auto-placed into a new implicit row, so both children below pin
+          themselves. The scrim rides on .modal-backdrop (stretched, z-index -1)
+          because .modal[open] paints its own background and outweighs a plain
+          utility class on the dialog. --%>
+    <dialog id={@id} class="modal" aria-label={@label}>
+      <div class="col-start-1 row-start-1">{render_slot(@inner_block)}</div>
+      <form method="dialog" class="col-start-1 row-start-1 justify-self-end self-start p-4">
+        <button class="btn btn-sm btn-circle btn-ghost text-white" aria-label="Schliessen">
+          <.icon name="hero-x-mark" class="size-5" />
+        </button>
+      </form>
+      <form method="dialog" class="modal-backdrop bg-black/80"><button>schliessen</button></form>
+    </dialog>
+    """
+  end
+
+  @doc """
+  A plain image that enlarges into a lightbox on click, for the presenter
+  screens. Thin wrapper around `image_lightbox/1`.
+
+  `class` styles the inline thumbnail only – the enlarged copy always centers
+  and fits the viewport.
+
+  ## Examples
+
+      <.zoomable_image id="zoom-solution-42" src={Quiz.Storage.url(key)} alt="Lösung" />
+  """
+  attr :id, :string, required: true
+  attr :src, :string, required: true
+  attr :alt, :string, default: ""
+  attr :class, :any, default: nil
+  attr :trigger_class, :any, default: nil
+  attr :label, :string, default: "Bild vergrössern"
+
+  def zoomable_image(assigns) do
+    ~H"""
+    <.image_lightbox id={@id} label={@label} trigger_class={@trigger_class}>
+      <:trigger>
+        <img src={@src} alt={@alt} class={@class} />
+      </:trigger>
+      <%!-- Hard-coded overlay classes: a caller's object-left (question_media/1)
+            must not leak into the centered overlay. A fixed height with auto
+            width fills the viewport on either axis – object-contain keeps the
+            ratio once max-w clamps a very wide image. --%>
+      <img src={@src} alt={@alt} class="h-[90dvh] w-auto max-w-[92vw] object-contain" />
+    </.image_lightbox>
+    """
+  end
+
+  @doc """
   Renders a question's optional media (uploaded image or video) below the
   question text.
 
@@ -561,17 +654,39 @@ defmodule QuizWeb.CoreComponents do
   ## Examples
 
       <.question_media question={@question} />
+      <.question_media question={@question} zoomable />
+
+  Pass `zoomable` on the presenter screens to make the image enlarge on click;
+  it stays off by default so the participant view remains a plain image.
   """
   attr :question, Quiz.Games.Question, required: true
   attr :class, :any, default: nil
+  attr :zoomable, :boolean, default: false
 
   def question_media(assigns) do
+    # Computed once so the plain and the zoomable image branch cannot drift apart.
+    assigns =
+      assign(assigns, :img_class, [
+        "w-full max-h-[45vh] rounded-box object-contain object-left",
+        assigns.class
+      ])
+
     ~H"""
     <img
-      :if={@question.media_image_key}
+      :if={@question.media_image_key && !@zoomable}
       src={Quiz.Storage.url(@question.media_image_key)}
       alt=""
-      class={["w-full max-h-[45vh] rounded-box object-contain object-left", @class]}
+      class={@img_class}
+    />
+    <%!-- w-full on the trigger button: the thumbnail is w-full itself and would
+          otherwise resolve against the button's shrink-to-fit width. --%>
+    <.zoomable_image
+      :if={@question.media_image_key && @zoomable}
+      id={"zoom-media-#{@question.id}"}
+      src={Quiz.Storage.url(@question.media_image_key)}
+      alt=""
+      class={@img_class}
+      trigger_class="w-full"
     />
     <video
       :if={@question.media_video_key}

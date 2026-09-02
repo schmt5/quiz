@@ -126,24 +126,19 @@ defmodule QuizWeb.QuestionLive.StatsArea do
   def stats_area(%{stats: %{type: :pin_on_image}} = assigns) do
     ~H"""
     <.panel stats={@stats}>
-      <div
-        class="relative w-full max-w-md overflow-hidden rounded-box bg-base-200"
-        style={"aspect-ratio: #{@stats.aspect_ratio || 1.0};"}
-      >
-        <img
-          :if={@stats.image_key}
-          src={Quiz.Storage.url(@stats.image_key)}
-          class="absolute inset-0 w-full h-full object-cover"
-          alt="Bild"
+      <%!-- A single stats panel is rendered per presenter screen, so a constant
+            dialog id suffices (`@stats` carries no question id). --%>
+      <.image_lightbox id="zoom-pin-stats" trigger_class="w-full max-w-md">
+        <:trigger>
+          <.pin_stats_figure stats={@stats} class="w-full" />
+        </:trigger>
+        <%!-- Percentage-positioned pins scale with the box; the width is set
+              explicitly so `aspect-ratio` keeps driving the height. --%>
+        <.pin_stats_figure
+          stats={@stats}
+          style={"width: min(92vw, calc(85dvh * #{@stats.aspect_ratio || 1.0}));"}
         />
-        <%!-- Every team's pin, translucent so overlaps darken into clusters. --%>
-        <div
-          :for={p <- @stats.points}
-          class="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/50 ring-2 ring-primary/70"
-          style={"left: #{p.x * 100}%; top: #{p.y * 100}%;"}
-        >
-        </div>
-      </div>
+      </.image_lightbox>
     </.panel>
     """
   end
@@ -245,5 +240,32 @@ defmodule QuizWeb.QuestionLive.StatsArea do
       max <= 0 -> 0
       true -> max(round(count * 100 / max), 6)
     end
+  end
+
+  attr :stats, :map, required: true
+  attr :class, :any, default: nil
+  attr :style, :string, default: nil
+
+  defp pin_stats_figure(assigns) do
+    ~H"""
+    <div
+      class={["relative overflow-hidden rounded-box bg-base-200", @class]}
+      style={"aspect-ratio: #{@stats.aspect_ratio || 1.0};#{@style && " " <> @style}"}
+    >
+      <img
+        :if={@stats.image_key}
+        src={Quiz.Storage.url(@stats.image_key)}
+        class="absolute inset-0 w-full h-full object-cover"
+        alt="Bild"
+      />
+      <%!-- Every team's pin, translucent so overlaps darken into clusters. --%>
+      <div
+        :for={p <- @stats.points}
+        class="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/50 ring-2 ring-primary/70"
+        style={"left: #{p.x * 100}%; top: #{p.y * 100}%;"}
+      >
+      </div>
+    </div>
+    """
   end
 end

@@ -153,6 +153,14 @@ defmodule QuizWeb.PlayLive.PlayTest do
       assert render(lv) =~ Quiz.Storage.url("uploads/1/media.png")
     end
 
+    test "the participant view shows a plain image, not a lightbox", %{conn: conn} do
+      %{game: game, token: token} = start_running_game(%{media_image_key: "uploads/1/media.png"})
+
+      lv = connect_and_restore(conn, game, token)
+
+      refute has_element?(lv, "dialog.modal")
+    end
+
     test "renders the uploaded video for a video question", %{conn: conn} do
       %{game: game, token: token} =
         start_running_game(%{media_video_key: "uploads/1/clip.mp4"})

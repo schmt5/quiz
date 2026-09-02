@@ -80,7 +80,7 @@ defmodule QuizWeb.RunLive.Review do
             {@question.prompt}
           </h2>
           <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
-          <.question_media question={@question} />
+          <.question_media question={@question} zoomable />
           <SolutionArea.solution_area question={@question} />
           <SolutionArea.solution_explanation question={@question} />
 

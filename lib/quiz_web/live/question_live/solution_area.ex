@@ -102,30 +102,21 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
 
   def solution_area(%{question: %{type: :pin_on_image, data: %{pin: pin}}} = assigns)
       when not is_nil(pin) do
+    assigns = assign(assigns, :pin, pin)
+
     ~H"""
-    <div
-      class="relative w-full max-w-md overflow-hidden rounded-box bg-base-200"
-      style={"aspect-ratio: #{@question.data.pin.aspect_ratio || 1.0};"}
-    >
-      <img
-        src={Quiz.Storage.url(@question.data.pin.image_key)}
-        class="absolute inset-0 w-full h-full object-cover"
-        alt="Bild"
+    <.image_lightbox id={"zoom-pin-#{@question.id}"} trigger_class="w-full max-w-md">
+      <:trigger>
+        <.pin_solution_figure pin={@pin} class="w-full" />
+      </:trigger>
+      <%!-- The markers are positioned in percentages, so the composite scales
+            purely by its box. Width is set explicitly (rather than capping both
+            axes) so `aspect-ratio` is not torn between two constraints. --%>
+      <.pin_solution_figure
+        pin={@pin}
+        style={"width: min(92vw, calc(85dvh * #{@pin.aspect_ratio || 1.0}));"}
       />
-      <%!-- Tolerance area: a true circle of `radius` (normalized to box width)
-            centred on the target; height is scaled by the aspect ratio. --%>
-      <div
-        class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-success bg-success/20"
-        style={"left: #{@question.data.pin.target_x * 100}%; top: #{@question.data.pin.target_y * 100}%; width: #{@question.data.pin.radius * 200}%; height: #{@question.data.pin.radius * (@question.data.pin.aspect_ratio || 1.0) * 200}%;"}
-      >
-      </div>
-      <%!-- Exact target point. --%>
-      <div
-        class="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success ring-2 ring-white shadow"
-        style={"left: #{@question.data.pin.target_x * 100}%; top: #{@question.data.pin.target_y * 100}%;"}
-      >
-      </div>
-    </div>
+    </.image_lightbox>
     """
   end
 
@@ -185,8 +176,9 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
         class="text-lg text-base-content/80 whitespace-pre-line break-words"
         phx-no-format
       >{@question.solution_text}</p>
-      <img
+      <.zoomable_image
         :if={@question.solution_image_key}
+        id={"zoom-solution-#{@question.id}"}
         src={Quiz.Storage.url(@question.solution_image_key)}
         alt="Bild zur Lösungserklärung"
         class="max-h-96 w-auto rounded-box object-contain"
@@ -201,6 +193,38 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
         class="max-h-96 w-auto rounded-box bg-black"
       >
       </video>
+    </div>
+    """
+  end
+
+  attr :pin, :map, required: true
+  attr :class, :any, default: nil
+  attr :style, :string, default: nil
+
+  defp pin_solution_figure(assigns) do
+    ~H"""
+    <div
+      class={["relative overflow-hidden rounded-box bg-base-200", @class]}
+      style={"aspect-ratio: #{@pin.aspect_ratio || 1.0};#{@style && " " <> @style}"}
+    >
+      <img
+        src={Quiz.Storage.url(@pin.image_key)}
+        class="absolute inset-0 w-full h-full object-cover"
+        alt="Bild"
+      />
+      <%!-- Tolerance area: a true circle of `radius` (normalized to box width)
+            centred on the target; height is scaled by the aspect ratio. --%>
+      <div
+        class="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-success bg-success/20"
+        style={"left: #{@pin.target_x * 100}%; top: #{@pin.target_y * 100}%; width: #{@pin.radius * 200}%; height: #{@pin.radius * (@pin.aspect_ratio || 1.0) * 200}%;"}
+      >
+      </div>
+      <%!-- Exact target point. --%>
+      <div
+        class="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-success ring-2 ring-white shadow"
+        style={"left: #{@pin.target_x * 100}%; top: #{@pin.target_y * 100}%;"}
+      >
+      </div>
     </div>
     """
   end

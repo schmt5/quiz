@@ -222,6 +222,23 @@ defmodule QuizWeb.RunLive.HostTest do
       assert html =~ Quiz.Storage.url("uploads/1/media.png")
     end
 
+    test "the question image enlarges into a lightbox", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+
+      question =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 1,
+          media_image_key: "uploads/1/media.png"
+        })
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
+
+      assert has_element?(lv, ~s|button[aria-label="Bild vergrössern"]|)
+      assert has_element?(lv, "dialog#zoom-media-#{question.id}")
+    end
+
     test "renders the uploaded video without autoplay", %{conn: conn, scope: scope} do
       game = game_fixture(scope, %{status: :open})
 
@@ -328,6 +345,41 @@ defmodule QuizWeb.RunLive.HostTest do
       assert html =~ "Erklärung"
       assert html =~ "Seit 987 die Hauptstadt."
       assert html =~ Quiz.Storage.url("uploads/1/erklaerung.png")
+    end
+
+    test "the explanation image enlarges into a lightbox", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      question =
+        question_fixture(scope, %{
+          game_id: game.id,
+          position: 1,
+          type: :text_input,
+          solution_image_key: "uploads/1/erklaerung.png"
+        })
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
+      lv |> element("button", "Auswerten") |> render_click()
+
+      assert has_element?(lv, "dialog#zoom-solution-#{question.id}")
+    end
+
+    test "the pin solution image enlarges into a lightbox", %{
+      conn: conn,
+      scope: scope,
+      game: game
+    } do
+      question =
+        question_fixture(scope, %{game_id: game.id, position: 1, type: :pin_on_image})
+
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
+      lv |> element("button", "Auswerten") |> render_click()
+
+      assert has_element?(lv, "dialog#zoom-pin-#{question.id}")
     end
 
     test "an explanation video is shown on reveal, without autoplay", %{
