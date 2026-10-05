@@ -11,7 +11,8 @@ and publishes a leaderboard in real time.
   build assets.
 * Start the server with `mix phx.server` (or `iex -S mix phx.server`).
 
-Then visit [`localhost:4000`](http://localhost:4000).
+Then visit [`localhost:4001`](http://localhost:4001) (set `PORT` to use another
+port).
 
 Run the test suite with `mix test`, and `mix precommit` before committing
 (compiles with warnings as errors, checks unused deps, formats, runs tests).
@@ -35,7 +36,7 @@ Production configuration is read at runtime from environment variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `4000` | HTTP listen port |
+| `PORT` | `4000` | HTTP listen port (dev defaults to `4001`) |
 | `POOL_SIZE` | `20` | Database connection pool size (per machine — Neon's compute has a `max_connections` ceiling) |
 | `ECTO_IPV6` | — | Set to `true`/`1` to connect to the database over IPv6. Not set in production: Neon's endpoint is IPv4. |
 | `DNS_CLUSTER_QUERY` | — | DNS query for clustering nodes |

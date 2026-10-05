@@ -19,7 +19,9 @@ config :quiz, Quiz.Repo,
 config :quiz, QuizWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
+  # 4001 rather than Phoenix's usual 4000, which is often taken by another
+  # local project; override with PORT=… when needed.
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4001")],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

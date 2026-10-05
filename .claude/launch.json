@@ -3,8 +3,10 @@
   "configurations": [
     {
       "name": "quiz",
-      "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "PORT=4001 mix phx.server"],
+      "runtimeExecutable": "mix",
+      "runtimeArgs": [
+        "phx.server"
+      ],
       "port": 4001
     }
   ]
