@@ -103,6 +103,16 @@
           Beitreten <span aria-hidden="true">→</span>
         </button>
       </form>
+
+      <%!-- Deliberately quiet: this page is for participants; quizmasters only
+           need to find their way in. --%>
+      <.link
+        id="quizmaster-login"
+        navigate={~p"/users/log-in"}
+        class="mt-12 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-base-content/40 transition hover:text-base-content/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        <.icon name="hero-user-circle" class="size-4" /> Quizmaster-Login
+      </.link>
     </div>
   <% end %>
 </Layouts.app>
