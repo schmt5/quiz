@@ -39,7 +39,7 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
     ~H"""
     <ul class="space-y-2 list-none p-0">
       <li
-        :for={choice <- @question.data.choices}
+        :for={{choice, idx} <- Enum.with_index(@question.data.choices)}
         class={[
           "flex items-center gap-3 rounded-box px-3 py-2 ring-1",
           (choice.correct && "bg-success/10 ring-success/40") ||
@@ -55,6 +55,12 @@ defmodule QuizWeb.QuestionLive.SolutionArea do
           :if={!choice.correct}
           name="hero-x-mark"
           class="size-5 shrink-0 text-base-content/30"
+        />
+        <.choice_letter
+          index={idx}
+          class={
+            (choice.correct && "bg-success/20 text-success") || "bg-base-300 text-base-content/60"
+          }
         />
         <span class={[
           "break-words",

@@ -10,7 +10,8 @@ defmodule Quiz.Stats do
   `question_stats/2` returns a type-tagged map that `StatsArea` pattern-matches:
 
     * `:single_choice` / `:text_input` — `:rows` of `%{label, count, pct}`,
-      most-common first.
+      most-common first. Choice rows also carry the option's 0-based `:index`
+      (for its A/B/C letter, since the sort scrambles the authored order).
     * `:multiple_choice` — the same `:rows`, but one per option and counted per
       *tick*, so the percentages can add up to more than 100 %.
     * `:sequence` — `:rows` of distinct orderings (`%{labels, count, pct}`),
@@ -67,7 +68,7 @@ defmodule Quiz.Stats do
       |> Enum.with_index()
       |> Enum.map(fn {choice, i} ->
         count = Map.get(counts, i, 0)
-        %{label: choice.text, count: count, pct: pct(count, total)}
+        %{label: choice.text, index: i, count: count, pct: pct(count, total)}
       end)
       |> Enum.sort_by(& &1.count, :desc)
 
@@ -90,7 +91,7 @@ defmodule Quiz.Stats do
       |> Enum.with_index()
       |> Enum.map(fn {choice, i} ->
         count = Map.get(counts, i, 0)
-        %{label: choice.text, count: count, pct: pct(count, total)}
+        %{label: choice.text, index: i, count: count, pct: pct(count, total)}
       end)
       |> Enum.sort_by(& &1.count, :desc)
 

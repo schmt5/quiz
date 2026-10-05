@@ -700,6 +700,41 @@ defmodule QuizWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Letter badge (A, B, C …) in front of a choice option, so the moderator can
+  refer to "Antwort B" and every screen — participant phone, presenter preview,
+  solution and statistics — labels the same option the same way.
+
+  `index` is the option's 0-based position in `question.data.choices`.
+
+  ## Examples
+
+      <.choice_letter index={1} />
+  """
+  attr :index, :integer, required: true
+  attr :class, :any, default: nil
+
+  def choice_letter(assigns) do
+    ~H"""
+    <span
+      aria-hidden="true"
+      class={[
+        "grid size-7 shrink-0 place-items-center rounded-lg font-display text-sm font-extrabold",
+        @class || "bg-primary/10 text-primary"
+      ]}
+    >
+      {choice_letter_text(@index)}
+    </span>
+    """
+  end
+
+  @doc """
+  The label `choice_letter/1` shows for a 0-based choice index: "A" … "Z", then
+  plain numbers for the (unlikely) 27th option onwards.
+  """
+  def choice_letter_text(index) when index in 0..25, do: <<?A + index>>
+  def choice_letter_text(index), do: Integer.to_string(index + 1)
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

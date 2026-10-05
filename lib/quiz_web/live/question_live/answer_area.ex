@@ -33,6 +33,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             value={idx}
             class="radio radio-primary"
           />
+          <.choice_letter index={idx} />
           <span class="text-sm">{choice.text}</span>
         </label>
       </li>
@@ -54,6 +55,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             value={idx}
             class="checkbox checkbox-primary"
           />
+          <.choice_letter index={idx} />
           <span class="text-sm">{choice.text}</span>
         </label>
       </li>
@@ -513,8 +515,10 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     assigns = assign(assigns, :choice, choice_at(assigns.question, assigns.answer))
 
     ~H"""
-    <p class="text-xl font-bold text-primary break-words">
-      {@choice || "—"}
+    <p :if={!@choice} class="text-xl font-bold text-primary">—</p>
+    <p :if={@choice} class="flex items-center gap-2 text-xl font-bold text-primary break-words">
+      <.choice_letter index={@answer} />
+      <span class="min-w-0">{@choice}</span>
     </p>
     """
   end
@@ -524,10 +528,10 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
 
     ~H"""
     <p :if={@choices == []} class="text-xl font-bold text-primary">—</p>
-    <ul :if={@choices != []} class="list-none p-0 space-y-1">
-      <li :for={text <- @choices} class="flex items-baseline gap-2">
-        <span class="text-primary/50">•</span>
-        <span class="text-xl font-bold text-primary break-words">{text}</span>
+    <ul :if={@choices != []} class="list-none p-0 space-y-1.5">
+      <li :for={{index, text} <- @choices} class="flex items-center gap-2">
+        <.choice_letter index={index} />
+        <span class="min-w-0 text-xl font-bold text-primary break-words">{text}</span>
       </li>
     </ul>
     """
@@ -593,7 +597,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
     for index <- indices,
         is_integer(index),
         %{text: text} <- [Enum.at(choices, index)],
-        do: text
+        do: {index, text}
   end
 
   defp choices_at(_question, _indices), do: []

@@ -33,8 +33,11 @@ defmodule QuizWeb.QuestionLive.StatsArea do
       </p>
       <div class="space-y-3">
         <div :for={row <- @stats.rows} class="space-y-1">
-          <div class="flex items-baseline justify-between gap-3">
-            <span class="font-medium text-base-content break-words">{row.label}</span>
+          <div class="flex items-center justify-between gap-3">
+            <span class="flex min-w-0 items-center gap-2">
+              <.choice_letter index={row.index} />
+              <span class="font-medium text-base-content break-words">{row.label}</span>
+            </span>
             <span class="shrink-0 text-base-content/60 tabular-nums">
               {row.count} · {row.pct}%
             </span>

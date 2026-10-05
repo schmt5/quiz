@@ -45,7 +45,8 @@ defmodule Quiz.StatsTest do
       assert stats.total == 4
       assert stats.blank == 1
 
-      assert [%{label: "B", count: 2}, second, third] = stats.rows
+      # Sorted by count, but each row keeps its option's index (for its letter).
+      assert [%{label: "B", index: 1, count: 2}, second, third] = stats.rows
       assert second.count == 1 and third.count == 0
       assert Enum.find(stats.rows, &(&1.label == "B")).pct == 50
     end

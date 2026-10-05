@@ -870,7 +870,7 @@ defmodule QuizWeb.QuestionLive.Index do
                         choice_correct?(c) && "bg-success/20 text-success",
                         !choice_correct?(c) && "bg-base-100 text-base-content/70"
                       ]}>
-                        {choice_letter(c.index)}
+                        {choice_letter_text(c.index)}
                       </span>
 
                       <input
@@ -987,7 +987,7 @@ defmodule QuizWeb.QuestionLive.Index do
                         choice_correct?(c) && "bg-success/20 text-success",
                         !choice_correct?(c) && "bg-base-100 text-base-content/70"
                       ]}>
-                        {choice_letter(c.index)}
+                        {choice_letter_text(c.index)}
                       </span>
 
                       <input
@@ -2449,9 +2449,6 @@ defmodule QuizWeb.QuestionLive.Index do
   defp type_letter(:matching), do: "Z"
   defp type_letter(:number_range), do: "N"
   defp type_letter(_), do: "?"
-
-  defp choice_letter(index) when index in 0..25, do: <<?A + index>>
-  defp choice_letter(_), do: "?"
 
   defp choice_correct?(c) do
     case c[:correct].value do
