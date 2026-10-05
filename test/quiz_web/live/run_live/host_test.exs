@@ -453,4 +453,111 @@ defmodule QuizWeb.RunLive.HostTest do
       refute html =~ "Erklärung"
     end
   end
+
+  describe "answer options in the sidebar (running)" do
+    setup %{scope: scope} do
+      game =
+        game_fixture(scope, %{status: :open, review_mode: :per_question, show_statistics: false})
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 1,
+        type: :single_choice,
+        prompt: "Höchster Berg der Schweiz?",
+        data: %{
+          choices: [
+            %{text: "Eiger", correct: false},
+            %{text: "Dufourspitze", correct: true},
+            %{text: "Matterhorn", correct: false}
+          ]
+        }
+      })
+
+      question_fixture(scope, %{
+        game_id: game.id,
+        position: 2,
+        type: :sequence,
+        data: %{
+          items: [%{text: "Eins"}, %{text: "Zwei"}, %{text: "Drei"}, %{text: "Vier"}]
+        }
+      })
+
+      {:ok, _participant, _token} = Play.enroll(game, "Bergfreunde")
+      {:ok, running} = Play.start_run(scope, game)
+      %{game: running}
+    end
+
+    test "the Antworten tab is open by default and lists the lettered options, unmarked",
+         %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      assert has_element?(lv, "#sidebar-tab-options[aria-selected=true]")
+      assert has_element?(lv, "#options-preview li:nth-child(1)", "Eiger")
+      assert has_element?(lv, "#options-preview li:nth-child(2)", "B")
+      assert has_element?(lv, "#options-preview li:nth-child(2)", "Dufourspitze")
+      assert has_element?(lv, "#options-preview li:nth-child(3)", "Matterhorn")
+      # Projected while teams are still answering: nothing gives the answer away.
+      refute has_element?(lv, "#options-preview .hero-check-circle-solid")
+      refute has_element?(lv, "#participants-roster")
+    end
+
+    test "the Teams tab shows the roster, and the choice survives the next question",
+         %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      lv |> element("#sidebar-tab-teams") |> render_click()
+
+      assert has_element?(lv, "#sidebar-tab-teams[aria-selected=true]")
+      assert has_element?(lv, "#participants-roster", "Bergfreunde")
+      refute has_element?(lv, "#options-preview")
+
+      lv |> element("button", "Auswerten") |> render_click()
+      lv |> element("button", "Nächste Frage") |> render_click()
+
+      assert has_element?(lv, "#participants-roster", "Bergfreunde")
+
+      lv |> element("#sidebar-tab-options") |> render_click()
+      assert has_element?(lv, "#options-preview")
+    end
+
+    test "Auswerten marks the correct option in the preview", %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      lv |> element("button", "Auswerten") |> render_click()
+
+      assert has_element?(lv, "#options-preview li:nth-child(2) .hero-check-circle-solid")
+      refute has_element?(lv, "#options-preview li:nth-child(1) .hero-check-circle-solid")
+    end
+
+    test "sequence items are not shown in their solution order", %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      lv |> element("button", "Auswerten") |> render_click()
+      lv |> element("button", "Nächste Frage") |> render_click()
+
+      shown =
+        lv
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("#options-preview li")
+        |> Enum.map(&String.trim(LazyHTML.text(&1)))
+
+      assert Enum.sort(shown) == Enum.sort(["Eins", "Zwei", "Drei", "Vier"])
+      refute shown == ["Eins", "Zwei", "Drei", "Vier"]
+    end
+  end
+
+  describe "sidebar outside a running question" do
+    test "the lobby and the finished screen show no tabs", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+      refute has_element?(lv, "#sidebar-tab-options")
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{set_game_status(game, :finished)}/run")
+      refute has_element?(lv, "#sidebar-tab-options")
+      assert has_element?(lv, "#participants-roster")
+    end
+  end
 end

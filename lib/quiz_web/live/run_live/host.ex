@@ -8,7 +8,7 @@ defmodule QuizWeb.RunLive.Host do
 
   alias Quiz.{Games, Play, Stats}
   alias Quiz.Games.Game
-  alias QuizWeb.QuestionLive.{SolutionArea, StatsArea}
+  alias QuizWeb.QuestionLive.{OptionsArea, SolutionArea, StatsArea}
 
   @impl true
   def render(assigns) do
@@ -329,23 +329,58 @@ defmodule QuizWeb.RunLive.Host do
         image_key={@game.outro_image_key}
       />
 
-      <%!-- Right 1/3: full-height, self-scrolling team roster --%>
+      <%!-- Right 1/3: while a question runs, tabs switch between a read-only
+           preview of the answer options (what the teams see) and the team
+           roster; otherwise just the roster. Both panes scroll on their own. --%>
       <aside class="lg:w-1/3 flex flex-col min-h-0 bg-base-200 border-t lg:border-t-0 lg:border-l border-base-300">
         <div class="shrink-0 flex items-center justify-between h-[84px] px-6 border-b border-base-300">
-          <h2 class="text-lg font-bold">Teams</h2>
-          <span class="badge badge-primary badge-lg font-display font-extrabold">
+          <div
+            :if={@options}
+            role="tablist"
+            aria-label="Seitenleiste"
+            class="flex w-full gap-1 rounded-xl bg-base-300/60 p-1"
+          >
+            <.sidebar_tab id="sidebar-tab-options" tab="options" active={@sidebar_tab == :options}>
+              <.icon name="hero-queue-list" class="size-5" /> Antworten
+            </.sidebar_tab>
+            <.sidebar_tab id="sidebar-tab-teams" tab="teams" active={@sidebar_tab == :teams}>
+              <.icon name="hero-user-group" class="size-5" /> Teams
+              <span class="badge badge-primary badge-sm font-display font-extrabold">
+                {length(@participants)}
+              </span>
+            </.sidebar_tab>
+          </div>
+
+          <h2 :if={!@options} class="text-lg font-bold">Teams</h2>
+          <span :if={!@options} class="badge badge-primary badge-lg font-display font-extrabold">
             {length(@participants)}
           </span>
         </div>
 
+        <div
+          :if={@options && @sidebar_tab == :options}
+          id="sidebar-options"
+          role="tabpanel"
+          aria-labelledby="sidebar-tab-options"
+          class="flex-1 min-h-0 overflow-y-auto p-6"
+        >
+          <OptionsArea.options_area options={@options} revealing={@game.revealing} />
+        </div>
+
         <p
-          :if={@participants == []}
+          :if={@participants == [] and (!@options || @sidebar_tab == :teams)}
           class="p-6 text-center text-sm text-base-content/60"
         >
           Warte auf die ersten Teams …
         </p>
 
-        <ul id="participants-roster" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-2 list-none">
+        <ul
+          :if={!@options || @sidebar_tab == :teams}
+          id="participants-roster"
+          role={@options && "tabpanel"}
+          aria-labelledby={@options && "sidebar-tab-teams"}
+          class="flex-1 min-h-0 overflow-y-auto p-6 space-y-2 list-none"
+        >
           <li
             :for={participant <- @participants}
             id={"participant-#{participant.id}"}
@@ -388,6 +423,35 @@ defmodule QuizWeb.RunLive.Host do
         </div>
       </aside>
     </div>
+    """
+  end
+
+  # One segment of the sidebar's tab switch ("Antworten" / "Teams").
+  attr :id, :string, required: true
+  attr :tab, :string, required: true
+  attr :active, :boolean, required: true
+  slot :inner_block, required: true
+
+  defp sidebar_tab(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={@id}
+      role="tab"
+      aria-selected={to_string(@active)}
+      phx-click="select_tab"
+      phx-value-tab={@tab}
+      class={[
+        "flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold",
+        "transition duration-200 motion-reduce:transition-none",
+        if(@active,
+          do: "bg-base-100 text-primary shadow-sm",
+          else: "text-base-content/60 hover:bg-base-100/50 hover:text-base-content"
+        )
+      ]}
+    >
+      {render_slot(@inner_block)}
+    </button>
     """
   end
 
@@ -438,6 +502,8 @@ defmodule QuizWeb.RunLive.Host do
      |> assign(:qr_svg, qr_svg(game))
      |> assign(:participants, Play.list_participants(game))
      |> assign(:review_position, first_review_position(socket.assigns.current_scope, game))
+     |> assign(:sidebar_tab, :options)
+     |> assign(:options, nil)
      |> load_question()}
   end
 
@@ -483,6 +549,18 @@ defmodule QuizWeb.RunLive.Host do
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Die Frage konnte nicht ausgewertet werden.")}
     end
+  end
+
+  # Deliberately not reset per question: once the operator picks a tab, it
+  # stays picked until they switch back.
+  def handle_event("select_tab", %{"tab" => tab}, socket) do
+    tab =
+      case tab do
+        "teams" -> :teams
+        _ -> :options
+      end
+
+    {:noreply, assign(socket, :sidebar_tab, tab)}
   end
 
   def handle_event("toggle_stats", _params, socket) do
@@ -573,8 +651,22 @@ defmodule QuizWeb.RunLive.Host do
     |> assign(:q_number, number)
     |> assign(:q_total, total)
     |> assign_answered_count()
+    |> assign_options(game, question)
     |> assign_reveal_stats(game, question)
   end
+
+  # Read-only preview of the current question's answer options for the sidebar,
+  # only while a question is live. Shuffled once per question (see
+  # `OptionsArea.prepare/1`): the reveal reloads the same question, and the
+  # projected order must not jump around in front of the room.
+  defp assign_options(socket, %{status: :running}, %{id: id} = question) do
+    case socket.assigns.options do
+      %{question: %{id: ^id}} -> socket
+      _ -> assign(socket, :options, OptionsArea.prepare(question))
+    end
+  end
+
+  defp assign_options(socket, _game, _question), do: assign(socket, :options, nil)
 
   # While revealing in `per_question` mode, compute the answer distribution (same
   # as the Review screen) and start with the panel collapsed. Each reveal/advance
