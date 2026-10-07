@@ -14,9 +14,10 @@ defmodule QuizWeb.RunLive.HostTest do
       question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
       game = set_game_status(game, :finished)
 
-      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
 
-      assert html =~ "Quiz beendet."
+      assert has_element?(lv, "#finished-stage")
+      assert has_element?(lv, "#finished-review-hint")
       assert html =~ "Lösungen besprechen"
       # The walkthrough starts at the first question's position.
       assert html =~ ~p"/games/#{game}/review/1"
@@ -25,9 +26,10 @@ defmodule QuizWeb.RunLive.HostTest do
     test "without questions, the ranking is the call-to-action", %{conn: conn, scope: scope} do
       game = game_fixture(scope, %{status: :closed})
 
-      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
 
-      assert html =~ "Quiz beendet."
+      assert has_element?(lv, "#finished-stage")
+      refute has_element?(lv, "#finished-review-hint")
       refute html =~ "Lösungen besprechen"
       assert html =~ ~p"/games/#{game}/leaderboard"
     end
@@ -37,9 +39,11 @@ defmodule QuizWeb.RunLive.HostTest do
       question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
       game = set_game_status(game, :finished)
 
-      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
 
-      assert html =~ "Quiz beendet."
+      assert has_element?(lv, "#finished-stage")
+      # No walkthrough in this mode, so the guests aren't promised one.
+      refute has_element?(lv, "#finished-review-hint")
       refute html =~ "Lösungen besprechen"
       assert html =~ ~p"/games/#{game}/leaderboard"
     end
@@ -57,8 +61,7 @@ defmodule QuizWeb.RunLive.HostTest do
       # must not crash on a message type it doesn't act on.
       {:ok, _game} = Play.publish_grading(scope, game)
 
-      assert render(lv) =~ "Quiz beendet."
-      assert Process.alive?(lv.pid)
+      assert has_element?(lv, "#finished-stage")
     end
   end
 

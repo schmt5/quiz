@@ -219,7 +219,11 @@ defmodule QuizWeb.RunLive.Stage do
     """
   end
 
-  @doc "The closing screen once the last question is done."
+  @doc """
+  The closing screen once the last question is done. Projected to the room, so
+  it addresses the guests, not the quizmaster: it announces the solution
+  walkthrough only where there is one (`review_mode: :end`).
+  """
   attr :game, :map, required: true
   attr :has_questions, :boolean, required: true
 
@@ -227,9 +231,19 @@ defmodule QuizWeb.RunLive.Stage do
     ~H"""
     <div id="finished-stage" class="text-center space-y-4">
       <.icon name="hero-flag" class="size-16 text-primary" />
-      <p class="text-3xl font-bold">Quiz beendet.</p>
-      <p :if={@has_questions} class="text-lg text-base-content/60">
-        Geh die Lösungen mit allen durch – danach geht's zur Rangliste.
+      <p class="text-3xl font-bold">Quiz beendet!</p>
+      <p
+        :if={@has_questions && @game.review_mode == :end}
+        id="finished-review-hint"
+        class="text-lg text-base-content/60"
+      >
+        Gleich gehen wir die Lösungen gemeinsam durch – danach gibt's die Rangliste.
+      </p>
+      <p
+        :if={!(@has_questions && @game.review_mode == :end)}
+        class="text-lg text-base-content/60"
+      >
+        Danke fürs Mitspielen! Die Rangliste folgt in Kürze.
       </p>
     </div>
     """
