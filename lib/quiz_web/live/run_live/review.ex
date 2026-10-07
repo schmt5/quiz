@@ -8,13 +8,15 @@ defmodule QuizWeb.RunLive.Review do
   reload or a LiveView reconnect keeps the moderator's place — unlike a transient
   in-memory cursor.
 
-  Read-only: nothing is broadcast and participants are untouched. Solutions are
-  read straight off the authoring data via `QuizWeb.QuestionLive.SolutionArea`.
+  Participants are untouched. The only thing written is the presentation state
+  (`Quiz.Play.set_screen/3`), so a separate presentation window
+  (`QuizWeb.RunLive.Screen`) follows along. Solutions are read straight off the
+  authoring data via `QuizWeb.QuestionLive.SolutionArea`.
   """
   use QuizWeb, :live_view
 
   alias Quiz.{Games, Play, Stats}
-  alias QuizWeb.QuestionLive.{SolutionArea, StatsArea}
+  alias QuizWeb.RunLive.Stage
 
   @impl true
   def render(assigns) do
@@ -23,13 +25,7 @@ defmodule QuizWeb.RunLive.Review do
       <%!-- Header (brand · title · primary action), mirroring the run view. --%>
       <div class="shrink-0 flex items-center justify-between gap-4 h-[84px] px-6 border-b border-base-300">
         <div class="flex items-center gap-4 min-w-0">
-          <.link
-            navigate={~p"/"}
-            class="inline-flex items-baseline text-2xl font-extrabold tracking-tight shrink-0"
-          >
-            <span class="text-primary">Pub</span>
-            <span class="bg-primary text-secondary rounded-xl px-2 py-0.5">Quiz</span>
-          </.link>
+          <Stage.brand />
           <div class="min-w-0">
             <h1 class="text-lg font-bold truncate">{@game.title}</h1>
             <p class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
@@ -75,51 +71,15 @@ defmodule QuizWeb.RunLive.Review do
       <%!-- Top-aligned (not vertically centered) so revealing the statistics
            extends downward without nudging the question/solution above. --%>
       <div class="flex-1 min-h-0 flex flex-col items-center justify-start gap-8 p-8 sm:pt-12 overflow-y-auto">
-        <div class="w-full max-w-3xl space-y-6">
-          <h2 class="text-4xl sm:text-5xl font-extrabold leading-tight text-primary">
-            {@question.prompt}
-          </h2>
-          <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
-          <.question_media question={@question} zoomable />
-          <SolutionArea.solution_area question={@question} />
-          <SolutionArea.solution_explanation question={@question} />
-
-          <%!-- Optional anonymous answer distribution, revealed on demand and kept
-               visually separate from the solution above. The panel stays in the
-               DOM and animates open via a grid-rows 0fr->1fr collapse, so the
-               reveal eases instead of popping (respects reduced-motion). --%>
-          <div :if={@game.show_statistics} class="pt-2">
-            <button
-              :if={!@show_stats}
-              type="button"
-              phx-click="toggle_stats"
-              class="btn btn-soft"
-            >
-              <.icon name="hero-chart-bar" class="size-5" /> Statistik einblenden
-            </button>
-
-            <div class={[
-              "grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none",
-              (@show_stats && "grid-rows-[1fr]") || "grid-rows-[0fr]"
-            ]}>
-              <div class="overflow-hidden">
-                <div class={[
-                  "space-y-3 transition-opacity duration-300 ease-out motion-reduce:transition-none",
-                  (@show_stats && "opacity-100") || "opacity-0"
-                ]}>
-                  <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
-                      Statistik
-                    </h3>
-                    <button type="button" phx-click="toggle_stats" class="btn btn-ghost btn-sm">
-                      <.icon name="hero-chevron-up" class="size-4" /> Ausblenden
-                    </button>
-                  </div>
-                  <StatsArea.stats_area stats={@stats} />
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="w-full max-w-3xl">
+          <Stage.question
+            question={@question}
+            revealing
+            show_statistics={@game.show_statistics}
+            show_stats={@game.screen_show_stats}
+            stats={@stats}
+            controls
+          />
         </div>
       </div>
     </div>
@@ -128,7 +88,9 @@ defmodule QuizWeb.RunLive.Review do
 
   @impl true
   def handle_event("toggle_stats", _params, socket) do
-    {:noreply, update(socket, :show_stats, &(!&1))}
+    %{current_scope: scope, game: game} = socket.assigns
+    {:ok, game} = Play.set_screen(scope, game, %{screen_show_stats: !game.screen_show_stats})
+    {:noreply, assign(socket, :game, game)}
   end
 
   @impl true
@@ -151,6 +113,21 @@ defmodule QuizWeb.RunLive.Review do
       index ->
         question = Enum.at(questions, index)
 
+        # Point the presentation window at this question, statistics collapsed.
+        game =
+          if connected?(socket) do
+            {:ok, game} =
+              Play.set_screen(socket.assigns.current_scope, game, %{
+                screen_view: :review,
+                screen_position: position,
+                screen_show_stats: false
+              })
+
+            game
+          else
+            game
+          end
+
         {:ok,
          socket
          |> assign(:page_title, "Lösung: Frage #{index + 1}")
@@ -160,13 +137,12 @@ defmodule QuizWeb.RunLive.Review do
          |> assign(:total, length(questions))
          |> assign(:prev_position, position_at(questions, index - 1))
          |> assign(:next_position, position_at(questions, index + 1))
-         |> assign(:show_stats, false)
          |> assign_stats(game, question)}
     end
   end
 
   # Stats are computed only when the game opts in. Each question is its own URL
-  # (a fresh mount), so the reveal toggle naturally resets per question.
+  # (a fresh mount), which resets the reveal toggle per question.
   defp assign_stats(socket, %{show_statistics: true} = game, question) do
     total = length(Play.list_participants(game))
     assign(socket, :stats, Stats.question_stats(question, total))

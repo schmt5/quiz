@@ -17,6 +17,7 @@ defmodule Quiz.Play do
     * `{:participant_joined, %Participant{}}`
     * `{:participant_removed, %Participant{}}`
     * `{:status_changed, %Game{}}`
+    * `{:screen_changed, %Game{}}` (presentation window state, see `set_screen/3`)
     * `{:answer_submitted, position}`
     * `{:grading_published, %Game{}, leaderboard}` (standings precomputed once,
       see `publish_grading/2`)
@@ -151,6 +152,28 @@ defmodule Quiz.Play do
            |> Repo.update() do
       broadcast(game, {:status_changed, game})
       {:ok, game}
+    end
+  end
+
+  @doc """
+  Sets what the guest-facing presentation window shows (`screen_view`,
+  `screen_position`, `screen_show_stats`) and broadcasts `{:screen_changed,
+  game}`. Called from the operator's views as they move through the solution
+  walkthrough and the leaderboard. A no-op (no write, no broadcast) when nothing
+  changes. Operator only.
+  """
+  def set_screen(%Scope{} = scope, %Game{} = game, attrs) do
+    true = game.user_id == scope.user.id
+
+    case Game.screen_changeset(game, attrs) do
+      %{changes: changes} when changes == %{} ->
+        {:ok, game}
+
+      changeset ->
+        with {:ok, game} <- Repo.update(changeset) do
+          broadcast(game, {:screen_changed, game})
+          {:ok, game}
+        end
     end
   end
 

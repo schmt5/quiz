@@ -53,6 +53,17 @@ defmodule Quiz.Games.Game do
     field :review_mode, Ecto.Enum, values: [:end, :per_question], default: :end
     field :revealing, :boolean, default: false
 
+    # What the guest-facing presentation window (`QuizWeb.RunLive.Screen`) shows
+    # once the run is over, driven from the operator's control window: the
+    # finished screen (`:run`), the solution of the question at
+    # `screen_position` (`:review`) or the leaderboard. `screen_show_stats`
+    # mirrors the operator's statistics toggle. Persisted (rather than only
+    # broadcast) so a reloaded projector lands where the room is. Every status
+    # transition resets it (see `transition_changeset/2`).
+    field :screen_view, Ecto.Enum, values: [:run, :review, :leaderboard], default: :run
+    field :screen_position, :integer
+    field :screen_show_stats, :boolean, default: false
+
     field :user_id, :id
 
     timestamps(type: :utc_datetime)
@@ -86,7 +97,8 @@ defmodule Quiz.Games.Game do
   @doc """
   Changeset for a runtime status transition (e.g. opening or starting a run).
 
-  Only `:status`, `:current_position` and `:revealing` may change. The
+  Only `:status`, `:current_position` and `:revealing` may change, and the
+  presentation state is reset to the run view (see `screen_changeset/2`). The
   `from -> to` status pair must be listed in `@transitions`, otherwise the
   changeset is invalid (a no-op `running -> running` reveal toggle is allowed,
   since `to == from` always passes). Unlike `changeset/3` this never regenerates
@@ -97,6 +109,15 @@ defmodule Quiz.Games.Game do
     |> cast(attrs, [:status, :current_position, :revealing])
     |> validate_required([:status])
     |> validate_transition(game.status)
+    |> change(screen_view: :run, screen_position: nil, screen_show_stats: false)
+  end
+
+  @doc """
+  Changeset for what the presentation window shows (`:screen_view`,
+  `:screen_position`, `:screen_show_stats`). Independent of the run's status.
+  """
+  def screen_changeset(%__MODULE__{} = game, attrs) do
+    cast(game, attrs, [:screen_view, :screen_position, :screen_show_stats])
   end
 
   @doc "Whether the game has intro content (text or image) to show in the lobby."

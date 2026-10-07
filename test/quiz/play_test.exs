@@ -395,6 +395,34 @@ defmodule Quiz.PlayTest do
     end
   end
 
+  describe "set_screen/3" do
+    test "stores the presentation state and broadcasts it, unless nothing changes" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :finished})
+      Play.subscribe(game)
+
+      {:ok, game} = Play.set_screen(scope, game, %{screen_view: :review, screen_position: 3})
+      assert %{screen_view: :review, screen_position: 3} = game
+      assert_received {:screen_changed, %{screen_view: :review}}
+
+      {:ok, _game} = Play.set_screen(scope, game, %{screen_view: :review})
+      refute_received {:screen_changed, _}
+    end
+
+    test "every transition resets the presentation to the run view" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      question_fixture(scope, %{game_id: game.id, position: 2})
+      {:ok, running} = Play.start_run(scope, game)
+
+      {:ok, running} = Play.set_screen(scope, running, %{screen_show_stats: true})
+      {:ok, advanced} = Play.advance_run(scope, running)
+
+      assert %{screen_view: :run, screen_show_stats: false} = advanced
+    end
+  end
+
   describe "accepting_answers?/1" do
     test "only the current, unrevealed question of a running game accepts answers" do
       scope = user_scope_fixture()

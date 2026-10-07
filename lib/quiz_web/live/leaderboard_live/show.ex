@@ -90,8 +90,18 @@ defmodule QuizWeb.LeaderboardLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    game = Games.get_game!(socket.assigns.current_scope, id)
-    if connected?(socket), do: Play.subscribe(game)
+    scope = socket.assigns.current_scope
+    game = Games.get_game!(scope, id)
+
+    # The presentation window follows to the leaderboard.
+    game =
+      if connected?(socket) do
+        Play.subscribe(game)
+        {:ok, game} = Play.set_screen(scope, game, %{screen_view: :leaderboard})
+        game
+      else
+        game
+      end
 
     {:ok,
      socket

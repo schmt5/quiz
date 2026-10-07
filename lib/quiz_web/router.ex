@@ -64,6 +64,7 @@ defmodule QuizWeb.Router do
       live "/games/:game_id/preview", GameLive.Preview, :show
 
       live "/games/:id/run", RunLive.Host, :show
+      live "/games/:id/screen", RunLive.Screen, :show
       live "/games/:id/review/:position", RunLive.Review, :show
       live "/games/:id/correction", CorrectionLive.Index, :index
       live "/games/:id/correction/:position", CorrectionLive.Question, :show
