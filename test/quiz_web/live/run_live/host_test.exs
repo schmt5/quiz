@@ -560,4 +560,65 @@ defmodule QuizWeb.RunLive.HostTest do
       assert has_element?(lv, "#participants-roster")
     end
   end
+
+  describe "keyboard shortcuts" do
+    defp shortcut(lv, action), do: render_hook(lv, "shortcut", %{"action" => action})
+
+    defp running_game(scope, attrs) do
+      game = game_fixture(scope, Map.merge(%{status: :open}, attrs))
+      question_fixture(scope, %{game_id: game.id, position: 1, prompt: "Erste Frage"})
+      question_fixture(scope, %{game_id: game.id, position: 2, prompt: "Zweite Frage"})
+      {:ok, running} = Play.start_run(scope, game)
+      running
+    end
+
+    test "next and prev step through the questions", %{conn: conn, scope: scope} do
+      game = running_game(scope, %{})
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      # prev on the first question does nothing
+      assert shortcut(lv, "prev") =~ "Erste Frage"
+
+      assert shortcut(lv, "next") =~ "Zweite Frage"
+      assert shortcut(lv, "prev") =~ "Erste Frage"
+    end
+
+    test "next never ends the quiz, it points at the button instead",
+         %{conn: conn, scope: scope} do
+      game = running_game(scope, %{})
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      shortcut(lv, "next")
+      shortcut(lv, "next")
+
+      assert has_element?(lv, "#finish-hint")
+      assert Quiz.Games.get_game!(scope, game.id).status == :running
+    end
+
+    test "in per_question mode next reveals first, and S toggles the statistics",
+         %{conn: conn, scope: scope} do
+      game = running_game(scope, %{review_mode: :per_question, show_statistics: true})
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      shortcut(lv, "next")
+      assert Quiz.Games.get_game!(scope, game.id).revealing
+
+      shortcut(lv, "stats")
+      assert Quiz.Games.get_game!(scope, game.id).screen_show_stats
+
+      assert shortcut(lv, "next") =~ "Zweite Frage"
+    end
+
+    test "on the finished screen next opens the solution walkthrough",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope)
+      question_fixture(scope, %{game_id: game.id, position: 1})
+      game = set_game_status(game, :finished)
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      shortcut(lv, "next")
+
+      assert_redirect(lv, ~p"/games/#{game}/review/1")
+    end
+  end
 end

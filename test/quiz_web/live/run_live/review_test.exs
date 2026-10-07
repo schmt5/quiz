@@ -210,4 +210,26 @@ defmodule QuizWeb.RunLive.ReviewTest do
       assert html =~ ">700<"
     end
   end
+
+  describe "keyboard shortcuts" do
+    setup :game_with_questions
+
+    test "next and prev navigate like Weiter / Zurück, then to the leaderboard",
+         %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/review/1")
+      render_hook(lv, "shortcut", %{"action" => "prev"})
+      refute_redirected(lv)
+
+      render_hook(lv, "shortcut", %{"action" => "next"})
+      assert_redirect(lv, ~p"/games/#{game}/review/2")
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/review/2")
+      render_hook(lv, "shortcut", %{"action" => "prev"})
+      assert_redirect(lv, ~p"/games/#{game}/review/1")
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/review/2")
+      render_hook(lv, "shortcut", %{"action" => "next"})
+      assert_redirect(lv, ~p"/games/#{game}/leaderboard")
+    end
+  end
 end

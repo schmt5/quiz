@@ -21,6 +21,8 @@ defmodule QuizWeb.RunLive.Review do
   @impl true
   def render(assigns) do
     ~H"""
+    <Stage.keyboard />
+
     <div class="flex flex-col h-screen overflow-hidden bg-base-100">
       <%!-- Header (brand · title · primary action), mirroring the run view. --%>
       <div class="shrink-0 flex items-center justify-between gap-4 h-[84px] px-6 border-b border-base-300">
@@ -36,6 +38,7 @@ defmodule QuizWeb.RunLive.Review do
 
         <%!-- Step Zurück / Weiter through the questions, then "Zur Rangliste" on the last. --%>
         <div class="flex items-center gap-2 shrink-0">
+          <Stage.shortcuts_button />
           <.link navigate={~p"/games/#{@game}/run"} class="btn btn-ghost">
             <.icon name="hero-x-mark" class="size-4" /> Besprechung beenden
           </.link>
@@ -43,6 +46,7 @@ defmodule QuizWeb.RunLive.Review do
           <.link
             :if={@prev_position}
             navigate={~p"/games/#{@game}/review/#{@prev_position}"}
+            title="Zurück (←)"
             class="btn btn-soft"
           >
             <.icon name="hero-arrow-left" /> Zurück
@@ -54,6 +58,7 @@ defmodule QuizWeb.RunLive.Review do
           <.link
             :if={@next_position}
             navigate={~p"/games/#{@game}/review/#{@next_position}"}
+            title="Weiter (→)"
             class="btn btn-primary"
           >
             Weiter <.icon name="hero-arrow-right" />
@@ -61,6 +66,7 @@ defmodule QuizWeb.RunLive.Review do
           <.link
             :if={!@next_position}
             navigate={~p"/games/#{@game}/leaderboard"}
+            title="Zur Rangliste (→)"
             class="btn btn-primary"
           >
             <.icon name="hero-trophy" /> Zur Rangliste
@@ -87,10 +93,38 @@ defmodule QuizWeb.RunLive.Review do
   end
 
   @impl true
-  def handle_event("toggle_stats", _params, socket) do
+  def handle_event("toggle_stats", _params, socket), do: {:noreply, toggle_stats(socket)}
+
+  # Keyboard / presenter clicker (see `Stage.keyboard/1`): step through the
+  # questions like the Zurück / Weiter links, and on to the leaderboard.
+  def handle_event("shortcut", %{"action" => action}, socket) do
+    %{game: game, prev_position: prev, next_position: next} = socket.assigns
+
+    socket =
+      case action do
+        "next" when is_nil(next) ->
+          push_navigate(socket, to: ~p"/games/#{game}/leaderboard")
+
+        "next" ->
+          push_navigate(socket, to: ~p"/games/#{game}/review/#{next}")
+
+        "prev" when not is_nil(prev) ->
+          push_navigate(socket, to: ~p"/games/#{game}/review/#{prev}")
+
+        "stats" when game.show_statistics ->
+          toggle_stats(socket)
+
+        _ ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
+
+  defp toggle_stats(socket) do
     %{current_scope: scope, game: game} = socket.assigns
     {:ok, game} = Play.set_screen(scope, game, %{screen_show_stats: !game.screen_show_stats})
-    {:noreply, assign(socket, :game, game)}
+    assign(socket, :game, game)
   end
 
   @impl true

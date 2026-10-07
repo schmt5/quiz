@@ -285,6 +285,109 @@ defmodule QuizWeb.RunLive.Stage do
     """
   end
 
+  @doc """
+  Keyboard control for the operator's run views: → / Space / PageDown push a
+  `"shortcut"` event with `action: "next"`, ← / PageUp `"prev"` and S
+  `"stats"`; the view decides what that means in its current state. These are
+  also the keys presenter clickers send. ? opens the shortcut overview.
+
+  Keys are ignored while typing in a field, with a modifier held, on key
+  repeat and while a dialog is open; Space on a focused button keeps its
+  native click.
+  """
+  def keyboard(assigns) do
+    ~H"""
+    <div id="run-keys" phx-hook=".RunKeys" class="hidden"></div>
+
+    <dialog id="shortcuts_modal" class="modal">
+      <div class="modal-box max-w-md">
+        <form method="dialog">
+          <button
+            class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4"
+            aria-label="Schliessen"
+          >
+            <.icon name="hero-x-mark" class="size-5" />
+          </button>
+        </form>
+        <h2 class="text-xl font-extrabold text-primary">Tastenkürzel</h2>
+        <dl class="mt-6 grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3 text-sm">
+          <dt class="flex flex-wrap gap-1">
+            <kbd class="kbd kbd-sm">→</kbd>
+            <kbd class="kbd kbd-sm">Leertaste</kbd>
+            <kbd class="kbd kbd-sm">Bild ↓</kbd>
+          </dt>
+          <dd>Nächster Schritt: auswerten, nächste Frage oder Lösung</dd>
+          <dt class="flex flex-wrap gap-1">
+            <kbd class="kbd kbd-sm">←</kbd>
+            <kbd class="kbd kbd-sm">Bild ↑</kbd>
+          </dt>
+          <dd>Einen Schritt zurück</dd>
+          <dt><kbd class="kbd kbd-sm">S</kbd></dt>
+          <dd>Statistik ein- und ausblenden</dd>
+          <dt><kbd class="kbd kbd-sm">?</kbd></dt>
+          <dd>Diese Übersicht</dd>
+        </dl>
+        <p class="mt-6 text-sm text-base-content/60">
+          Das Quiz wird nie per Taste beendet, sondern nur über den Button «Quiz beenden».
+        </p>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>schliessen</button></form>
+    </dialog>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".RunKeys">
+      export default {
+        mounted() {
+          const ACTIONS = {
+            ArrowRight: "next", PageDown: "next", " ": "next",
+            ArrowLeft: "prev", PageUp: "prev",
+            s: "stats", S: "stats",
+          };
+
+          this.onKey = (e) => {
+            if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+            if (document.querySelector("dialog[open]")) return;
+            // Space on a focused button already clicks it; don't fire twice.
+            if (e.key === " " && e.target.closest("button, a, summary")) return;
+
+            if (e.key === "?") {
+              e.preventDefault();
+              document.getElementById("shortcuts_modal")?.showModal();
+              return;
+            }
+
+            const action = ACTIONS[e.key];
+            if (!action) return;
+            e.preventDefault();
+            this.pushEvent("shortcut", { action });
+          };
+
+          window.addEventListener("keydown", this.onKey);
+        },
+        destroyed() {
+          window.removeEventListener("keydown", this.onKey);
+        },
+      };
+    </script>
+    """
+  end
+
+  @doc "Header button opening the shortcut overview of `keyboard/1`."
+  def shortcuts_button(assigns) do
+    ~H"""
+    <button
+      id="open-shortcuts"
+      type="button"
+      onclick="shortcuts_modal.showModal()"
+      title="Tastenkürzel (?)"
+      aria-label="Tastenkürzel anzeigen"
+      class="btn btn-ghost btn-circle"
+    >
+      <.icon name="hero-command-line" class="size-6" />
+    </button>
+    """
+  end
+
   @doc "SVG QR code linking to the enrollment page for this game's join code."
   def qr_svg(game) do
     (QuizWeb.Endpoint.url() <> ~p"/join?code=#{game.join_code}")

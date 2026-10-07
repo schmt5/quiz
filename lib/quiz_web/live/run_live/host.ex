@@ -62,6 +62,8 @@ defmodule QuizWeb.RunLive.Host do
       image_key={@game.intro_image_key}
     />
 
+    <Stage.keyboard :if={@game.status != :open} />
+
     <%!-- Running / finished: unchanged single-column operator view. --%>
     <div
       :if={@game.status != :open}
@@ -81,6 +83,7 @@ defmodule QuizWeb.RunLive.Host do
                sends the room back one question (disabled on the first) so teams can
                re-see and re-enter what they submitted. --%>
           <div :if={@game.status == :running} class="flex items-center gap-2 shrink-0">
+            <Stage.shortcuts_button />
             <.screen_link game={@game} />
             <.enrollment_toggle game={@game} compact />
 
@@ -88,6 +91,7 @@ defmodule QuizWeb.RunLive.Host do
               type="button"
               phx-click="retreat"
               disabled={@q_number <= 1}
+              title="Vorherige Frage (←)"
               class="btn btn-ghost"
             >
               <.icon name="hero-arrow-left" /> Vorherige Frage
@@ -97,16 +101,26 @@ defmodule QuizWeb.RunLive.Host do
               :if={@game.review_mode == :per_question and not @game.revealing}
               type="button"
               phx-click="reveal"
+              title="Auswerten (→)"
               class="btn btn-primary"
             >
               <.icon name="hero-light-bulb" /> Auswerten
             </button>
 
+            <span
+              :if={@finish_hint}
+              id="finish-hint"
+              class="text-sm font-semibold text-primary animate-pulse"
+            >
+              Zum Beenden klicken
+            </span>
             <button
               :if={not (@game.review_mode == :per_question and not @game.revealing)}
+              id="advance"
               type="button"
               phx-click="advance"
-              class="btn btn-primary"
+              title={if(@q_number >= @q_total, do: "Quiz beenden", else: "Nächste Frage (→)")}
+              class={["btn btn-primary", @finish_hint && "ring-4 ring-secondary"]}
             >
               <%= if @q_number >= @q_total and @q_total > 0 do %>
                 <.icon name="hero-flag" /> Quiz beenden
@@ -120,6 +134,7 @@ defmodule QuizWeb.RunLive.Host do
             :if={@game.status in [:finished, :closed]}
             class="flex items-center gap-2 shrink-0"
           >
+            <Stage.shortcuts_button :if={@review_position && @game.review_mode == :end} />
             <.screen_link game={@game} />
             <button
               :if={Game.outro?(@game)}
@@ -134,6 +149,7 @@ defmodule QuizWeb.RunLive.Host do
             <.link
               :if={@review_position && @game.review_mode == :end}
               navigate={~p"/games/#{@game}/review/#{@review_position}"}
+              title="Lösungen besprechen (→)"
               class="btn btn-ghost"
             >
               <.icon name="hero-light-bulb" /> Lösungen besprechen
@@ -397,34 +413,13 @@ defmodule QuizWeb.RunLive.Host do
     end
   end
 
-  def handle_event("advance", _params, socket) do
-    case Play.advance_run(socket.assigns.current_scope, socket.assigns.game) do
-      {:ok, game} ->
-        {:noreply, socket |> assign(:game, game) |> load_question()}
+  def handle_event("advance", _params, socket), do: {:noreply, advance(socket)}
+  def handle_event("retreat", _params, socket), do: {:noreply, retreat(socket)}
+  def handle_event("reveal", _params, socket), do: {:noreply, reveal(socket)}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Konnte nicht zur nächsten Frage wechseln.")}
-    end
-  end
-
-  def handle_event("retreat", _params, socket) do
-    case Play.retreat_run(socket.assigns.current_scope, socket.assigns.game) do
-      {:ok, game} ->
-        {:noreply, socket |> assign(:game, game) |> load_question()}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Konnte nicht zur vorherigen Frage wechseln.")}
-    end
-  end
-
-  def handle_event("reveal", _params, socket) do
-    case Play.reveal_run(socket.assigns.current_scope, socket.assigns.game) do
-      {:ok, game} ->
-        {:noreply, socket |> assign(:game, game) |> load_question()}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Die Frage konnte nicht ausgewertet werden.")}
-    end
+  # Keyboard / presenter clicker (see `Stage.keyboard/1`).
+  def handle_event("shortcut", %{"action" => action}, socket) do
+    {:noreply, shortcut(action, socket)}
   end
 
   # Deliberately not reset per question: once the operator picks a tab, it
@@ -439,12 +434,7 @@ defmodule QuizWeb.RunLive.Host do
     {:noreply, assign(socket, :sidebar_tab, tab)}
   end
 
-  # The toggle lives on the game so the presentation window opens the panel too.
-  def handle_event("toggle_stats", _params, socket) do
-    %{current_scope: scope, game: game} = socket.assigns
-    {:ok, game} = Play.set_screen(scope, game, %{screen_show_stats: !game.screen_show_stats})
-    {:noreply, assign(socket, :game, game)}
-  end
+  def handle_event("toggle_stats", _params, socket), do: {:noreply, toggle_stats(socket)}
 
   def handle_event("toggle_enrollment", _params, socket) do
     game = socket.assigns.game
@@ -476,6 +466,70 @@ defmodule QuizWeb.RunLive.Host do
         {:noreply, socket}
     end
   end
+
+  defp advance(socket) do
+    case Play.advance_run(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, game} -> socket |> assign(:game, game) |> load_question()
+      {:error, _} -> put_flash(socket, :error, "Konnte nicht zur nächsten Frage wechseln.")
+    end
+  end
+
+  defp retreat(socket) do
+    case Play.retreat_run(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, game} -> socket |> assign(:game, game) |> load_question()
+      {:error, _} -> put_flash(socket, :error, "Konnte nicht zur vorherigen Frage wechseln.")
+    end
+  end
+
+  defp reveal(socket) do
+    case Play.reveal_run(socket.assigns.current_scope, socket.assigns.game) do
+      {:ok, game} -> socket |> assign(:game, game) |> load_question()
+      {:error, _} -> put_flash(socket, :error, "Die Frage konnte nicht ausgewertet werden.")
+    end
+  end
+
+  # The toggle lives on the game so the presentation window opens the panel too.
+  defp toggle_stats(socket) do
+    %{current_scope: scope, game: game} = socket.assigns
+    {:ok, game} = Play.set_screen(scope, game, %{screen_show_stats: !game.screen_show_stats})
+    assign(socket, :game, game)
+  end
+
+  # "Next" does whatever the primary header button does — except ending the
+  # quiz, which can't be undone and so stays a deliberate click; the button is
+  # highlighted instead.
+  defp shortcut("next", %{assigns: %{game: %{status: :running} = game}} = socket) do
+    cond do
+      game.review_mode == :per_question and not game.revealing -> reveal(socket)
+      last_question?(socket.assigns) -> assign(socket, :finish_hint, true)
+      true -> advance(socket)
+    end
+  end
+
+  defp shortcut("next", %{assigns: %{game: %{status: status} = game}} = socket)
+       when status in [:finished, :closed] do
+    case socket.assigns.review_position do
+      position when not is_nil(position) and game.review_mode == :end ->
+        push_navigate(socket, to: ~p"/games/#{game}/review/#{position}")
+
+      _ ->
+        socket
+    end
+  end
+
+  defp shortcut("prev", %{assigns: %{game: %{status: :running}, q_number: number}} = socket)
+       when number > 1,
+       do: retreat(socket)
+
+  defp shortcut(
+         "stats",
+         %{assigns: %{game: %{status: :running, revealing: true, show_statistics: true}}} = socket
+       ),
+       do: toggle_stats(socket)
+
+  defp shortcut(_action, socket), do: socket
+
+  defp last_question?(%{q_number: number, q_total: total}), do: total > 0 and number >= total
 
   @impl true
   def handle_info({:participant_joined, participant}, socket) do
@@ -531,6 +585,7 @@ defmodule QuizWeb.RunLive.Host do
 
     socket
     |> assign(:question, question)
+    |> assign(:finish_hint, false)
     |> assign(:q_number, number)
     |> assign(:q_total, total)
     |> assign_answered_count()
