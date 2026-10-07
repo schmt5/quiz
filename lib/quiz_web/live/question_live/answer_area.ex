@@ -6,16 +6,21 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
 
   Each clause carries its own colocated `phx-hook` for interactive types
   (sequence reorder, matching drag & drop, pin placement).
+
+  `value` pre-fills the inputs with a previously submitted answer (the canonical
+  `payload["value"]`), so a team changing its answer starts from what it sent.
   """
   use QuizWeb, :html
 
   attr :question, :map, required: true
+  attr :value, :any, default: nil
 
   def answer_area(%{question: %{type: :text_input}} = assigns) do
     ~H"""
     <input
       type="text"
       name="answer"
+      value={@value}
       placeholder="Antwort eintippen …"
       class={["w-full h-14 text-lg", field_base_class(), field_state_class([])]}
     />
@@ -31,6 +36,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             type="radio"
             name="answer"
             value={idx}
+            checked={@value == idx}
             class="radio radio-primary"
           />
           <.choice_letter index={idx} />
@@ -53,6 +59,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             type="checkbox"
             name="answer[]"
             value={idx}
+            checked={is_list(@value) and idx in @value}
             class="checkbox checkbox-primary"
           />
           <.choice_letter index={idx} />
@@ -64,6 +71,8 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   end
 
   def answer_area(%{question: %{type: :sequence}} = assigns) do
+    assigns = assign(assigns, :items, ordered_items(assigns.question.data.items, assigns.value))
+
     ~H"""
     <div id={"preview-sequence-#{@question.id}"} phx-hook=".PreviewSortable" phx-update="ignore">
       <input type="hidden" name="answer" data-answer />
@@ -72,7 +81,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
       </p>
       <ul data-list class="space-y-2 list-none p-0">
         <li
-          :for={item <- @question.data.items}
+          :for={item <- @items}
           data-id={item.id}
           class="group flex items-stretch overflow-hidden rounded-box bg-base-200 ring-1 ring-inset ring-base-300/60"
         >
@@ -203,6 +212,9 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   end
 
   def answer_area(%{question: %{type: :matching}} = assigns) do
+    {placed, pool} = place_matches(assigns.question.data.pairs, assigns.value)
+    assigns = assign(assigns, placed: placed, pool: pool)
+
     ~H"""
     <div id={"preview-match-#{@question.id}"} phx-hook=".PreviewMatch" phx-update="ignore">
       <input type="hidden" name="answer" data-answer />
@@ -222,6 +234,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             <span data-placeholder class="flex-1 grid place-items-center text-xs text-base-content/40">
               Hierher ziehen
             </span>
+            <.match_chip :if={@placed[pair.id]} value={@placed[pair.id]} />
           </div>
         </li>
       </ul>
@@ -233,26 +246,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         data-pool
         class="flex flex-wrap gap-2 rounded-box bg-base-200/70 p-3 min-h-16 transition-colors"
       >
-        <div
-          :for={value <- Enum.shuffle(Enum.map(@question.data.pairs, & &1.right_text))}
-          data-chip
-          class="match-chip inline-flex items-center justify-between gap-1.5 rounded-box border border-base-300 bg-base-100 pl-1.5 pr-3 py-2 text-sm font-medium shadow-sm cursor-grab active:cursor-grabbing select-none touch-none transition hover:shadow-md hover:-translate-y-px"
-        >
-          <span class="inline-flex min-w-0 items-center gap-1.5">
-            <span class="grid place-items-center pr-1.5 mr-0.5 border-r border-current/20">
-              <.drag_grip class="size-4 opacity-70" />
-            </span>
-            <span data-value class="truncate">{value}</span>
-          </span>
-          <button
-            type="button"
-            data-remove
-            aria-label="Zurücklegen"
-            class="hidden -mr-1 grid place-items-center size-5 rounded-full text-primary-content/70 hover:text-primary-content hover:bg-primary-content/20 leading-none"
-          >
-            <.icon name="hero-x-mark" class="size-3.5" />
-          </button>
-        </div>
+        <.match_chip :for={value <- @pool} value={value} />
       </div>
     </div>
 
@@ -305,6 +299,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
           };
 
           el.querySelectorAll("[data-chip]").forEach(styleChip);
+          el.querySelectorAll("[data-slot]").forEach(refreshPlaceholder);
           sync();
 
           // Pointer-driven drag (mouse, touch and pen). Native HTML5 drag-and-drop
@@ -430,6 +425,8 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
       phx-update="ignore"
       class="relative w-full overflow-hidden rounded-box bg-base-200 cursor-crosshair select-none"
       style={"aspect-ratio: #{@question.data.pin.aspect_ratio || 1.0};"}
+      data-x={is_map(@value) && @value["x"]}
+      data-y={is_map(@value) && @value["y"]}
     >
       <img
         src={Quiz.Storage.url(@question.data.pin.image_key)}
@@ -451,10 +448,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             "absolute size-4 rounded-full bg-primary ring-2 ring-white shadow -translate-x-1/2 -translate-y-1/2 hidden";
           el.appendChild(marker);
 
-          el.addEventListener("click", (e) => {
-            const r = el.getBoundingClientRect();
-            const x = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
-            const y = Math.min(Math.max((e.clientY - r.top) / r.height, 0), 1);
+          const place = (x, y) => {
             marker.style.left = x * 100 + "%";
             marker.style.top = y * 100 + "%";
             marker.classList.remove("hidden");
@@ -462,6 +456,18 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
             // form submits the normalized 0..1 coordinates.
             if (inputX) inputX.value = x;
             if (inputY) inputY.value = y;
+          };
+
+          // A previously submitted pin (when changing the answer).
+          const x0 = parseFloat(el.dataset.x);
+          const y0 = parseFloat(el.dataset.y);
+          if (!isNaN(x0) && !isNaN(y0)) place(x0, y0);
+
+          el.addEventListener("click", (e) => {
+            const r = el.getBoundingClientRect();
+            const x = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
+            const y = Math.min(Math.max((e.clientY - r.top) / r.height, 0), 1);
+            place(x, y);
           });
         },
       };
@@ -477,6 +483,7 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
         type="number"
         inputmode="numeric"
         name="answer"
+        value={@value}
         step="1"
         min={@question.data.number_range.min}
         max={@question.data.number_range.max}
@@ -616,6 +623,64 @@ defmodule QuizWeb.QuestionLive.AnswerArea do
   end
 
   defp matching_rows(_question, _answer), do: []
+
+  # Sequence items in the order of a previously submitted answer (a list of item
+  # ids); without one, the given (already shuffled) order is kept. Items missing
+  # from the answer go last.
+  defp ordered_items(items, ids) when is_list(ids) and ids != [] do
+    rank = ids |> Enum.map(&to_string/1) |> Enum.with_index() |> Map.new()
+    Enum.sort_by(items, &Map.get(rank, to_string(&1.id), length(ids)))
+  end
+
+  defp ordered_items(items, _ids), do: items
+
+  # Splits the matching values into chips already placed in a slot (from a
+  # previously submitted `%{pair_id => right_text}` answer) and the shuffled
+  # remainder for the pool. Each value is used at most once, so duplicates
+  # among the right-hand texts stay consistent.
+  defp place_matches(pairs, answer) do
+    values = Enum.map(pairs, & &1.right_text)
+    answer = if is_map(answer), do: answer, else: %{}
+
+    Enum.reduce(pairs, {%{}, values}, fn pair, {placed, pool} ->
+      value = Map.get(answer, to_string(pair.id))
+
+      if value && value in pool do
+        {Map.put(placed, pair.id, value), List.delete(pool, value)}
+      else
+        {placed, pool}
+      end
+    end)
+    |> then(fn {placed, pool} -> {placed, Enum.shuffle(pool)} end)
+  end
+
+  # One draggable value chip of a matching question; the `.PreviewMatch` hook
+  # restyles it depending on whether it sits in the pool or in a slot.
+  attr :value, :string, required: true
+
+  defp match_chip(assigns) do
+    ~H"""
+    <div
+      data-chip
+      class="match-chip inline-flex items-center justify-between gap-1.5 rounded-box border border-base-300 bg-base-100 pl-1.5 pr-3 py-2 text-sm font-medium shadow-sm cursor-grab active:cursor-grabbing select-none touch-none transition hover:shadow-md hover:-translate-y-px"
+    >
+      <span class="inline-flex min-w-0 items-center gap-1.5">
+        <span class="grid place-items-center pr-1.5 mr-0.5 border-r border-current/20">
+          <.drag_grip class="size-4 opacity-70" />
+        </span>
+        <span data-value class="truncate">{@value}</span>
+      </span>
+      <button
+        type="button"
+        data-remove
+        aria-label="Zurücklegen"
+        class="hidden -mr-1 grid place-items-center size-5 rounded-full text-primary-content/70 hover:text-primary-content hover:bg-primary-content/20 leading-none"
+      >
+        <.icon name="hero-x-mark" class="size-3.5" />
+      </button>
+    </div>
+    """
+  end
 
   @doc """
   Prepares a question for participant display. Sequence items are shuffled so

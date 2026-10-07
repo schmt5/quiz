@@ -395,6 +395,28 @@ defmodule Quiz.PlayTest do
     end
   end
 
+  describe "accepting_answers?/1" do
+    test "only the current, unrevealed question of a running game accepts answers" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open, review_mode: :per_question})
+      q1 = question_fixture(scope, %{game_id: game.id, position: 1})
+      q2 = question_fixture(scope, %{game_id: game.id, position: 2})
+
+      refute Play.accepting_answers?(q1)
+
+      {:ok, running} = Play.start_run(scope, game)
+      assert Play.accepting_answers?(q1)
+      refute Play.accepting_answers?(q2)
+
+      {:ok, revealing} = Play.reveal_run(scope, running)
+      refute Play.accepting_answers?(q1)
+
+      {:ok, _} = Play.advance_run(scope, revealing)
+      refute Play.accepting_answers?(q1)
+      assert Play.accepting_answers?(q2)
+    end
+  end
+
   describe "submit_answer/4, get_answer/2 and count_answers/2" do
     test "scores and stores a correct single-choice answer" do
       scope = user_scope_fixture()

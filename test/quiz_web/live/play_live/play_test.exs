@@ -6,6 +6,7 @@ defmodule QuizWeb.PlayLive.PlayTest do
   import Quiz.GamesFixtures
 
   alias Quiz.Play
+  alias QuizWeb.QuestionLive.AnswerArea
 
   # Drives the participant runtime the way the browser does: mount, restore the
   # team from its signed token (the JS hook does this via localStorage), then
@@ -241,6 +242,152 @@ defmodule QuizWeb.PlayLive.PlayTest do
       html = render(lv)
       assert html =~ ~s|<video src="#{Quiz.Storage.url("uploads/1/clip.mp4")}"|
       assert html =~ ~s|preload="none"|
+    end
+  end
+
+  describe "changing a submitted answer" do
+    setup do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :open})
+      q1 = question_fixture(scope, %{game_id: game.id, position: 1, type: :text_input})
+      q2 = question_fixture(scope, %{game_id: game.id, position: 2})
+      {:ok, running} = Play.start_run(scope, game)
+      {:ok, participant, token} = Play.enroll(running, "Team A")
+
+      %{scope: scope, game: running, q1: q1, q2: q2, participant: participant, token: token}
+    end
+
+    defp submit_text(lv, text) do
+      lv |> form("#answer-form") |> render_submit(%{"answer" => text})
+    end
+
+    test "the form is pre-filled with the stored answer and says it still counts",
+         %{conn: conn, game: game, token: token} do
+      lv = connect_and_restore(conn, game, token)
+      submit_text(lv, "Pariss")
+
+      lv |> element("#change-answer") |> render_click()
+
+      assert has_element?(lv, "#editing-hint")
+      assert has_element?(lv, ~s|#answer-form input[name="answer"][value="Pariss"]|)
+      assert has_element?(lv, "#cancel-change")
+    end
+
+    test "cancelling returns to the confirmation without touching the answer",
+         %{conn: conn, game: game, token: token, participant: participant, q1: q1} do
+      lv = connect_and_restore(conn, game, token)
+      submit_text(lv, "Paris")
+
+      lv |> element("#change-answer") |> render_click()
+      lv |> element("#cancel-change") |> render_click()
+
+      refute has_element?(lv, "#answer-form")
+      assert has_element?(lv, "#change-answer")
+      assert Play.get_answer(participant, q1).payload["value"] == "Paris"
+    end
+
+    test "resubmitting replaces the stored answer",
+         %{conn: conn, game: game, token: token, participant: participant, q1: q1} do
+      lv = connect_and_restore(conn, game, token)
+      submit_text(lv, "Berlin")
+
+      lv |> element("#change-answer") |> render_click()
+      submit_text(lv, "Paris")
+
+      answer = Play.get_answer(participant, q1)
+      assert answer.payload["value"] == "Paris"
+      assert answer.grade == :full
+      assert Play.count_answers(game, 1) == 1
+    end
+
+    test "the stored answer still counts when the host moves on mid-change",
+         %{conn: conn, scope: scope, game: game, token: token, participant: participant, q1: q1} do
+      lv = connect_and_restore(conn, game, token)
+      submit_text(lv, "Paris")
+      lv |> element("#change-answer") |> render_click()
+
+      {:ok, _} = Play.advance_run(scope, game)
+
+      refute has_element?(lv, "#editing-hint")
+      assert Play.get_answer(participant, q1).payload["value"] == "Paris"
+      assert Play.count_answers(game, 1) == 1
+    end
+
+    test "a submit for a question the host already left is rejected",
+         %{conn: conn, scope: scope, game: game, token: token, participant: participant} = ctx do
+      %{q1: q1, q2: q2} = ctx
+      lv = connect_and_restore(conn, game, token)
+
+      # The form was rendered for the first question, but by the time the
+      # submit is processed the view has already switched to the next one.
+      {:ok, _} = Play.advance_run(scope, game)
+
+      render_submit(lv, "answer_submit", %{"question_id" => to_string(q1.id), "answer" => "0"})
+
+      assert Play.get_answer(participant, q1) == nil
+      assert Play.get_answer(participant, q2) == nil
+      assert has_element?(lv, "#answer-form")
+    end
+  end
+
+  describe "pre-filling the answer form" do
+    test "single choice checks the stored option" do
+      question = %{type: :single_choice, id: 1, data: %{choices: [%{text: "A"}, %{text: "B"}]}}
+      html = render_component(&AnswerArea.answer_area/1, question: question, value: 1)
+      doc = LazyHTML.from_fragment(html)
+
+      assert [_] = doc |> LazyHTML.query(~s|input[value="1"][checked]|) |> Enum.to_list()
+      assert [] = doc |> LazyHTML.query(~s|input[value="0"][checked]|) |> Enum.to_list()
+    end
+
+    test "multiple choice checks every stored option" do
+      question = %{
+        type: :multiple_choice,
+        id: 1,
+        data: %{choices: [%{text: "A"}, %{text: "B"}, %{text: "C"}]}
+      }
+
+      html = render_component(&AnswerArea.answer_area/1, question: question, value: [0, 2])
+      doc = LazyHTML.from_fragment(html)
+
+      assert doc |> LazyHTML.query("input[checked]") |> Enum.count() == 2
+      assert [_] = doc |> LazyHTML.query(~s|input[value="2"][checked]|) |> Enum.to_list()
+    end
+
+    test "sequence renders the items in the stored order" do
+      items = [%{id: "a", text: "First"}, %{id: "b", text: "Second"}, %{id: "c", text: "Third"}]
+      question = %{type: :sequence, id: 1, data: %{items: items}}
+
+      html =
+        render_component(&AnswerArea.answer_area/1, question: question, value: ["c", "a", "b"])
+
+      ids =
+        html
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("li[data-id]")
+        |> LazyHTML.attribute("data-id")
+
+      assert ids == ["c", "a", "b"]
+    end
+
+    test "matching places stored values in their slots and leaves the rest in the pool" do
+      pairs = [
+        %{id: "p1", left_text: "France", right_text: "Paris"},
+        %{id: "p2", left_text: "Japan", right_text: "Tokyo"}
+      ]
+
+      question = %{type: :matching, id: 1, data: %{pairs: pairs}}
+
+      html =
+        render_component(&AnswerArea.answer_area/1, question: question, value: %{"p2" => "Paris"})
+
+      doc = LazyHTML.from_fragment(html)
+
+      assert doc |> LazyHTML.query(~s|[data-pair-id="p2"] [data-value]|) |> LazyHTML.text() ==
+               "Paris"
+
+      assert doc |> LazyHTML.query(~s|[data-pair-id="p1"] [data-chip]|) |> Enum.count() == 0
+      assert doc |> LazyHTML.query("[data-pool] [data-value]") |> LazyHTML.text() == "Tokyo"
     end
   end
 end

@@ -104,22 +104,48 @@ defmodule QuizWeb.PlayLive.Play do
             </div>
           </div>
 
+          <%!-- While changing an answer the stored one keeps counting until the
+               new one is sent — the form starts pre-filled with it and says so,
+               so moving on to the next question never silently drops anything. --%>
           <form
             :if={!@game.revealing && !@submitted}
+            id="answer-form"
             phx-submit="answer_submit"
             class="py-6 flex flex-col gap-4"
           >
+            <p
+              :if={@editing}
+              id="editing-hint"
+              class="flex items-start gap-2 rounded-box bg-secondary/40 px-4 py-3 text-sm leading-snug text-primary"
+            >
+              <.icon name="hero-information-circle" class="size-5 shrink-0" />
+              <span>Eure bisherige Antwort zählt, bis ihr die neue abschickt.</span>
+            </p>
+            <input type="hidden" name="question_id" value={@question.id} />
             <fieldset class="m-0 min-w-0 border-0 p-0">
               <legend class="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-base-content/45">
                 Eure Antwort
               </legend>
-              <AnswerArea.answer_area question={@question} />
+              <AnswerArea.answer_area question={@question} value={@editing && @answer} />
             </fieldset>
             <button
               type="submit"
               class="mt-6 w-full h-14 rounded-field bg-primary text-secondary text-lg font-bold tracking-wide shadow-sm transition hover:brightness-110 active:scale-[0.99]"
             >
-              Abschicken <span aria-hidden="true">→</span>
+              <%= if @editing do %>
+                Neue Antwort abschicken <span aria-hidden="true">→</span>
+              <% else %>
+                Abschicken <span aria-hidden="true">→</span>
+              <% end %>
+            </button>
+            <button
+              :if={@editing}
+              id="cancel-change"
+              type="button"
+              phx-click="cancel_change"
+              class="w-full h-14 rounded-field border border-base-300 text-lg font-semibold text-base-content/60 transition hover:bg-base-200"
+            >
+              Abbrechen
             </button>
           </form>
 
@@ -143,6 +169,7 @@ defmodule QuizWeb.PlayLive.Play do
               </div>
 
               <button
+                id="change-answer"
                 type="button"
                 phx-click="change_answer"
                 class="mt-4 w-full h-14 rounded-field border border-base-300 text-lg font-semibold text-base-content/60 transition hover:bg-base-200"
@@ -218,6 +245,7 @@ defmodule QuizWeb.PlayLive.Play do
          |> assign(:q_total, 0)
          |> assign(:answer, nil)
          |> assign(:submitted, false)
+         |> assign(:editing, false)
          |> assign(:leaderboard, [])
          |> assign(:restoring, true)}
 
@@ -251,12 +279,23 @@ defmodule QuizWeb.PlayLive.Play do
   def handle_event("answer_submit", params, socket) do
     %{game: game, participant: participant, canonical_question: question} = socket.assigns
 
-    case Play.submit_answer(game, participant, question, params) do
+    # A submit sent just before the host moved on can arrive after we already
+    # switched to the next question: the form names the question it was
+    # rendered for, so it is never stored against another one. The database
+    # re-check catches a transition whose broadcast we haven't processed yet.
+    result =
+      if question && params["question_id"] == to_string(question.id) &&
+           Play.accepting_answers?(question),
+         do: Play.submit_answer(game, participant, question, params),
+         else: {:error, :not_accepting_answers}
+
+    case result do
       {:ok, answer} ->
         {:noreply,
          socket
          |> assign(:answer, answer.payload["value"])
-         |> assign(:submitted, true)}
+         |> assign(:submitted, true)
+         |> assign(:editing, false)}
 
       {:error, :not_accepting_answers} ->
         {:noreply, put_flash(socket, :error, "Diese Frage ist bereits geschlossen.")}
@@ -266,8 +305,14 @@ defmodule QuizWeb.PlayLive.Play do
     end
   end
 
+  # Only reopens the form: the stored answer stays (and keeps counting) until a
+  # new one is submitted.
   def handle_event("change_answer", _params, socket) do
-    {:noreply, assign(socket, :submitted, false)}
+    {:noreply, socket |> assign(:submitted, false) |> assign(:editing, true)}
+  end
+
+  def handle_event("cancel_change", _params, socket) do
+    {:noreply, socket |> assign(:submitted, true) |> assign(:editing, false)}
   end
 
   @impl true
@@ -340,6 +385,7 @@ defmodule QuizWeb.PlayLive.Play do
     |> assign(:q_total, total)
     |> assign(:answer, existing && existing.payload["value"])
     |> assign(:submitted, existing != nil)
+    |> assign(:editing, false)
   end
 
   defp to_join(socket) do

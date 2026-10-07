@@ -373,6 +373,18 @@ defmodule Quiz.Play do
   end
 
   @doc """
+  Whether the run is currently collecting answers for `question`: it is running,
+  parked on that question and not revealing. Reads the game fresh from the
+  database, so callers holding a cached `%Game{}` can't race a host transition.
+  """
+  def accepting_answers?(%Question{game_id: game_id, position: position}) do
+    Game
+    |> where([g], g.id == ^game_id and g.status == :running)
+    |> where([g], g.current_position == ^position and not g.revealing)
+    |> Repo.exists?()
+  end
+
+  @doc """
   The automatic verdict for an answer: `:matching` and `:multiple_choice` earn
   `:half` for a partial match, otherwise `:full`/`:zero` from
   `Question.correct_answer?/2`.
