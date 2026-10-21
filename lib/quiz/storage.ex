@@ -23,6 +23,12 @@ defmodule Quiz.Storage do
   @doc "Resolves a stored key into a browser-loadable URL."
   @callback url(key :: String.t()) :: String.t()
 
+  @doc """
+  Deletes every stored file whose key starts with `prefix`. Succeeds when
+  nothing matches, so it is safe to retry.
+  """
+  @callback delete_prefix(prefix :: String.t()) :: :ok | {:error, term}
+
   @spec adapter() :: module
   def adapter, do: Application.fetch_env!(:quiz, __MODULE__)[:adapter]
 
@@ -31,4 +37,30 @@ defmodule Quiz.Storage do
 
   @spec url(String.t()) :: String.t()
   def url(key), do: adapter().url(key)
+
+  @doc """
+  The key prefix under which all of a user's uploads live. Adapters build their
+  keys from it, so `delete_prefix(user_prefix(id))` removes everything a user
+  ever uploaded — including files no record points to any more.
+  """
+  @spec user_prefix(integer) :: String.t()
+  def user_prefix(user_id) when is_integer(user_id), do: "uploads/#{user_id}/"
+
+  @doc """
+  Deletes every file under `prefix`.
+
+  Only prefixes of the form `"uploads/<segment>/…/"` are accepted, so an empty
+  or malformed prefix can never wipe the whole bucket.
+  """
+  @spec delete_prefix(String.t()) :: :ok | {:error, term}
+  def delete_prefix("uploads/" <> rest = prefix) do
+    if String.ends_with?(rest, "/") and String.trim(rest, "/") != "" and
+         not String.contains?(rest, "..") do
+      adapter().delete_prefix(prefix)
+    else
+      {:error, :invalid_prefix}
+    end
+  end
+
+  def delete_prefix(_prefix), do: {:error, :invalid_prefix}
 end

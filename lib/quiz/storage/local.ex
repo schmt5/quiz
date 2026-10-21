@@ -15,8 +15,8 @@ defmodule Quiz.Storage.Local do
   @impl true
   def put(%Scope{user: %{id: user_id}}, source_path, opts) do
     ext = extension(opts, source_path)
-    key = "uploads/#{user_id}/#{Ecto.UUID.generate()}#{ext}"
-    dest = Path.join(dir(), Path.relative_to(key, "uploads"))
+    key = Quiz.Storage.user_prefix(user_id) <> Ecto.UUID.generate() <> ext
+    dest = path_for(key)
 
     with :ok <- File.mkdir_p(Path.dirname(dest)),
          :ok <- File.cp(source_path, dest) do
@@ -26,6 +26,19 @@ defmodule Quiz.Storage.Local do
 
   @impl true
   def url(key), do: "/" <> key
+
+  # Prefixes are whole directories here (`Quiz.Storage.delete_prefix/1` only
+  # lets `uploads/<segment>/` shapes through), so removing the directory is the
+  # same as deleting every key under it.
+  @impl true
+  def delete_prefix(prefix) do
+    case File.rm_rf(path_for(prefix)) do
+      {:ok, _} -> :ok
+      {:error, reason, path} -> {:error, {reason, path}}
+    end
+  end
+
+  defp path_for(key), do: Path.join(dir(), Path.relative_to(key, "uploads"))
 
   defp dir, do: Application.fetch_env!(:quiz, __MODULE__)[:dir]
 

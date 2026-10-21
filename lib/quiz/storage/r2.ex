@@ -28,7 +28,7 @@ defmodule Quiz.Storage.R2 do
   @impl true
   def put(%Scope{user: %{id: user_id}}, source_path, opts) do
     ext = opts |> Keyword.get(:filename) |> ext_of()
-    key = "uploads/#{user_id}/#{Ecto.UUID.generate()}#{ext}"
+    key = Quiz.Storage.user_prefix(user_id) <> Ecto.UUID.generate() <> ext
     content_type = Keyword.get(opts, :content_type) || "application/octet-stream"
 
     with {:ok, body} <- File.read(source_path),
@@ -42,6 +42,43 @@ defmodule Quiz.Storage.R2 do
 
   @impl true
   def url(key), do: public_base_url() <> "/" <> key
+
+  # Lists the prefix page by page (max 1000 keys each, which is also the limit
+  # of one DeleteObjects call) and deletes each page before fetching the next.
+  @impl true
+  def delete_prefix(prefix), do: delete_page(prefix, nil)
+
+  defp delete_page(prefix, continuation_token) do
+    opts = if continuation_token, do: [continuation_token: continuation_token], else: []
+
+    with {:ok, %{body: body}} <-
+           bucket()
+           |> ExAws.S3.list_objects_v2([prefix: prefix] ++ opts)
+           |> ExAws.request(),
+         :ok <- delete_keys(Enum.map(body.contents, & &1.key)) do
+      case body do
+        %{is_truncated: "true", next_continuation_token: next} when next != "" ->
+          delete_page(prefix, next)
+
+        _ ->
+          :ok
+      end
+    end
+  end
+
+  defp delete_keys([]), do: :ok
+
+  defp delete_keys(keys) do
+    # In quiet mode the response only lists the keys that failed, and still
+    # answers 200 — so a failed key has to be spotted in the body.
+    case bucket() |> ExAws.S3.delete_multiple_objects(keys, quiet: true) |> ExAws.request() do
+      {:ok, %{body: body}} ->
+        if String.contains?(body, "<Error>"), do: {:error, {:delete_failed, body}}, else: :ok
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
   defp config, do: Application.fetch_env!(:quiz, __MODULE__)
   defp bucket, do: config()[:bucket]
