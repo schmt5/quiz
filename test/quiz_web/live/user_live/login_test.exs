@@ -10,6 +10,12 @@ defmodule QuizWeb.UserLive.LoginTest do
 
       assert html =~ "Anmelden"
     end
+
+    test "links to the registration", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+      assert has_element?(lv, "#login-register-link[href='/users/register']")
+    end
   end
 
   describe "user login - password" do

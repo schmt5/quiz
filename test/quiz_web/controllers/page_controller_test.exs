@@ -18,6 +18,14 @@ defmodule QuizWeb.PageControllerTest do
     assert LazyHTML.attribute(link, "href") == [~p"/users/log-in"]
   end
 
+  test "GET / links to the registration", %{conn: conn} do
+    conn = get(conn, ~p"/")
+    document = conn |> html_response(200) |> LazyHTML.from_document()
+
+    assert [link] = document |> LazyHTML.query("#quizmaster-register") |> Enum.to_list()
+    assert LazyHTML.attribute(link, "href") == [~p"/users/register"]
+  end
+
   test "GET / hides the login link once signed in", %{conn: conn} do
     conn = conn |> log_in_user(Quiz.AccountsFixtures.user_fixture()) |> get(~p"/")
 

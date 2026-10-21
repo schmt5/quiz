@@ -50,6 +50,17 @@ defmodule QuizWeb.UserLive.Login do
             Nur dieses Mal anmelden
           </.button>
         </.form>
+
+        <p :if={!@current_scope} class="text-center text-sm text-base-content/60">
+          Noch kein Konto?
+          <.link
+            id="login-register-link"
+            navigate={~p"/users/register"}
+            class="font-semibold text-primary hover:underline"
+          >
+            Jetzt registrieren
+          </.link>
+        </p>
       </div>
     </Layouts.app>
     """

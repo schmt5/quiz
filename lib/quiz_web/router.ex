@@ -80,8 +80,7 @@ defmodule QuizWeb.Router do
     live_session :current_user,
       on_mount: [{QuizWeb.UserAuth, :mount_current_scope}] do
       live "/styleguide", StyleguideLive, :index
-      # Public registration is disabled for now; re-add the line below to re-enable.
-      # live "/users/register", UserLive.Registration, :new
+      live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
 
       live "/join", PlayLive.Join, :new

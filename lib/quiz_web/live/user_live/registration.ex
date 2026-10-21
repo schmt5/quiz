@@ -11,18 +11,32 @@ defmodule QuizWeb.UserLive.Registration do
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
-            Register for an account
+            Konto erstellen
             <:subtitle>
-              Already registered?
-              <.link navigate={~p"/users/log-in"} class="font-semibold text-brand hover:underline">
-                Log in
+              Schon registriert?
+              <.link
+                id="registration-login-link"
+                navigate={~p"/users/log-in"}
+                class="font-semibold text-primary hover:underline"
+              >
+                Jetzt anmelden
               </.link>
-              to your account now.
             </:subtitle>
           </.header>
         </div>
 
-        <.form for={@form} id="registration_form" phx-submit="save" phx-change="validate">
+        <%!-- On success the form is re-submitted as a plain POST to the
+             session controller (phx-trigger-action), which logs the new
+             account in — a LiveView cannot write the session cookie itself. --%>
+        <.form
+          for={@form}
+          id="registration_form"
+          action={~p"/users/log-in?_action=registered"}
+          method="post"
+          phx-submit="save"
+          phx-change="validate"
+          phx-trigger-action={@trigger_submit}
+        >
           <.input
             field={@form[:name]}
             type="text"
@@ -35,7 +49,7 @@ defmodule QuizWeb.UserLive.Registration do
           <.input
             field={@form[:email]}
             type="email"
-            label="Email"
+            label="E-Mail"
             autocomplete="username"
             spellcheck="false"
             required
@@ -44,14 +58,16 @@ defmodule QuizWeb.UserLive.Registration do
           <.input
             field={@form[:password]}
             type="password"
-            label="Password"
+            label="Passwort"
             autocomplete="new-password"
             spellcheck="false"
             required
           />
 
-          <.button phx-disable-with="Creating account..." class="btn btn-primary w-full">
-            Create an account
+          <input type="hidden" name="user[remember_me]" value="true" />
+
+          <.button phx-disable-with="Konto wird erstellt …" class="btn btn-primary w-full">
+            Konto erstellen <span aria-hidden="true">→</span>
           </.button>
         </.form>
       </div>
@@ -68,18 +84,18 @@ defmodule QuizWeb.UserLive.Registration do
   def mount(_params, _session, socket) do
     changeset = Accounts.change_user_registration(%User{}, %{}, validate_unique: false)
 
-    {:ok, assign_form(socket, changeset), temporary_assigns: [form: nil]}
+    {:ok,
+     socket
+     |> assign(trigger_submit: false)
+     |> assign_form(changeset), temporary_assigns: [form: nil]}
   end
 
   @impl true
   def handle_event("save", %{"user" => user_params}, socket) do
     case Accounts.register_user(user_params) do
       {:ok, user} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Account created. Please log in.")
-         |> put_flash(:email, user.email)
-         |> push_navigate(to: ~p"/users/log-in")}
+        changeset = Accounts.change_user_registration(user)
+        {:noreply, socket |> assign(trigger_submit: true) |> assign_form(changeset)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign_form(socket, changeset)}

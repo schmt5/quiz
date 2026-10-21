@@ -4,6 +4,10 @@ defmodule QuizWeb.UserSessionController do
   alias Quiz.Accounts
   alias QuizWeb.UserAuth
 
+  def create(conn, %{"_action" => "registered"} = params) do
+    create(conn, params, "Willkommen! Dein Konto ist erstellt.")
+  end
+
   def create(conn, params) do
     create(conn, params, nil)
   end
