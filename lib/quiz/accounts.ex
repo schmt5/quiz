@@ -67,6 +67,24 @@ defmodule Quiz.Accounts do
 
   def sudo_mode?(_user, _minutes), do: false
 
+  ## Admin
+
+  @doc """
+  Whether the user has operator access (e.g. the LiveDashboard).
+  """
+  def admin?(%User{admin: admin}), do: admin == true
+  def admin?(_), do: false
+
+  @doc """
+  Grants or revokes operator access. Deliberately not reachable from any form:
+  run it from a console (`Quiz.Release.grant_admin/1` in production).
+  """
+  def set_admin(%User{} = user, admin) when is_boolean(admin) do
+    user
+    |> Ecto.Changeset.change(admin: admin)
+    |> Repo.update()
+  end
+
   @doc """
   Returns an `%Ecto.Changeset{}` for changing the user name.
   """

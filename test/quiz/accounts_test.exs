@@ -116,6 +116,29 @@ defmodule Quiz.AccountsTest do
     end
   end
 
+  describe "admin" do
+    test "new users are not admins, even when the params ask for it" do
+      user = user_fixture(%{admin: true})
+
+      refute user.admin
+      refute Accounts.admin?(user)
+    end
+
+    test "set_admin/2 grants and revokes operator access" do
+      user = user_fixture()
+
+      assert {:ok, user} = Accounts.set_admin(user, true)
+      assert Accounts.admin?(Accounts.get_user!(user.id))
+
+      assert {:ok, user} = Accounts.set_admin(user, false)
+      refute Accounts.admin?(Accounts.get_user!(user.id))
+    end
+
+    test "admin?/1 is false without a user" do
+      refute Accounts.admin?(nil)
+    end
+  end
+
   describe "sudo_mode?/2" do
     test "validates the authenticated_at time" do
       now = DateTime.utc_now()

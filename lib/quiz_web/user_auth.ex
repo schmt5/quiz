@@ -230,6 +230,21 @@ defmodule QuizWeb.UserAuth do
     end
   end
 
+  def on_mount(:require_admin, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    if admin_scope?(socket.assigns.current_scope) do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> Phoenix.LiveView.put_flash(:error, "Diese Seite ist nur für Administratoren.")
+        |> Phoenix.LiveView.redirect(to: ~p"/")
+
+      {:halt, socket}
+    end
+  end
+
   def on_mount(:require_sudo_mode, _params, session, socket) do
     socket = mount_current_scope(socket, session)
 
@@ -281,6 +296,24 @@ defmodule QuizWeb.UserAuth do
       |> halt()
     end
   end
+
+  @doc """
+  Plug for operator-only routes. Expects `require_authenticated_user/2` to run
+  first, so anonymous visitors are still sent to the login.
+  """
+  def require_admin_user(conn, _opts) do
+    if admin_scope?(conn.assigns.current_scope) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "Diese Seite ist nur für Administratoren.")
+      |> redirect(to: ~p"/")
+      |> halt()
+    end
+  end
+
+  defp admin_scope?(%Scope{user: user}), do: Accounts.admin?(user)
+  defp admin_scope?(_), do: false
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))

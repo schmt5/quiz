@@ -29,18 +29,18 @@ defmodule QuizWeb.Router do
   #   pipe_through :api
   # end
 
-  # LiveDashboard, in every environment, for logged-in users. Public
-  # registration is disabled, so every account is a quiz master — the login is
-  # the admin check. Should registration ever open up, this needs its own gate
-  # (the dashboard exposes process state, ETS tables, config, …).
+  # LiveDashboard, in every environment, for admins only. Registration is open,
+  # so an account alone is not enough: the dashboard exposes process state, ETS
+  # tables, config, … The admin flag is set from a console
+  # (`Quiz.Release.grant_admin/1`).
   import Phoenix.LiveDashboard.Router
 
   scope "/admin" do
-    pipe_through [:browser, :require_authenticated_user]
+    pipe_through [:browser, :require_authenticated_user, :require_admin_user]
 
     live_dashboard "/dashboard",
       metrics: QuizWeb.Telemetry,
-      on_mount: [{QuizWeb.UserAuth, :require_authenticated}]
+      on_mount: [{QuizWeb.UserAuth, :require_admin}]
   end
 
   ## Authentication routes

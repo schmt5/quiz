@@ -9,6 +9,9 @@ defmodule Quiz.Accounts.User do
     field :hashed_password, :string, redact: true
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
+    # Operator access (LiveDashboard). Never cast from params — set only via
+    # `Quiz.Accounts.set_admin/2`.
+    field :admin, :boolean, default: false
 
     timestamps(type: :utc_datetime)
   end
