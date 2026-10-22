@@ -119,8 +119,18 @@ defmodule Quiz.Games.TextFormat do
     explanation: "\n"
   }
 
+  @prompt_path Path.expand("../../../priv/prompts/quiz_erstellen.md", __DIR__)
+  @external_resource @prompt_path
+  @prompt File.read!(@prompt_path)
+
   @doc "The format version written by `render/2` and expected by `parse/1`."
   def version, do: @version
+
+  @doc """
+  The prompt to hand an AI chat: it interviews the author and answers with a
+  quiz in this format.
+  """
+  def prompt, do: @prompt
 
   @doc "The German type names used in the format, keyed by question type."
   def type_names, do: @type_names

@@ -25,9 +25,14 @@ defmodule QuizWeb.GameLive.Index do
               {count_label(@games_count)}
             </p>
           </div>
-          <.link navigate={~p"/games/new"} class="btn btn-primary">
-            <.icon name="hero-plus" class="size-5" /> Neues Quiz
-          </.link>
+          <div class="flex flex-wrap justify-end gap-2">
+            <.link id="import-quiz" navigate={~p"/games/import"} class="btn btn-soft btn-primary">
+              <.icon name="hero-sparkles" class="size-5" /> Mit KI erstellen
+            </.link>
+            <.link navigate={~p"/games/new"} class="btn btn-primary">
+              <.icon name="hero-plus" class="size-5" /> Neues Quiz
+            </.link>
+          </div>
         </div>
 
         <div
@@ -41,9 +46,14 @@ defmodule QuizWeb.GameLive.Index do
           <p class="mt-1 text-sm text-base-content/55">
             Erstelle dein erstes Quiz und lege mit der ersten Frage los.
           </p>
-          <.link navigate={~p"/games/new"} class="btn btn-primary mt-6">
-            <.icon name="hero-plus" class="size-5" /> Erstes Quiz erstellen
-          </.link>
+          <div class="mt-6 flex flex-wrap justify-center gap-2">
+            <.link navigate={~p"/games/import"} class="btn btn-soft btn-primary">
+              <.icon name="hero-sparkles" class="size-5" /> Mit KI erstellen
+            </.link>
+            <.link navigate={~p"/games/new"} class="btn btn-primary">
+              <.icon name="hero-plus" class="size-5" /> Erstes Quiz erstellen
+            </.link>
+          </div>
         </div>
 
         <ul

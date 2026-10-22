@@ -54,6 +54,7 @@ defmodule QuizWeb.Router do
 
       live "/games", GameLive.Index, :index
       live "/games/new", GameLive.Form, :new
+      live "/games/import", GameLive.Import, :new
       live "/games/:id", GameLive.Show, :show
       live "/games/:id/edit", GameLive.Form, :edit
 
