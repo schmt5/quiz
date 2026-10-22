@@ -2,6 +2,7 @@ defmodule QuizWeb.GameLive.Show do
   use QuizWeb, :live_view
 
   alias Quiz.Games
+  alias QuizWeb.GameLive.OpenRun
 
   @impl true
   def render(assigns) do
@@ -34,21 +35,7 @@ defmodule QuizWeb.GameLive.Show do
               <h1 class="text-2xl font-bold">{@game.title}</h1>
             </div>
             <div class="flex items-center gap-2">
-              <.link
-                :if={@questions != [] and @game.status in [:open, :running]}
-                navigate={~p"/games/#{@game}/run"}
-                class="btn btn-primary btn-sm"
-              >
-                <.icon name="hero-arrow-right" class="size-4" /> Zur Durchführung
-              </.link>
-              <button
-                :if={@questions != [] and @game.status in [:draft, :closed]}
-                type="button"
-                phx-click="open_run"
-                class="btn btn-primary btn-sm"
-              >
-                <.icon name="hero-play" class="size-4" /> Durchführung eröffnen
-              </button>
+              <OpenRun.run_button game={@game} has_questions={@questions != []} />
               <.link
                 :if={@game.status in [:running, :finished, :closed]}
                 navigate={~p"/games/#{@game}/correction"}
@@ -104,61 +91,12 @@ defmodule QuizWeb.GameLive.Show do
 
       <div class="mx-auto max-w-7xl py-6">
         <Layouts.guest_banner current_scope={@current_scope} class="mb-6" />
-        <div
-          :if={@incomplete_questions != []}
-          id="incomplete-confirm"
-          class="mb-6 rounded-box border border-warning/40 bg-warning/10 p-5"
-        >
-          <h3 class="flex items-center gap-2 font-bold">
-            <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
-            {incomplete_title(length(@incomplete_questions))}
-          </h3>
-          <ul class="mt-3 space-y-2 text-sm">
-            <li :for={question <- @incomplete_questions}>
-              <.link
-                navigate={~p"/games/#{@game}/questions/#{question}/edit"}
-                class="font-medium hover:underline"
-              >
-                {question_label(question)}
-              </.link>
-              <span class="text-base-content/60">
-                – es fehlt {Enum.join(Quiz.Games.Question.missing_requirements(question), ", ")}
-              </span>
-            </li>
-          </ul>
-
-          <%= if length(@incomplete_questions) < length(@questions) do %>
-            <p class="mt-4 text-sm text-base-content/70">
-              Du kannst trotzdem eröffnen – diese Fragen werden dann in der Durchführung
-              übersprungen. Beim nächsten Eröffnen sind sie wieder dabei, sobald sie fertig sind.
-            </p>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <button
-                id="open-run-skipping"
-                type="button"
-                phx-click="open_run_skipping"
-                class="btn btn-primary btn-sm"
-              >
-                <.icon name="hero-play" class="size-4" /> Ohne diese eröffnen
-              </button>
-              <button type="button" phx-click="dismiss_incomplete" class="btn btn-ghost btn-sm">
-                Abbrechen
-              </button>
-            </div>
-          <% else %>
-            <p class="mt-4 text-sm text-base-content/70">
-              Noch keine Frage ist spielbereit. Ergänze zuerst mindestens eine, dann kannst du
-              eröffnen.
-            </p>
-            <button
-              type="button"
-              phx-click="dismiss_incomplete"
-              class="btn btn-ghost btn-sm mt-3"
-            >
-              Schliessen
-            </button>
-          <% end %>
-        </div>
+        <OpenRun.confirm
+          game={@game}
+          questions={@questions}
+          incomplete={@incomplete_questions}
+          class="mb-6"
+        />
 
         <div class="rounded-box bg-base-200 p-6">
           <div class="flex items-center justify-between gap-4 pb-4 border-b border-base-300">
@@ -253,7 +191,7 @@ defmodule QuizWeb.GameLive.Show do
      socket
      |> assign(:page_title, game.title)
      |> assign(:game, game)
-     |> assign(:incomplete_questions, [])
+     |> OpenRun.assign_defaults()
      |> assign_questions(Games.list_questions_for_game(socket.assigns.current_scope, game))}
   end
 
@@ -283,34 +221,9 @@ defmodule QuizWeb.GameLive.Show do
     end
   end
 
-  def handle_event("open_run", _params, socket), do: open_run(socket, [])
-
-  def handle_event("open_run_skipping", _params, socket),
-    do: open_run(socket, skip_incomplete: true)
-
-  def handle_event("dismiss_incomplete", _params, socket),
-    do: {:noreply, assign(socket, :incomplete_questions, [])}
-
-  defp open_run(socket, opts) do
-    case Quiz.Play.open_run(socket.assigns.current_scope, socket.assigns.game, opts) do
-      {:ok, game} ->
-        {:noreply, push_navigate(socket, to: ~p"/games/#{game}/run")}
-
-      {:error, {:incomplete_questions, questions}} ->
-        {:noreply, assign(socket, :incomplete_questions, questions)}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Durchführung konnte nicht eröffnet werden.")}
-    end
-  end
-
-  defp question_label(%{prompt: prompt, position: position}) when prompt in [nil, ""],
-    do: "Frage #{position} (ohne Fragetext)"
-
-  defp question_label(%{prompt: prompt}), do: prompt
-
-  defp incomplete_title(1), do: "1 Frage ist noch nicht fertig"
-  defp incomplete_title(n), do: "#{n} Fragen sind noch nicht fertig"
+  def handle_event(event, params, socket)
+      when event in ["open_run", "open_run_skipping", "dismiss_incomplete"],
+      do: OpenRun.handle_event(event, params, socket)
 
   @impl true
   def handle_info(

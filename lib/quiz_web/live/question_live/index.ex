@@ -5,6 +5,7 @@ defmodule QuizWeb.QuestionLive.Index do
   alias Quiz.Games.Question
   alias Quiz.Games.Question.NumberRange
   alias Quiz.Games.Question.Pin
+  alias QuizWeb.GameLive.OpenRun
   alias QuizWeb.QuestionLive.AnswerArea
 
   @valid_types ~w(single_choice multiple_choice text_input sequence pin_on_image matching number_range)
@@ -42,43 +43,46 @@ defmodule QuizWeb.QuestionLive.Index do
               </div>
               <h1 class="text-2xl font-bold">{@game.title} Fragen</h1>
             </div>
-            <div
-              :if={@mode == :edit and @live_action == :edit}
-              class="flex items-center gap-2"
-            >
-              <p
-                :if={@save_status}
-                class="flex items-center gap-1 text-sm text-error"
-                role="alert"
+            <div class="flex items-center gap-2">
+              <div
+                :if={@mode == :edit and @live_action == :edit}
+                class="flex items-center gap-2"
               >
-                <.icon name="hero-exclamation-triangle" class="size-4 shrink-0" />
-                {@save_status}
-              </p>
-              <button
-                type="button"
-                popovertarget="question-actions"
-                class="btn btn-soft btn-square btn-sm"
-                style="anchor-name:--question-actions"
-                aria-label="Weitere Aktionen"
-              >
-                <.icon name="hero-ellipsis-vertical" class="size-5" />
-              </button>
-              <ul
-                class="dropdown dropdown-end menu w-52 rounded-box bg-base-100 shadow-sm"
-                popover
-                id="question-actions"
-                style="position-anchor:--question-actions"
-              >
-                <li>
-                  <.link
-                    phx-click="delete"
-                    data-confirm="Diese Frage löschen?"
-                    class="text-error"
-                  >
-                    <.icon name="hero-trash" class="size-5" /> Frage löschen
-                  </.link>
-                </li>
-              </ul>
+                <p
+                  :if={@save_status}
+                  class="flex items-center gap-1 text-sm text-error"
+                  role="alert"
+                >
+                  <.icon name="hero-exclamation-triangle" class="size-4 shrink-0" />
+                  {@save_status}
+                </p>
+                <button
+                  type="button"
+                  popovertarget="question-actions"
+                  class="btn btn-soft btn-square btn-sm"
+                  style="anchor-name:--question-actions"
+                  aria-label="Weitere Aktionen"
+                >
+                  <.icon name="hero-ellipsis-vertical" class="size-5" />
+                </button>
+                <ul
+                  class="dropdown dropdown-end menu w-52 rounded-box bg-base-100 shadow-sm"
+                  popover
+                  id="question-actions"
+                  style="position-anchor:--question-actions"
+                >
+                  <li>
+                    <.link
+                      phx-click="delete"
+                      data-confirm="Diese Frage löschen?"
+                      class="text-error"
+                    >
+                      <.icon name="hero-trash" class="size-5" /> Frage löschen
+                    </.link>
+                  </li>
+                </ul>
+              </div>
+              <OpenRun.run_button game={@game} has_questions={@questions != []} />
             </div>
           </div>
         </div>
@@ -240,6 +244,12 @@ defmodule QuizWeb.QuestionLive.Index do
           </aside>
 
           <section class="flex-1 min-w-0 h-full overflow-y-auto">
+            <OpenRun.confirm
+              game={@game}
+              questions={@questions}
+              incomplete={@incomplete_questions}
+              class="mb-6"
+            />
             <div :if={@mode == :edit}>
               <.type_picker :if={@live_action == :index} game={@game} />
               <.question_form
@@ -1926,6 +1936,7 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:questions, questions)
      |> assign(:locked, locked)
      |> assign(:mode, if(locked, do: :view, else: :edit))
+     |> OpenRun.assign_defaults()
      |> assign(:selected_question, nil)
      |> assign(:question_type, nil)
      |> assign(:form, nil)
@@ -2024,6 +2035,10 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   @impl true
+  def handle_event(event, params, socket)
+      when event in ["open_run", "open_run_skipping", "dismiss_incomplete"],
+      do: OpenRun.handle_event(event, params, socket)
+
   def handle_event("set_mode", %{"mode" => "view"}, socket) do
     {:noreply, assign(socket, :mode, :view)}
   end
