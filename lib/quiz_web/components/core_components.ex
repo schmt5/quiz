@@ -471,6 +471,48 @@ defmodule QuizWeb.CoreComponents do
   end
 
   @doc """
+  A button that copies the value of another element (typically a hidden,
+  read-only textarea) to the clipboard and briefly says so in place of its label.
+
+  ## Examples
+
+      <textarea id="quiz-text" class="hidden" readonly>{@text}</textarea>
+      <.copy_button id="copy-quiz-text" from="quiz-text" class="btn btn-soft">
+        Als Text kopieren
+      </.copy_button>
+  """
+  attr :id, :string, required: true
+  attr :from, :string, required: true, doc: "the id of the element whose value is copied"
+  attr :icon, :string, default: "hero-clipboard-document"
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def copy_button(assigns) do
+    ~H"""
+    <button id={@id} type="button" phx-hook=".CopyText" data-copy-from={@from} class={@class}>
+      <.icon name={@icon} class="size-4" />
+      <span data-copy-label>{render_slot(@inner_block)}</span>
+    </button>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyText">
+      export default {
+        mounted() {
+          this.el.addEventListener("click", () => {
+            const source = document.getElementById(this.el.dataset.copyFrom)
+            navigator.clipboard.writeText(source.value).then(() => {
+              const label = this.el.querySelector("[data-copy-label]")
+              this.original ??= label.textContent
+              label.textContent = "Kopiert!"
+              clearTimeout(this.timer)
+              this.timer = setTimeout(() => (label.textContent = this.original), 2000)
+            })
+          })
+        }
+      }
+    </script>
+    """
+  end
+
+  @doc """
   Renders sanitized rich-text HTML (e.g. a question description).
 
   The HTML is expected to be already sanitized on write by

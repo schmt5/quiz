@@ -66,16 +66,9 @@ defmodule QuizWeb.GameLive.Import do
                 >
                   In Claude öffnen <.icon name="hero-arrow-top-right-on-square" class="size-4" />
                 </a>
-                <button
-                  id="copy-prompt"
-                  type="button"
-                  phx-hook=".CopyText"
-                  data-copy-from="ai-prompt"
-                  class="btn btn-soft"
-                >
-                  <.icon name="hero-clipboard-document" class="size-4" />
-                  <span data-copy-label>Prompt kopieren</span>
-                </button>
+                <.copy_button id="copy-prompt" from="ai-prompt" class="btn btn-soft">
+                  Prompt kopieren
+                </.copy_button>
               </div>
               <p class="mt-3 text-xs text-base-content/50">
                 Andere KI? Kopiere den Prompt und füge ihn in einen neuen Chat ein.
@@ -142,23 +135,6 @@ defmodule QuizWeb.GameLive.Import do
           </section>
         </div>
       </div>
-
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyText">
-        export default {
-          mounted() {
-            this.el.addEventListener("click", () => {
-              const source = document.getElementById(this.el.dataset.copyFrom)
-              navigator.clipboard.writeText(source.value).then(() => {
-                const label = this.el.querySelector("[data-copy-label]")
-                this.original ??= label.textContent
-                label.textContent = "Kopiert!"
-                clearTimeout(this.timer)
-                this.timer = setTimeout(() => (label.textContent = this.original), 2000)
-              })
-            })
-          }
-        }
-      </script>
     </Layouts.app>
     """
   end
@@ -257,16 +233,9 @@ defmodule QuizWeb.GameLive.Import do
           Du kannst trotzdem anlegen und es im Editor korrigieren – oder die Hinweise der KI geben:
         </p>
         <textarea id="ai-feedback" class="hidden" readonly>{@feedback}</textarea>
-        <button
-          id="copy-feedback"
-          type="button"
-          phx-hook=".CopyText"
-          data-copy-from="ai-feedback"
-          class="btn btn-sm btn-soft mt-2"
-        >
-          <.icon name="hero-clipboard-document" class="size-4" />
-          <span data-copy-label>Hinweise für die KI kopieren</span>
-        </button>
+        <.copy_button id="copy-feedback" from="ai-feedback" class="btn btn-sm btn-soft mt-2">
+          Hinweise für die KI kopieren
+        </.copy_button>
       </div>
 
       <ol id="preview-questions" class="space-y-3">

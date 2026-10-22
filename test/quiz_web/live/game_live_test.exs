@@ -281,6 +281,15 @@ defmodule QuizWeb.GameLiveTest do
       refute has_element?(show_live, "#question-#{plain.id}", "Bild fehlt")
     end
 
+    test "offers the quiz as text to copy", %{conn: conn, game: game} do
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+
+      assert has_element?(show_live, "#copy-quiz-text[data-copy-from='quiz-text']")
+
+      text = show_live |> element("#quiz-text") |> render()
+      assert text =~ "Format: quiz-text/v1"
+      assert text =~ "Typ: Pin auf Bild"
+    end
   end
 
   describe "Show — without imported hints" do

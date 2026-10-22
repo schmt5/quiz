@@ -89,7 +89,15 @@ defmodule QuizWeb.GameLive.Show do
                   <.icon name="hero-document-duplicate" class="size-5" /> Quiz duplizieren
                 </button>
               </li>
+              <li>
+                <.copy_button id="copy-quiz-text" from="quiz-text" icon="hero-document-text">
+                  Als Text kopieren
+                </.copy_button>
+              </li>
             </ul>
+            <%!-- The export for "Als Text kopieren": the quiz in the AI text format
+                 (images survive only as their hints). --%>
+            <textarea id="quiz-text" class="hidden" readonly>{Quiz.Games.TextFormat.render(@game, @questions)}</textarea>
           </div>
         </div>
       </:page_header>
