@@ -1074,4 +1074,54 @@ defmodule QuizWeb.QuestionLiveTest do
       assert Quiz.Games.get_question!(scope, question.id).solution_video_key == nil
     end
   end
+
+  describe "Hints from the text import" do
+    setup %{scope: scope} do
+      {:ok, parsed} =
+        Quiz.Games.TextFormat.parse("""
+        Quiz: Hinweise
+        Frage: Welcher Pilz ist das?
+        Typ: Texteingabe
+        Bild: Foto eines Fliegenpilzes
+        Lösung: Fliegenpilz
+
+        Frage: Wo liegt der Nationalpark?
+        Typ: Pin auf Bild
+        Bild: Karte der Schweiz
+        Pin: im Unterengadin
+        """)
+
+      {:ok, game} = Quiz.Games.import_game(scope, parsed)
+      [question, pin] = Quiz.Games.list_questions_for_game(scope, game)
+      %{game: game, question: question, pin: pin}
+    end
+
+    test "names the image a question needs until one is uploaded", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      assert has_element?(live, "#image-hint", "Foto eines Fliegenpilzes")
+      assert has_element?(live, "#image-hint a[href^='https://commons.wikimedia.org/']")
+
+      render_upload(media_upload(live), "media.png")
+      on_exit(fn -> Quiz.Storage.delete_prefix(Quiz.Storage.user_prefix(scope.user.id)) end)
+
+      refute has_element?(live, "#image-hint")
+    end
+
+    test "names the background image and where the pin belongs", %{
+      conn: conn,
+      game: game,
+      pin: pin
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{pin}/edit")
+
+      assert has_element?(live, "#pin-image-hint", "Karte der Schweiz")
+      assert has_element?(live, "#pin-hint", "im Unterengadin")
+    end
+  end
 end

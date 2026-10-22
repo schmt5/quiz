@@ -243,4 +243,54 @@ defmodule QuizWeb.GameLiveTest do
       assert html =~ "some updated title"
     end
   end
+
+  describe "Show — imported quiz" do
+    setup %{scope: scope} do
+      {:ok, parsed} =
+        Quiz.Games.TextFormat.parse("""
+        Quiz: Pilze
+        Frage: Welcher ist giftig?
+        Typ: Single-Choice
+        Bild: Foto eines Fliegenpilzes
+        - [x] Fliegenpilz
+        - Steinpilz
+
+        Frage: Wo liegt der Nationalpark?
+        Typ: Pin auf Bild
+        Pin: im Unterengadin
+
+        Frage: Wie heisst er?
+        Typ: Texteingabe
+        Lösung: Fliegenpilz
+        """)
+
+      {:ok, game} = Quiz.Games.import_game(scope, parsed)
+      %{game: game, questions: Quiz.Games.list_questions_for_game(scope, game)}
+    end
+
+    test "points out the images still to upload", %{
+      conn: conn,
+      game: game,
+      questions: [with_hint, pin, plain]
+    } do
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+
+      assert show_live |> element("#missing-images") |> render() =~ "2 Bilder fehlen noch"
+      assert has_element?(show_live, "#question-#{with_hint.id}", "Bild fehlt")
+      assert has_element?(show_live, "#question-#{pin.id}", "Bild fehlt")
+      refute has_element?(show_live, "#question-#{plain.id}", "Bild fehlt")
+    end
+
+  end
+
+  describe "Show — without imported hints" do
+    setup [:create_game]
+
+    test "shows no missing-images notice", %{conn: conn, game: game} do
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+
+      refute has_element?(show_live, "#missing-images")
+    end
+  end
+
 end

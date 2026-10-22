@@ -109,6 +109,20 @@ defmodule QuizWeb.GameLive.Show do
           </div>
 
           <div
+            :if={@missing_images != []}
+            id="missing-images"
+            class="mt-4 flex items-start gap-3 rounded-box border border-info/30 bg-info/5 p-4 text-sm"
+          >
+            <.icon name="hero-photo" class="mt-0.5 size-5 shrink-0 text-info" />
+            <div>
+              <p class="font-semibold">{missing_images_label(length(@missing_images))}</p>
+              <p class="mt-0.5 text-base-content/70">
+                Diese Fragen brauchen noch ein Bild. Öffne sie, um es hochzuladen.
+              </p>
+            </div>
+          </div>
+
+          <div
             :if={@questions == []}
             class="mt-6 rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60"
           >
@@ -132,6 +146,12 @@ defmodule QuizWeb.GameLive.Show do
                     {humanize_type(question.type)}
                   </span>
                   <span class="truncate text-sm">{question.prompt}</span>
+                  <span
+                    :if={question.id in @missing_images}
+                    class="ml-auto inline-flex shrink-0 items-center gap-1 self-center text-xs font-medium text-info"
+                  >
+                    <.icon name="hero-photo" class="size-4" /> Bild fehlt
+                  </span>
                 </div>
               </.link>
             </li>
@@ -162,8 +182,20 @@ defmodule QuizWeb.GameLive.Show do
      socket
      |> assign(:page_title, game.title)
      |> assign(:game, game)
-     |> assign(:questions, Games.list_questions_for_game(socket.assigns.current_scope, game))}
+     |> assign_questions(Games.list_questions_for_game(socket.assigns.current_scope, game))}
   end
+
+  defp assign_questions(socket, questions) do
+    socket
+    |> assign(:questions, questions)
+    |> assign(
+      :missing_images,
+      for(question <- questions, Quiz.Games.Question.image_missing?(question), do: question.id)
+    )
+  end
+
+  defp missing_images_label(1), do: "1 Bild fehlt noch"
+  defp missing_images_label(n), do: "#{n} Bilder fehlen noch"
 
   @impl true
   def handle_event("duplicate", _params, socket) do
@@ -233,7 +265,7 @@ defmodule QuizWeb.GameLive.Show do
       questions =
         Games.list_questions_for_game(socket.assigns.current_scope, socket.assigns.game)
 
-      {:noreply, assign(socket, :questions, questions)}
+      {:noreply, assign_questions(socket, questions)}
     else
       {:noreply, socket}
     end
@@ -244,7 +276,7 @@ defmodule QuizWeb.GameLive.Show do
       questions =
         Games.list_questions_for_game(socket.assigns.current_scope, socket.assigns.game)
 
-      {:noreply, assign(socket, :questions, questions)}
+      {:noreply, assign_questions(socket, questions)}
     else
       {:noreply, socket}
     end

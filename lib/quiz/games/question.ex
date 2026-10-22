@@ -135,6 +135,20 @@ defmodule Quiz.Games.Question do
     prompt_missing(question.prompt) ++ data_missing(question.type, question.data || %Data{})
   end
 
+  @doc """
+  Whether the question still waits for an image the author has to upload: a
+  `:pin_on_image` question without its background, or any other question whose
+  `image_hint` (from the text import) asks for an image that is not there yet.
+  """
+  def image_missing?(%__MODULE__{type: :pin_on_image, data: data}) do
+    not match?(%Data{pin: %Pin{image_key: key}} when is_binary(key) and key != "", data)
+  end
+
+  def image_missing?(%__MODULE__{image_hint: hint} = question) do
+    hint not in [nil, ""] and question.media_image_key in [nil, ""] and
+      question.media_video_key in [nil, ""]
+  end
+
   defp prompt_missing(prompt) do
     if prompt in [nil, ""] or String.trim(to_string(prompt)) == "",
       do: ["ein Fragetext"],

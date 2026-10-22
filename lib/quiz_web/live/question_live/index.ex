@@ -567,6 +567,18 @@ defmodule QuizWeb.QuestionLive.Index do
             </div>
           </div>
 
+          <.author_hint
+            :if={
+              @question_type != :pin_on_image and present?(@selected_question.image_hint) and
+                is_nil(media_key) and is_nil(video_key)
+            }
+            id="image-hint"
+            icon="hero-photo"
+            title="Gesuchtes Bild"
+            text={@selected_question.image_hint}
+            search
+          />
+
           <div :if={@media_tab == :image} class="space-y-3">
             <div
               class="rounded-box border border-dashed border-base-300 p-4"
@@ -1276,6 +1288,22 @@ defmodule QuizWeb.QuestionLive.Index do
                   <span>Hintergrundbild · Setze das Ziel</span>
                   <span>{pin_summary(@form)}</span>
                 </div>
+
+                <.author_hint
+                  :if={!has_image and present?(@selected_question.image_hint)}
+                  id="pin-image-hint"
+                  icon="hero-photo"
+                  title="Gesuchtes Bild"
+                  text={@selected_question.image_hint}
+                  search
+                />
+                <.author_hint
+                  :if={present?(@selected_question.pin_hint)}
+                  id="pin-hint"
+                  icon="hero-map-pin"
+                  title="Hier gehört der Pin hin"
+                  text={@selected_question.pin_hint}
+                />
 
                 <div
                   class="rounded-box border border-dashed border-base-300 p-4"
@@ -2537,6 +2565,44 @@ defmodule QuizWeb.QuestionLive.Index do
       _ -> nil
     end
   end
+
+  attr :id, :string, required: true
+  attr :icon, :string, required: true
+  attr :title, :string, required: true
+  attr :text, :string, required: true
+  attr :search, :boolean, default: false, doc: "offer an image search for `text`"
+
+  # A note from the text import (`Question.image_hint`/`pin_hint`) on what the
+  # author still has to add by hand.
+  defp author_hint(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      class="flex items-start gap-3 rounded-box border border-info/30 bg-info/5 p-4 text-sm"
+    >
+      <.icon name={@icon} class="mt-0.5 size-5 shrink-0 text-info" />
+      <div class="min-w-0">
+        <p class="font-semibold text-base-content">{@title}</p>
+        <p class="mt-0.5 text-base-content/70">{@text}</p>
+        <a
+          :if={@search}
+          href={
+            "https://commons.wikimedia.org/w/index.php?" <>
+              URI.encode_query(search: @text, title: "Special:MediaSearch", type: "image")
+          }
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        >
+          Passendes Bild auf Wikimedia Commons suchen (Lizenz beachten)
+          <.icon name="hero-arrow-top-right-on-square" class="size-3.5" />
+        </a>
+      </div>
+    </div>
+    """
+  end
+
+  defp present?(value), do: value not in [nil, ""]
 
   defp media_image_key(form), do: media_key(form, :media_image_key)
   defp media_video_key(form), do: media_key(form, :media_video_key)
