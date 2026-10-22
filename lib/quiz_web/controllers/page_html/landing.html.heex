@@ -1,0 +1,279 @@
+<div class="mx-auto max-w-6xl space-y-24 sm:space-y-32">
+  <%!-- Hero: the promise, creating a quiz, and joining one --%>
+  <section id="hero" class="grid items-center gap-12 lg:grid-cols-[1.25fr_1fr]">
+    <div>
+      <div class="inline-flex items-baseline text-3xl font-extrabold tracking-tight">
+        <span class="text-primary">Pub</span>
+        <span class="bg-primary text-secondary rounded-lg px-2 py-0.5">Quiz</span>
+      </div>
+
+      <h1 class="mt-8 text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
+        Denken statt
+        <span class="relative whitespace-nowrap">
+          <span class="relative z-10">Daumen.</span>
+          <span
+            class="absolute inset-x-0 bottom-1 -z-0 h-4 rounded-full bg-secondary/70 sm:bottom-2 sm:h-5"
+            aria-hidden="true"
+          >
+          </span>
+        </span>
+      </h1>
+      <p class="mt-6 max-w-xl text-xl leading-snug text-base-content/70">
+        Wie Kahoot, aber gebaut fürs Nachdenken: Schnellere Antworten bringen nicht mehr Punkte.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-center gap-4">
+        <.link
+          id="create-quiz-cta"
+          navigate={@create_path}
+          class="btn btn-primary btn-lg gap-2 shadow-sm transition hover:-translate-y-0.5"
+        >
+          <.icon name="hero-sparkles" class="size-5" /> Quiz erstellen
+        </.link>
+        <span class="text-sm text-base-content/55">
+          {if @guest_mode,
+            do: "Kostenlos und ohne Konto ausprobieren",
+            else: "Kostenlos mit eigenem Konto"}
+        </span>
+      </div>
+
+      <p class="mt-6 text-sm text-base-content/55">
+        Schon ein Konto?
+        <.link
+          id="quizmaster-login"
+          navigate={~p"/users/log-in"}
+          class="font-semibold text-primary hover:underline"
+        >
+          Anmelden
+        </.link>
+      </p>
+    </div>
+
+    <%!-- First on phones: teams typing the address from the screen come here
+         to enter their PIN, not to read about the app. --%>
+    <div
+      id="mitmachen"
+      class="order-first rounded-3xl bg-primary p-8 text-primary-content shadow-xl shadow-primary/20 sm:p-10 lg:order-none"
+    >
+      <p class="text-sm font-semibold uppercase tracking-widest text-primary-content/70">
+        Mitspielen
+      </p>
+      <h2 class="mt-2 text-2xl font-bold text-base-100">Dein Team ist dabei?</h2>
+      <p class="mt-2 text-base-100/70">
+        Gib die PIN von der Leinwand ein – ohne App, ohne Konto.
+      </p>
+
+      <form action={~p"/join"} method="get" class="mt-6">
+        <label for="join-code" class="sr-only">PIN</label>
+        <input
+          id="join-code"
+          name="code"
+          type="text"
+          required
+          autocomplete="off"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="4"
+          placeholder="PIN"
+          class="input w-full h-16 border-0 bg-base-100 text-center text-2xl font-bold tracking-[0.4em] text-primary"
+        />
+        <button
+          type="submit"
+          class="mt-3 w-full h-14 rounded-2xl bg-secondary text-secondary-content text-lg font-bold tracking-wide transition hover:brightness-105 active:brightness-95"
+        >
+          Beitreten <span aria-hidden="true">→</span>
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <%!-- The core difference: speed earns nothing --%>
+  <section id="no-speed" class="grid items-center gap-12 lg:grid-cols-2">
+    <div>
+      <.eyebrow>Das Prinzip</.eyebrow>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        Schnelligkeit zählt nicht. Nur die Antwort.
+      </h2>
+      <p class="mt-4 text-lg text-base-content/70">
+        Kein Timer, keine Tempopunkte. Teams besprechen sich, wägen ab und klicken erst, wenn sie
+        sich einig sind – und du bestimmst, wann es weitergeht.
+      </p>
+    </div>
+
+    <div class="space-y-3" aria-label="Beispiel: zwei Teams, gleich viele Punkte">
+      <.team_card name="Pilzfreunde" time="nach 2 Sekunden" />
+      <.team_card
+        name="Waldläufer"
+        time="nach 40 Sekunden Diskussion"
+        bubble="Ist der nicht giftig?"
+      />
+      <p class="pt-2 text-center text-sm font-semibold text-primary">
+        Gleich viele Punkte. Nachdenken lohnt sich.
+      </p>
+    </div>
+  </section>
+
+  <section id="occasions" class="grid gap-4 sm:grid-cols-3">
+    <.occasion icon="hero-academic-cap" title="Schulklasse">
+      Es gewinnt, wer es verstanden hat – nicht, wer am schnellsten tippt.
+    </.occasion>
+    <.occasion icon="hero-heart" title="Hochzeit und Familienfest">
+      Das Grosi hat dieselbe Chance wie der Enkel mit dem schnellsten Daumen.
+    </.occasion>
+    <.occasion icon="hero-user-group" title="Team-Event">
+      Die Diskussion am Tisch ist der eigentliche Gewinn.
+    </.occasion>
+  </section>
+
+  <%!-- The reveal as a basis for discussion --%>
+  <section id="reveal" class="grid items-center gap-12 lg:grid-cols-2">
+    <div class="lg:order-2">
+      <.eyebrow>Die Auflösung</.eyebrow>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        Nach jeder Frage: eine Auflösung, über die man redet.
+      </h2>
+      <p class="mt-4 text-lg text-base-content/70">
+        Zeig, wie die Teams geantwortet haben, und blende die Musterlösung mit Erklärung, Bild oder
+        Video ein – nach jeder Frage oder gesammelt am Schluss.
+      </p>
+    </div>
+
+    <div class="rounded-3xl border border-base-300/70 bg-base-100 p-6 shadow-lg sm:p-8 lg:order-1">
+      <p class="text-xs font-semibold uppercase tracking-widest text-base-content/45">Frage 4</p>
+      <p class="mt-1 text-lg font-bold">In welcher Stadt hat der Bundesrat seinen Sitz?</p>
+      <div class="mt-5 space-y-2.5">
+        <.result_bar letter="A" label="Zürich" percent={30} />
+        <.result_bar letter="B" label="Bern" percent={55} correct />
+        <.result_bar letter="C" label="Genf" percent={15} />
+      </div>
+      <p class="mt-5 rounded-2xl bg-base-200 p-4 text-sm text-base-content/75">
+        <span class="font-semibold text-base-content">Erklärung:</span>
+        Bern ist «Bundesstadt» – eine Hauptstadt kennt die Bundesverfassung gar nicht.
+      </p>
+      <p class="relative mt-4 ml-auto w-fit max-w-xs rounded-2xl rounded-br-sm bg-secondary px-4 py-2 text-sm font-medium text-secondary-content">
+        Warum haben so viele auf Zürich getippt?
+      </p>
+    </div>
+  </section>
+
+  <%!-- Question types --%>
+  <section id="question-types">
+    <div class="max-w-2xl">
+      <.eyebrow>Sieben Fragetypen</.eyebrow>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        Mehr als Multiple Choice.
+      </h2>
+      <p class="mt-4 text-lg text-base-content/70">
+        Schätzen, ordnen, zuordnen, auf der Karte zeigen: Fragen, über die man im Team wirklich
+        nachdenkt.
+      </p>
+    </div>
+    <div class="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <.type_card icon="hero-check-circle" title="Single-Choice" text="Eine richtige Antwort" />
+      <.type_card
+        icon="hero-check-badge"
+        title="Multiple-Choice"
+        text="Mehrere richtige Antworten"
+      />
+      <.type_card icon="hero-pencil" title="Texteingabe" text="Die Antwort selbst schreiben" />
+      <.type_card
+        icon="hero-bars-arrow-down"
+        title="Reihenfolge"
+        text="Einträge richtig sortieren"
+      />
+      <.type_card
+        icon="hero-arrows-right-left"
+        title="Zuordnung"
+        text="Passende Paare bilden"
+      />
+      <.type_card
+        icon="hero-calculator"
+        title="Zahlenschätzung"
+        text="Möglichst nah dran sein"
+      />
+      <.type_card icon="hero-map-pin" title="Pin auf Bild" text="Die richtige Stelle zeigen" />
+      <div class="flex items-center justify-center rounded-2xl border border-dashed border-base-300 p-5 text-center text-sm text-base-content/55">
+        Jede Frage mit Bild oder Video
+      </div>
+    </div>
+  </section>
+
+  <%!-- Fair grading --%>
+  <section id="grading" class="grid items-center gap-12 lg:grid-cols-2">
+    <div>
+      <.eyebrow>Fair bewertet</.eyebrow>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        Du entscheidest, was zählt.
+      </h2>
+      <p class="mt-4 text-lg text-base-content/70">
+        Freitext-Antworten korrigierst du selbst – auch halbe Punkte sind möglich. Die Rangliste
+        zeigst du, wann du willst.
+      </p>
+    </div>
+
+    <div class="rounded-3xl border border-base-300/70 bg-base-100 p-6 shadow-lg sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-widest text-base-content/45">
+        Korrektur · Wie heisst der Pilz mit rotem Hut?
+      </p>
+      <div class="mt-4 space-y-3">
+        <.grading_row answer="Fliegenpilz" teams={4} grade={:full} />
+        <.grading_row answer="Amanita" teams={1} grade={:half} />
+        <.grading_row answer="Steinpilz" teams={2} grade={:zero} />
+      </div>
+    </div>
+  </section>
+
+  <%!-- Creating with your own AI --%>
+  <section id="ai" class="rounded-3xl bg-base-200 p-8 sm:p-12">
+    <div class="max-w-2xl">
+      <.eyebrow>Mit deiner KI</.eyebrow>
+      <h2 class="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        In fünf Minuten zum eigenen Quiz.
+      </h2>
+      <p class="mt-4 text-lg text-base-content/70">
+        Du arbeitest mit der KI, die du gewohnt bist – auch mit der Gratisversion von ChatGPT oder
+        Claude.
+      </p>
+    </div>
+
+    <ol class="mt-10 grid gap-4 md:grid-cols-3">
+      <.ai_step number={1} title="Prompt holen">
+        Ein Klick öffnet ChatGPT oder Claude mit unserem Prompt.
+      </.ai_step>
+      <.ai_step number={2} title="Mit der KI ausarbeiten">
+        Thema, Zielgruppe, Anzahl Fragen: Die KI fragt nach und schlägt dir ein Quiz vor.
+      </.ai_step>
+      <.ai_step number={3} title="Einfügen und spielen">
+        Antwort zurückkopieren, Vorschau prüfen – und los.
+      </.ai_step>
+    </ol>
+
+    <.link
+      id="ai-cta"
+      navigate={@create_path}
+      class="btn btn-primary btn-lg mt-10 gap-2 transition hover:-translate-y-0.5"
+    >
+      {if @guest_mode, do: "Jetzt ausprobieren – ohne Konto", else: "Konto erstellen und loslegen"}
+      <span aria-hidden="true">→</span>
+    </.link>
+  </section>
+
+  <%!-- Closing --%>
+  <section id="closing" class="pb-8 text-center">
+    <h2 class="mx-auto max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">
+      Für Schulklassen, Vereine, Hochzeiten und Firmenanlässe.
+    </h2>
+    <div class="mt-8 flex flex-wrap justify-center gap-3">
+      <.link navigate={@create_path} class="btn btn-primary btn-lg gap-2">
+        <.icon name="hero-sparkles" class="size-5" /> Quiz erstellen
+      </.link>
+      <a href="#mitmachen" class="btn btn-soft btn-lg">Mitspielen mit PIN</a>
+    </div>
+    <p class="mt-6 text-sm text-base-content/55">
+      Schon ein Konto?
+      <.link navigate={~p"/users/log-in"} class="font-semibold text-primary hover:underline">
+        Anmelden
+      </.link>
+    </p>
+  </section>
+</div>
