@@ -30,6 +30,21 @@ defmodule Quiz.AccountsFixtures do
     user
   end
 
+  @doc """
+  A guest account; `expires_at` can be overridden (e.g. into the past).
+  """
+  def guest_fixture(attrs \\ %{}) do
+    {:ok, guest} = Accounts.create_guest()
+
+    case attrs do
+      %{expires_at: expires_at} ->
+        guest |> Ecto.Changeset.change(expires_at: expires_at) |> Quiz.Repo.update!()
+
+      _ ->
+        guest
+    end
+  end
+
   def user_scope_fixture do
     user = user_fixture()
     user_scope_fixture(user)

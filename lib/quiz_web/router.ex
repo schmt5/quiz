@@ -54,7 +54,6 @@ defmodule QuizWeb.Router do
 
       live "/games", GameLive.Index, :index
       live "/games/new", GameLive.Form, :new
-      live "/games/import", GameLive.Import, :new
       live "/games/:id", GameLive.Show, :show
       live "/games/:id/edit", GameLive.Form, :edit
 
@@ -84,11 +83,16 @@ defmodule QuizWeb.Router do
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
 
+      # The AI import works without an account: posting it creates a guest
+      # (GuestImportController), so it lives outside the authenticated session.
+      live "/erstellen", GameLive.Import, :new
+
       live "/join", PlayLive.Join, :new
       live "/play/:join_code", PlayLive.Play, :show
     end
 
     post "/users/log-in", UserSessionController, :create
+    post "/erstellen", GuestImportController, :create
     delete "/users/log-out", UserSessionController, :delete
   end
 end

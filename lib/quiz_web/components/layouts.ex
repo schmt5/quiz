@@ -56,6 +56,38 @@ defmodule QuizWeb.Layouts do
   end
 
   @doc """
+  For guest accounts: when their quizzes will be deleted and how to keep them.
+  Renders nothing for anyone else.
+  """
+  attr :current_scope, :map, default: nil
+  attr :class, :any, default: nil
+
+  def guest_banner(assigns) do
+    ~H"""
+    <div
+      :if={@current_scope && Quiz.Accounts.guest?(@current_scope.user)}
+      id="guest-banner"
+      class={[
+        "flex flex-wrap items-center justify-between gap-3 rounded-box border border-info/30 bg-info/5 px-4 py-3 text-sm",
+        @class
+      ]}
+    >
+      <p class="flex items-center gap-2">
+        <.icon name="hero-clock" class="size-5 shrink-0 text-info" />
+        <span>
+          Du bist als Gast unterwegs. Deine Quizze werden am
+          <strong>{Calendar.strftime(@current_scope.user.expires_at, "%d.%m.%Y")}</strong>
+          gelöscht.
+        </span>
+      </p>
+      <.link navigate={~p"/users/register"} class="btn btn-primary btn-sm">
+        Konto erstellen und Quizze behalten
+      </.link>
+    </div>
+    """
+  end
+
+  @doc """
   Shows the flash group with standard titles and content.
 
   ## Examples

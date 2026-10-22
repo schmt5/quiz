@@ -7,21 +7,31 @@ defmodule Quiz.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
-      QuizWeb.Telemetry,
-      Quiz.Repo,
-      {DNSCluster, query: Application.get_env(:quiz, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: Quiz.PubSub},
-      # Start a worker by calling: Quiz.Worker.start_link(arg)
-      # {Quiz.Worker, arg},
-      # Start to serve requests, typically the last entry
-      QuizWeb.Endpoint
-    ]
+    children =
+      [
+        QuizWeb.Telemetry,
+        Quiz.Repo,
+        {DNSCluster, query: Application.get_env(:quiz, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: Quiz.PubSub},
+        Quiz.RateLimit
+      ] ++
+        guest_cleanup() ++
+        [
+          # Start to serve requests, typically the last entry
+          QuizWeb.Endpoint
+        ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Quiz.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # Deleting expired guests is off in tests, which run a pass explicitly.
+  defp guest_cleanup do
+    if Application.get_env(:quiz, Quiz.Accounts.GuestCleanup, [])[:enabled] == false,
+      do: [],
+      else: [Quiz.Accounts.GuestCleanup]
   end
 
   # Tell Phoenix to update the endpoint configuration

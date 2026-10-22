@@ -11,6 +11,14 @@ defmodule QuizWeb.UserLive.LoginTest do
       assert html =~ "Anmelden"
     end
 
+    test "shows a guest the plain login, not the re-authentication", %{conn: conn} do
+      conn = log_in_user(conn, guest_fixture())
+      {:ok, lv, _html} = live(conn, ~p"/users/log-in")
+
+      refute has_element?(lv, "#login_form_password input[readonly]")
+      assert has_element?(lv, "#login-register-link")
+    end
+
     test "links to the registration", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/users/log-in")
 

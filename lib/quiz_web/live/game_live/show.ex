@@ -103,6 +103,7 @@ defmodule QuizWeb.GameLive.Show do
       </:page_header>
 
       <div class="mx-auto max-w-7xl py-6">
+        <Layouts.guest_banner current_scope={@current_scope} class="mb-6" />
         <div
           :if={@incomplete_questions != []}
           id="incomplete-confirm"

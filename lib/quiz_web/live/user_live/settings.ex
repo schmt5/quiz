@@ -127,6 +127,13 @@ defmodule QuizWeb.UserLive.Settings do
   end
 
   @impl true
+  def mount(_params, _session, %{assigns: %{current_scope: %{user: %{guest: true}}}} = socket) do
+    {:ok,
+     socket
+     |> put_flash(:info, "Erstelle ein Konto, um deine Quizze zu behalten.")
+     |> redirect(to: ~p"/users/register")}
+  end
+
   def mount(_params, _session, socket) do
     user = socket.assigns.current_scope.user
     name_changeset = Accounts.change_user_name(user)

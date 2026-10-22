@@ -8,6 +8,8 @@ defmodule QuizWeb.GameLive.Index do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-5xl space-y-6">
+        <Layouts.guest_banner current_scope={@current_scope} />
+
         <div class="flex items-end justify-between gap-4">
           <div>
             <div class="breadcrumbs text-xs">
@@ -26,7 +28,7 @@ defmodule QuizWeb.GameLive.Index do
             </p>
           </div>
           <div class="flex flex-wrap justify-end gap-2">
-            <.link id="import-quiz" navigate={~p"/games/import"} class="btn btn-soft btn-primary">
+            <.link id="import-quiz" navigate={~p"/erstellen"} class="btn btn-soft btn-primary">
               <.icon name="hero-sparkles" class="size-5" /> Mit KI erstellen
             </.link>
             <.link navigate={~p"/games/new"} class="btn btn-primary">
@@ -47,7 +49,7 @@ defmodule QuizWeb.GameLive.Index do
             Erstelle dein erstes Quiz und lege mit der ersten Frage los.
           </p>
           <div class="mt-6 flex flex-wrap justify-center gap-2">
-            <.link navigate={~p"/games/import"} class="btn btn-soft btn-primary">
+            <.link navigate={~p"/erstellen"} class="btn btn-soft btn-primary">
               <.icon name="hero-sparkles" class="size-5" /> Mit KI erstellen
             </.link>
             <.link navigate={~p"/games/new"} class="btn btn-primary">

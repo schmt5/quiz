@@ -1,6 +1,8 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
   <%= if @current_scope do %>
     <div class="mx-auto w-full max-w-2xl space-y-8">
+      <Layouts.guest_banner current_scope={@current_scope} />
+
       <div class="space-y-2">
         <p class="text-sm font-medium uppercase tracking-wider text-base-content/50">
           Quizmaster-Bereich
@@ -53,16 +55,23 @@
         </.link>
       </div>
 
+
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-base-200 pt-6 text-sm">
         <.link
+          :if={!Quiz.Accounts.guest?(@current_scope.user)}
           navigate={~p"/users/settings"}
           class="inline-flex items-center gap-2 text-base-content/60 transition hover:text-base-content"
         >
           <.icon name="hero-cog-6-tooth" class="size-4" /> Einstellungen
         </.link>
+        <%!-- A guest has no password: once logged out, its quizzes are gone. --%>
         <.link
           href={~p"/users/log-out"}
           method="delete"
+          data-confirm={
+            Quiz.Accounts.guest?(@current_scope.user) &&
+              "Als Gast hast du kein Passwort: Nach dem Abmelden kommst du nicht mehr an deine Quizze. Trotzdem abmelden?"
+          }
           class="inline-flex items-center gap-2 text-base-content/60 transition hover:text-base-content"
         >
           <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Abmelden

@@ -51,6 +51,63 @@ defmodule Quiz.Accounts do
     |> Repo.insert()
   end
 
+  ## Guests
+
+  # Placeholder emails live under a reserved TLD (RFC 2606), so they can never
+  # reach a real mailbox nor collide with a registered address.
+  @guest_email_domain "gast.invalid"
+
+  @doc """
+  How many days a guest account lives before `Quiz.Accounts.GuestCleanup`
+  deletes it.
+  """
+  def guest_lifetime_days, do: Application.get_env(:quiz, :guest_lifetime_days, 7)
+
+  @doc "Whether guest accounts can be created (`GUEST_MODE=false` turns them off)."
+  def guest_mode_enabled?, do: Application.get_env(:quiz, :guest_mode, true)
+
+  @doc """
+  Creates a guest account: no password (it cannot log in again once its session
+  is gone), a placeholder email and an expiry `guest_lifetime_days/0` from now.
+  """
+  def create_guest do
+    now = DateTime.utc_now(:second)
+
+    %User{
+      guest: true,
+      name: "Gast",
+      email: "gast-#{Ecto.UUID.generate()}@#{@guest_email_domain}",
+      confirmed_at: now,
+      expires_at: DateTime.add(now, guest_lifetime_days(), :day)
+    }
+    |> Repo.insert()
+  end
+
+  @doc "Whether the user is a (not yet claimed) guest."
+  def guest?(%User{guest: guest}), do: guest == true
+  def guest?(_), do: false
+
+  @doc """
+  Turns a guest into a regular account with the given name, email and password.
+  The guest's quizzes stay where they are and no longer expire.
+  """
+  def claim_guest(%User{guest: true} = user, attrs) do
+    user
+    |> User.registration_changeset(attrs)
+    |> Ecto.Changeset.change(guest: false, expires_at: nil)
+    |> Repo.update()
+  end
+
+  @doc """
+  Guests whose expiry has passed, oldest first.
+  """
+  def list_expired_guests(now \\ DateTime.utc_now()) do
+    User
+    |> where([u], u.guest and u.expires_at < ^now)
+    |> order_by([u], asc: u.expires_at)
+    |> Repo.all()
+  end
+
   ## Settings
 
   @doc """

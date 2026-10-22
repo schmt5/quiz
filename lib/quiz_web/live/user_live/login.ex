@@ -10,7 +10,7 @@ defmodule QuizWeb.UserLive.Login do
           <.header>
             <p>Anmelden</p>
             <:subtitle>
-              <%= if @current_scope do %>
+              <%= if @reauth do %>
                 Bitte melde dich erneut an, um sicherheitsrelevante Aktionen für dein Konto durchzuführen.
               <% end %>
             </:subtitle>
@@ -26,7 +26,7 @@ defmodule QuizWeb.UserLive.Login do
           phx-trigger-action={@trigger_submit}
         >
           <.input
-            readonly={!!@current_scope}
+            readonly={@reauth}
             field={f[:email]}
             type="email"
             label="E-Mail"
@@ -51,7 +51,7 @@ defmodule QuizWeb.UserLive.Login do
           </.button>
         </.form>
 
-        <p :if={!@current_scope} class="text-center text-sm text-base-content/60">
+        <p :if={!@reauth} class="text-center text-sm text-base-content/60">
           Noch kein Konto?
           <.link
             id="login-register-link"
@@ -68,13 +68,17 @@ defmodule QuizWeb.UserLive.Login do
 
   @impl true
   def mount(_params, _session, socket) do
+    # Re-authenticating (sudo mode) applies to real accounts only; a guest has
+    # no password and sees the plain login for another account.
+    user = get_in(socket.assigns, [:current_scope, Access.key(:user)])
+    reauth = user != nil and not Quiz.Accounts.guest?(user)
+
     email =
-      Phoenix.Flash.get(socket.assigns.flash, :email) ||
-        get_in(socket.assigns, [:current_scope, Access.key(:user), Access.key(:email)])
+      Phoenix.Flash.get(socket.assigns.flash, :email) || (reauth && user.email) || nil
 
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok, assign(socket, form: form, trigger_submit: false, reauth: reauth)}
   end
 
   @impl true

@@ -11,8 +11,11 @@ defmodule QuizWeb.UserLive.Registration do
       <div class="mx-auto max-w-sm space-y-4">
         <div class="text-center">
           <.header>
-            Konto erstellen
-            <:subtitle>
+            {if @claim, do: "Konto erstellen und Quizze behalten", else: "Konto erstellen"}
+            <:subtitle :if={@claim}>
+              Deine Quizze aus dem Gastzugang bleiben erhalten und werden nicht mehr gelöscht.
+            </:subtitle>
+            <:subtitle :if={!@claim}>
               Schon registriert?
               <.link
                 id="registration-login-link"
@@ -78,7 +81,19 @@ defmodule QuizWeb.UserLive.Registration do
   @impl true
   def mount(_params, _session, %{assigns: %{current_scope: %{user: user}}} = socket)
       when not is_nil(user) do
-    {:ok, redirect(socket, to: QuizWeb.UserAuth.signed_in_path(socket))}
+    if Accounts.guest?(user) do
+      # A guest claiming its account is already signed in: saving converts the
+      # account in place (no login POST), and its placeholder name and email
+      # are not offered as defaults.
+      changeset = Accounts.change_user_registration(%User{}, %{}, validate_unique: false)
+
+      {:ok,
+       socket
+       |> assign(claim: true, trigger_submit: false)
+       |> assign_form(changeset), temporary_assigns: [form: nil]}
+    else
+      {:ok, redirect(socket, to: QuizWeb.UserAuth.signed_in_path(socket))}
+    end
   end
 
   def mount(_params, _session, socket) do
@@ -86,11 +101,24 @@ defmodule QuizWeb.UserLive.Registration do
 
     {:ok,
      socket
-     |> assign(trigger_submit: false)
+     |> assign(claim: false, trigger_submit: false)
      |> assign_form(changeset), temporary_assigns: [form: nil]}
   end
 
   @impl true
+  def handle_event("save", %{"user" => user_params}, %{assigns: %{claim: true}} = socket) do
+    case Accounts.claim_guest(socket.assigns.current_scope.user, user_params) do
+      {:ok, _user} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Dein Konto ist erstellt. Deine Quizze bleiben erhalten.")
+         |> redirect(to: ~p"/games")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign_form(socket, changeset)}
+    end
+  end
+
   def handle_event("save", %{"user" => user_params}, socket) do
     case Accounts.register_user(user_params) do
       {:ok, user} ->

@@ -24,7 +24,7 @@ defmodule QuizWeb.GameLive.Import do
                   <.icon name="hero-home" class="size-4" />
                 </.link>
               </li>
-              <li><.link navigate={~p"/games"}>Quizze</.link></li>
+              <li :if={!@anonymous}><.link navigate={~p"/games"}>Quizze</.link></li>
               <li>Mit KI erstellen</li>
             </ul>
           </div>
@@ -97,11 +97,17 @@ defmodule QuizWeb.GameLive.Import do
                 ein. Es macht nichts, wenn etwas Text davor oder danach mitkommt.
               </p>
 
+              <%!-- Visitors without an account post the text to
+                   GuestImportController (phx-trigger-action), which creates the
+                   guest account — a LiveView cannot write the session cookie. --%>
               <.form
                 for={@form}
                 id="import-form"
+                action={~p"/erstellen"}
+                method="post"
                 phx-change="preview"
                 phx-submit="create"
+                phx-trigger-action={@trigger_submit}
                 class="mt-4"
               >
                 <.input
@@ -109,12 +115,28 @@ defmodule QuizWeb.GameLive.Import do
                   type="textarea"
                   rows="12"
                   phx-debounce="300"
-                  placeholder="Format: quiz-text/v1\nQuiz: …\n\nFrage: …"
+                  placeholder={placeholder()}
                   class="font-mono !text-sm"
                   aria-label="Antwort der KI"
                 />
 
+                <div
+                  :if={@limit_reached}
+                  id="guest-limit"
+                  class="mt-2 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm"
+                >
+                  Als Gast kannst du höchstens {Games.guest_max_games()} Quizze haben.
+                  <.link
+                    navigate={~p"/users/register"}
+                    class="font-semibold text-primary hover:underline"
+                  >
+                    Erstelle ein Konto
+                  </.link>
+                  – deine Quizze bleiben dabei erhalten.
+                </div>
+
                 <button
+                  :if={!@limit_reached}
                   id="create-quiz"
                   type="submit"
                   disabled={not match?({:ok, _}, @result)}
@@ -125,6 +147,22 @@ defmodule QuizWeb.GameLive.Import do
                 </button>
                 <p class="mt-2 text-center text-xs text-base-content/50">
                   Du kannst danach alles im Editor anpassen und Bilder ergänzen.
+                </p>
+                <p
+                  :if={@anonymous or @guest}
+                  id="guest-notice"
+                  class="mt-3 rounded-field bg-base-200/60 px-3 py-2 text-center text-xs text-base-content/60"
+                >
+                  {if @anonymous,
+                    do: "Ohne Konto legen wir dir einen Gastzugang an.",
+                    else: "Du bist als Gast unterwegs."} Deine Quizze werden nach {Quiz.Accounts.guest_lifetime_days()} Tagen gelöscht –
+                  <.link
+                    navigate={~p"/users/register"}
+                    class="font-medium text-primary hover:underline"
+                  >
+                    mit einem Konto
+                  </.link>
+                  behältst du sie.
                 </p>
               </.form>
             </section>
@@ -375,12 +413,26 @@ defmodule QuizWeb.GameLive.Import do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:page_title, "Quiz mit KI erstellen")
-     |> assign(:prompt, TextFormat.prompt())
-     |> assign(:form, to_form(%{"text" => ""}, as: :import))
-     |> assign(:result, nil)}
+    scope = socket.assigns.current_scope
+    anonymous = is_nil(scope)
+
+    if anonymous and not Quiz.Accounts.guest_mode_enabled?() do
+      {:ok,
+       socket
+       |> put_flash(:error, "Bitte melde dich an, um ein Quiz zu erstellen.")
+       |> redirect(to: ~p"/users/log-in")}
+    else
+      {:ok,
+       socket
+       |> assign(:page_title, "Quiz mit KI erstellen")
+       |> assign(:prompt, TextFormat.prompt())
+       |> assign(:anonymous, anonymous)
+       |> assign(:guest, not anonymous and Quiz.Accounts.guest?(scope.user))
+       |> assign(:limit_reached, not anonymous and Games.guest_limit_reached?(scope))
+       |> assign(:trigger_submit, false)
+       |> assign(:form, to_form(%{"text" => ""}, as: :import))
+       |> assign(:result, nil)}
+    end
   end
 
   @impl true
@@ -389,6 +441,18 @@ defmodule QuizWeb.GameLive.Import do
      socket
      |> assign(:form, to_form(%{"text" => text}, as: :import))
      |> assign(:result, parse(text))}
+  end
+
+  # No account yet: hand the text to GuestImportController as a regular POST.
+  def handle_event(
+        "create",
+        %{"import" => %{"text" => text}},
+        %{assigns: %{anonymous: true}} = socket
+      ) do
+    case parse(text) do
+      {:ok, _parsed} -> {:noreply, assign(socket, trigger_submit: true)}
+      result -> {:noreply, assign(socket, :result, result)}
+    end
   end
 
   def handle_event("create", %{"import" => %{"text" => text}}, socket) do
@@ -411,6 +475,8 @@ defmodule QuizWeb.GameLive.Import do
          |> put_flash(:error, "Das Quiz konnte nicht angelegt werden. Bitte prüfe die Vorschau.")}
     end
   end
+
+  defp placeholder, do: "Format: quiz-text/v1\nQuiz: …\n\nFrage: …"
 
   defp parse(text) do
     if String.trim(text) == "", do: nil, else: TextFormat.parse(text)

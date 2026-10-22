@@ -19,6 +19,27 @@ defmodule QuizWeb.GameLiveTest do
   describe "Index" do
     setup [:create_game]
 
+    test "tells a guest when its quizzes are deleted" do
+      guest = Quiz.AccountsFixtures.guest_fixture()
+      conn = log_in_user(build_conn(), guest)
+
+      {:ok, index_live, _html} = live(conn, ~p"/games")
+
+      assert has_element?(
+               index_live,
+               "#guest-banner",
+               Calendar.strftime(guest.expires_at, "%d.%m.%Y")
+             )
+
+      assert has_element?(index_live, "#guest-banner a[href='/users/register']")
+    end
+
+    test "shows no guest banner to registered quizmasters", %{conn: conn} do
+      {:ok, index_live, _html} = live(conn, ~p"/games")
+
+      refute has_element?(index_live, "#guest-banner")
+    end
+
     test "lists all games", %{conn: conn, game: game} do
       {:ok, _index_live, html} = live(conn, ~p"/games")
 

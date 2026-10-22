@@ -5,6 +5,14 @@ defmodule QuizWeb.UserLive.SettingsTest do
   import Phoenix.LiveViewTest
   import Quiz.AccountsFixtures
 
+  describe "Settings page for guests" do
+    test "sends a guest to create an account first", %{conn: conn} do
+      conn = log_in_user(conn, guest_fixture())
+
+      assert {:error, {:redirect, %{to: "/users/register"}}} = live(conn, ~p"/users/settings")
+    end
+  end
+
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do
       {:ok, _lv, html} =

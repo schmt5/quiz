@@ -12,6 +12,11 @@ defmodule Quiz.Accounts.User do
     # Operator access (LiveDashboard). Never cast from params — set only via
     # `Quiz.Accounts.set_admin/2`.
     field :admin, :boolean, default: false
+    # A guest account: created without registration, has a placeholder email and
+    # no password, and is deleted after `expires_at` unless it is claimed by
+    # registering (`Quiz.Accounts.claim_guest/2`).
+    field :guest, :boolean, default: false
+    field :expires_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end

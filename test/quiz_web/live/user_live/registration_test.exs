@@ -71,4 +71,38 @@ defmodule QuizWeb.UserLive.RegistrationTest do
       assert html =~ "ist bereits vergeben"
     end
   end
+
+  describe "claiming a guest account" do
+    setup %{conn: conn} do
+      guest = guest_fixture()
+      %{conn: log_in_user(conn, guest), guest: guest}
+    end
+
+    test "offers the guest to keep its quizzes", %{conn: conn} do
+      {:ok, lv, html} = live(conn, ~p"/users/register")
+
+      assert html =~ "Quizze behalten"
+      refute has_element?(lv, "#registration-login-link")
+    end
+
+    test "turns the guest into a regular account", %{conn: conn, guest: guest} do
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      email = unique_user_email()
+
+      {:ok, conn} =
+        lv
+        |> form("#registration_form",
+          user: %{name: "Lehrerin", email: email, password: valid_user_password()}
+        )
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/games")
+
+      assert html_response(conn, 200) =~ "Konto ist erstellt"
+
+      user = Quiz.Accounts.get_user!(guest.id)
+      refute user.guest
+      assert user.email == email
+    end
+  end
 end

@@ -39,3 +39,11 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+# Expired guests are deleted by explicit `Quiz.Accounts.GuestCleanup.run/1`
+# calls in tests, not by the hourly job.
+config :quiz, Quiz.Accounts.GuestCleanup, enabled: false
+
+# Every test signs guests up from 127.0.0.1; the limit itself is tested with
+# its own setting.
+config :quiz, :guest_rate_limit, {10_000, :timer.hours(1)}

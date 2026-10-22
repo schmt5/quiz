@@ -20,6 +20,10 @@ if System.get_env("PHX_SERVER") do
   config :quiz, QuizWeb.Endpoint, server: true
 end
 
+# Guest mode (trying the app without an account) is on unless GUEST_MODE=false,
+# so it can be switched off quickly if it gets abused.
+config :quiz, :guest_mode, System.get_env("GUEST_MODE", "true") != "false"
+
 # Use Cloudflare R2 for uploads when credentials are present; otherwise fall
 # back to the local-disk adapter configured in config/config.exs. This keeps
 # the R2 path dormant until the bucket and tokens are provisioned.

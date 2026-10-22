@@ -78,9 +78,36 @@ defmodule Quiz.Games do
 
   """
   def create_game(%Scope{} = scope, attrs) do
-    with {:ok, game = %Game{}} <- insert_game(scope, attrs, @max_join_code_attempts) do
+    with :ok <- check_guest_limit(scope, attrs),
+         {:ok, game = %Game{}} <- insert_game(scope, attrs, @max_join_code_attempts) do
       broadcast_game(scope, {:created, game})
       {:ok, game}
+    end
+  end
+
+  @doc "How many quizzes a guest account may hold at once."
+  def guest_max_games, do: Application.get_env(:quiz, :guest_max_games, 3)
+
+  @doc "Whether the scope is a guest that already holds `guest_max_games/0` quizzes."
+  def guest_limit_reached?(%Scope{user: %{guest: true} = user}) do
+    Repo.aggregate(where(Game, user_id: ^user.id), :count) >= guest_max_games()
+  end
+
+  def guest_limit_reached?(%Scope{}), do: false
+
+  # Reported on the title so the quiz form shows it where the user looks.
+  defp check_guest_limit(scope, attrs) do
+    if guest_limit_reached?(scope) do
+      {:error,
+       %Game{}
+       |> Game.changeset(attrs, scope)
+       |> Ecto.Changeset.add_error(
+         :title,
+         "Als Gast kannst du höchstens #{guest_max_games()} Quizze haben. Erstelle ein Konto für mehr."
+       )
+       |> Map.put(:action, :insert)}
+    else
+      :ok
     end
   end
 
@@ -243,7 +270,7 @@ defmodule Quiz.Games do
     questions = list_questions_for_game(scope, game)
 
     Repo.transaction(fn ->
-      {:ok, copy} =
+      copy =
         create_game(scope, %{
           title: game.title <> " (Kopie)",
           review_mode: game.review_mode,
@@ -253,6 +280,11 @@ defmodule Quiz.Games do
           outro_text: game.outro_text,
           outro_image_key: game.outro_image_key
         })
+        |> case do
+          {:ok, copy} -> copy
+          # e.g. a guest at its quiz limit
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
 
       for question <- questions do
         Repo.insert!(%Question{
