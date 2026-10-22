@@ -190,7 +190,7 @@ Nach dem Deploy Admin-Recht setzen:
   alle Medien eines Users lassen sich per Präfix löschen, inklusive verwaister
   Uploads.
 
-### Phase 2 – Textformat und KI-Import (für registrierte Nutzer:innen)
+### Phase 2 – Textformat und KI-Import (für registrierte Nutzer:innen) (umgesetzt)
 
 - `Quiz.Games.TextFormat` (Name offen): `parse/1` → Quiz-Map + Liste von
   Fragen-Maps + Hinweise pro Frage; `render/1` für den Export. Gründlich
@@ -208,7 +208,7 @@ Nach dem Deploy Admin-Recht setzen:
   werden fehlende Deko-Bilder nicht angezeigt (kein Platzhalter auf dem Beamer).
 - Export-Button «Als Text kopieren» auf der Quiz-Seite.
 
-### Phase 3 – Unfertige Fragen überspringen
+### Phase 3 – Unfertige Fragen überspringen (umgesetzt)
 
 - Heute blockiert `Quiz.Play.open_run/2` mit `{:error, {:incomplete_questions,
   …}}`. Neu: Bestätigungsdialog in `GameLive.Show`, danach Start ohne die
@@ -219,7 +219,7 @@ Nach dem Deploy Admin-Recht setzen:
   Variante B: unfertige Fragen beim Öffnen ans Ende verschieben und die Anzahl
   der gespielten Fragen begrenzen. Vor der Umsetzung die Positionslogik prüfen.
 
-### Phase 4 – Gastmodus
+### Phase 4 – Gastmodus (umgesetzt)
 
 - `users.guest` (Boolean) + `users.expires_at`. E-Mail/Passwort für Gäste
   optional (Migration der NOT-NULL-/Unique-Constraints prüfen).
@@ -244,7 +244,7 @@ Nach dem Deploy Admin-Recht setzen:
   sich nicht stören. Ein gerade laufendes Quiz nicht löschen (Ablauf um einen
   Lauf verschieben).
 
-### Phase 5 – Startseite
+### Phase 5 – Startseite (umgesetzt)
 
 - `PageController :home` neu als One-Pager gemäss Abschnitt oben.
 - Danach die Sponsors-Seite und Login-Link einordnen.
