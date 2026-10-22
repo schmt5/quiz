@@ -211,6 +211,16 @@ defmodule Quiz.Games do
   end
 
   @doc """
+  The questions the game's run actually plays, ordered by position: all of them
+  except those skipped when the quiz was opened (see `Quiz.Play.open_run/3`).
+  """
+  def list_run_questions(%Scope{} = scope, %Game{} = game) do
+    scope
+    |> list_questions_for_game(game)
+    |> Enum.reject(& &1.skipped)
+  end
+
+  @doc """
   Duplicates a game and all its questions into a fresh **draft** copy owned by
   the same user.
 
@@ -387,10 +397,22 @@ defmodule Quiz.Games do
            question
            |> Question.changeset(attrs, scope, authoring_mode(game))
            |> Repo.update() do
+      question = maybe_unskip(question, game)
       broadcast_question(scope, {:updated, question})
       {:ok, question}
     end
   end
+
+  # A question skipped when the quiz was opened joins the run again once it is
+  # finished while the quiz still waits in the lobby (nothing has been played
+  # yet, so the numbering can still change).
+  defp maybe_unskip(%Question{skipped: true} = question, %Game{status: :open}) do
+    if Question.ready?(question),
+      do: question |> Ecto.Changeset.change(skipped: false) |> Repo.update!(),
+      else: question
+  end
+
+  defp maybe_unskip(question, _game), do: question
 
   @doc """
   Deletes a question.

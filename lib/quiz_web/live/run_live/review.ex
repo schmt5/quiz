@@ -130,7 +130,7 @@ defmodule QuizWeb.RunLive.Review do
   @impl true
   def mount(%{"id" => id, "position" => position}, _session, socket) do
     game = Games.get_game!(socket.assigns.current_scope, id)
-    questions = Games.list_questions_for_game(socket.assigns.current_scope, game)
+    questions = Games.list_run_questions(socket.assigns.current_scope, game)
     position = parse_position(position)
 
     case position && Enum.find_index(questions, &(&1.position == position)) do

@@ -57,6 +57,101 @@ defmodule Quiz.PlayTest do
     end
   end
 
+  describe "open_run/3 with skip_incomplete" do
+    @finished %{
+      prompt: "Jetzt fertig",
+      data: %{choices: [%{text: "A", correct: true}, %{text: "B", correct: false}]}
+    }
+
+    # Positions 1 and 3 are playable, 2 and 4 are skeletons nobody finished.
+    defp game_with_gaps(scope) do
+      game = game_fixture(scope, %{status: :draft})
+      first = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, gap} = Quiz.Games.create_question(scope, game, :single_choice)
+      third = question_fixture(scope, %{game_id: game.id, position: 3})
+      {:ok, last_gap} = Quiz.Games.create_question(scope, game, :text_input)
+
+      %{game: game, first: first, gap: gap, third: third, last_gap: last_gap}
+    end
+
+    test "opens and leaves the incomplete questions out of the run" do
+      scope = user_scope_fixture()
+
+      %{game: game, first: first, gap: gap, third: third, last_gap: last_gap} =
+        game_with_gaps(scope)
+
+      assert {:ok, %{status: :open} = game} = Play.open_run(scope, game, skip_incomplete: true)
+
+      skipped = for q <- Quiz.Games.list_questions_for_game(scope, game), q.skipped, do: q.id
+      assert Enum.sort(skipped) == Enum.sort([gap.id, last_gap.id])
+      assert Enum.map(Quiz.Games.list_run_questions(scope, game), & &1.id) == [first.id, third.id]
+
+      {:ok, game} = Play.start_run(scope, game)
+      assert game.current_position == first.position
+      assert Play.question_numbering(game) == {1, 2}
+
+      {:ok, game} = Play.advance_run(scope, game)
+      assert game.current_position == third.position
+      assert Play.question_numbering(game) == {2, 2}
+
+      {:ok, back} = Play.retreat_run(scope, game)
+      assert back.current_position == first.position
+
+      # The last playable question: advancing ends the run instead of landing on
+      # the skipped question behind it.
+      {:ok, game} = Play.advance_run(scope, back)
+      {:ok, finished} = Play.advance_run(scope, game)
+      assert finished.status == :finished
+
+      assert Enum.map(Play.correction_overview(finished), & &1.question.id) == [
+               first.id,
+               third.id
+             ]
+    end
+
+    test "still refuses when nothing playable would remain" do
+      scope = user_scope_fixture()
+      game = game_fixture(scope, %{status: :draft})
+      {:ok, _skeleton} = Quiz.Games.create_question(scope, game, :single_choice)
+
+      assert {:error, {:incomplete_questions, [_]}} =
+               Play.open_run(scope, game, skip_incomplete: true)
+
+      assert Quiz.Games.get_game!(scope, game.id).status == :draft
+    end
+
+    test "a question finished while the quiz waits in the lobby joins the run" do
+      scope = user_scope_fixture()
+      %{game: game, gap: gap} = game_with_gaps(scope)
+
+      {:ok, game} = Play.open_run(scope, game, skip_incomplete: true)
+
+      {:ok, _} =
+        Quiz.Games.update_question(scope, Quiz.Games.get_question!(scope, gap.id), @finished)
+
+      refute Quiz.Games.get_question!(scope, gap.id).skipped
+      assert length(Quiz.Games.list_run_questions(scope, game)) == 3
+    end
+
+    test "recomputes the skipped questions on every open" do
+      scope = user_scope_fixture()
+      %{game: game, gap: gap} = game_with_gaps(scope)
+
+      {:ok, game} = Play.open_run(scope, game, skip_incomplete: true)
+      game = set_game_status(game, :closed)
+
+      # Questions are locked while closed; finish this one behind the lock's back.
+      Quiz.Games.get_question!(scope, gap.id)
+      |> Quiz.Games.Question.changeset(@finished, scope)
+      |> Repo.update!()
+
+      {:ok, game} = Play.open_run(scope, game, skip_incomplete: true)
+
+      refute Quiz.Games.get_question!(scope, gap.id).skipped
+      assert length(Quiz.Games.list_run_questions(scope, game)) == 3
+    end
+  end
+
   describe "start_run/2" do
     test "moves :open to :running and parks on the first question" do
       scope = user_scope_fixture()

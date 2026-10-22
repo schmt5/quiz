@@ -63,12 +63,44 @@ defmodule Quiz.Play do
   incomplete the transition is refused with `{:error, {:incomplete_questions,
   questions}}` so the caller can point the author at what to finish. A quiz with
   no questions at all still opens (an empty lobby); `start_run/2` guards that.
+
+  With `skip_incomplete: true` the incomplete questions are instead marked
+  `skipped` and left out of this run (navigation, numbering, walkthrough and
+  correction all pass over them) — unless that would leave nothing to play.
+  Every open recomputes the marks, so a question finished in the meantime is
+  back in the next run.
   """
-  def open_run(%Scope{} = scope, %Game{} = game) do
-    case Games.incomplete_questions(scope, game) do
-      [] -> transition(scope, game, %{status: :open})
-      incomplete -> {:error, {:incomplete_questions, incomplete}}
+  def open_run(%Scope{} = scope, %Game{} = game, opts \\ []) do
+    questions = Games.list_questions_for_game(scope, game)
+    incomplete = Enum.reject(questions, &Question.ready?/1)
+
+    cond do
+      incomplete == [] ->
+        open_with_skipped(scope, game, [])
+
+      Keyword.get(opts, :skip_incomplete, false) and length(incomplete) < length(questions) ->
+        open_with_skipped(scope, game, Enum.map(incomplete, & &1.id))
+
+      true ->
+        {:error, {:incomplete_questions, incomplete}}
     end
+  end
+
+  defp open_with_skipped(scope, game, skipped_ids) do
+    Repo.transaction(fn ->
+      Question
+      |> where([q], q.game_id == ^game.id)
+      |> Repo.update_all(set: [skipped: false])
+
+      Question
+      |> where([q], q.game_id == ^game.id and q.id in ^skipped_ids)
+      |> Repo.update_all(set: [skipped: true])
+
+      case transition(scope, game, %{status: :open}) do
+        {:ok, game} -> game
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc """
@@ -125,7 +157,7 @@ defmodule Quiz.Play do
 
   defp next_position(%Game{id: game_id}, position) do
     Question
-    |> where([q], q.game_id == ^game_id and q.position > ^position)
+    |> where([q], q.game_id == ^game_id and q.position > ^position and not q.skipped)
     |> order_by([q], asc: q.position)
     |> limit(1)
     |> select([q], q.position)
@@ -136,7 +168,7 @@ defmodule Quiz.Play do
 
   defp prev_position(%Game{id: game_id}, position) do
     Question
-    |> where([q], q.game_id == ^game_id and q.position < ^position)
+    |> where([q], q.game_id == ^game_id and q.position < ^position and not q.skipped)
     |> order_by([q], desc: q.position)
     |> limit(1)
     |> select([q], q.position)
@@ -178,7 +210,7 @@ defmodule Quiz.Play do
   end
 
   defp first_position(%Scope{} = scope, %Game{} = game) do
-    case Games.list_questions_for_game(scope, game) do
+    case Games.list_run_questions(scope, game) do
       [] -> nil
       questions -> questions |> Enum.map(& &1.position) |> Enum.min()
     end
@@ -532,7 +564,7 @@ defmodule Quiz.Play do
   def correction_overview(%Game{} = game) do
     questions =
       Question
-      |> where([q], q.game_id == ^game.id)
+      |> where([q], q.game_id == ^game.id and not q.skipped)
       |> order_by([q], asc: q.position)
       |> Repo.all()
 
@@ -742,7 +774,7 @@ defmodule Quiz.Play do
   def question_numbering(%Game{id: game_id, current_position: position}) do
     positions =
       Question
-      |> where([q], q.game_id == ^game_id)
+      |> where([q], q.game_id == ^game_id and not q.skipped)
       |> order_by([q], asc: q.position)
       |> select([q], q.position)
       |> Repo.all()

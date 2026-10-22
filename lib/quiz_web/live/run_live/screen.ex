@@ -108,7 +108,7 @@ defmodule QuizWeb.RunLive.Screen do
      |> assign(:page_title, "Präsentation: #{game.title}")
      |> assign(:game, game)
      |> assign(:qr_svg, Stage.qr_svg(game))
-     |> assign(:questions, Games.list_questions_for_game(scope, game))
+     |> assign(:questions, Games.list_run_questions(scope, game))
      |> assign(:participants, Play.list_participants(game))
      |> load_stage()}
   end

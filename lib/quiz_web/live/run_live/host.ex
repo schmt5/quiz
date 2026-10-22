@@ -625,7 +625,7 @@ defmodule QuizWeb.RunLive.Host do
   # Position of the first question, where the solution walkthrough starts, or nil
   # when the quiz has no questions (then there is nothing to review).
   defp first_review_position(scope, game) do
-    case Games.list_questions_for_game(scope, game) do
+    case Games.list_run_questions(scope, game) do
       [] -> nil
       [first | _] -> first.position
     end

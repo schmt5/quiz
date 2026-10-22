@@ -302,4 +302,50 @@ defmodule QuizWeb.GameLiveTest do
     end
   end
 
+  describe "Show — opening with unfinished questions" do
+    setup %{scope: scope} do
+      game = game_fixture(scope)
+      done = question_fixture(scope, %{game_id: game.id, position: 1})
+      {:ok, unfinished} = Quiz.Games.create_question(scope, game, :single_choice)
+      %{game: game, done: done, unfinished: unfinished}
+    end
+
+    test "asks before skipping them, then opens without them", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      unfinished: unfinished
+    } do
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+
+      show_live |> element("button", "Durchführung eröffnen") |> render_click()
+      assert has_element?(show_live, "#incomplete-confirm", "1 Frage ist noch nicht fertig")
+
+      assert {:error, {:live_redirect, %{to: path}}} =
+               show_live |> element("#open-run-skipping") |> render_click()
+
+      assert path == ~p"/games/#{game}/run"
+      assert Quiz.Games.get_game!(scope, game.id).status == :open
+      assert Quiz.Games.get_question!(scope, unfinished.id).skipped
+
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+      assert has_element?(show_live, "#question-#{unfinished.id}", "Wird übersprungen")
+    end
+
+    test "offers no skipping when no question is ready", %{
+      conn: conn,
+      scope: scope,
+      done: done
+    } do
+      game = game_fixture(scope)
+      {:ok, _} = Quiz.Games.create_question(scope, game, :text_input)
+      _ = done
+
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+      show_live |> element("button", "Durchführung eröffnen") |> render_click()
+
+      assert has_element?(show_live, "#incomplete-confirm", "Noch keine Frage ist spielbereit")
+      refute has_element?(show_live, "#open-run-skipping")
+    end
+  end
 end

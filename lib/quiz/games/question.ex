@@ -28,6 +28,9 @@ defmodule Quiz.Games.Question do
     # for `:pin_on_image`) and where the pin belongs.
     field :image_hint, :string
     field :pin_hint, :string
+    # Left out of the current run: still incomplete when the quiz was opened
+    # (`Quiz.Play.open_run/3` with `skip_incomplete: true`). Never cast.
+    field :skipped, :boolean, default: false
     field :position, :integer
     embeds_one :data, Data, on_replace: :update
     field :game_id, :id
