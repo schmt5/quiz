@@ -23,6 +23,11 @@ defmodule Quiz.Games.Question do
     field :solution_image_key, :string
     field :solution_video_key, :string
     field :solution_text, :string
+    # Author notes from the text import (`Quiz.Games.TextFormat`): a description
+    # of the image the question needs (its media image, or the pin background
+    # for `:pin_on_image`) and where the pin belongs.
+    field :image_hint, :string
+    field :pin_hint, :string
     field :position, :integer
     embeds_one :data, Data, on_replace: :update
     field :game_id, :id
@@ -57,6 +62,8 @@ defmodule Quiz.Games.Question do
         :solution_image_key,
         :solution_video_key,
         :solution_text,
+        :image_hint,
+        :pin_hint,
         :position,
         :game_id
       ])

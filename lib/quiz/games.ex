@@ -256,12 +256,43 @@ defmodule Quiz.Games do
           solution_image_key: question.solution_image_key,
           solution_video_key: question.solution_video_key,
           solution_text: question.solution_text,
+          image_hint: question.image_hint,
+          pin_hint: question.pin_hint,
           game_id: copy.id,
           user_id: scope.user.id
         })
       end
 
       copy
+    end)
+  end
+
+  @doc """
+  Creates a draft game with its questions from parsed quiz text
+  (`Quiz.Games.TextFormat.parse/1`), numbering the questions in order.
+
+  Questions are validated in `:draft` mode, so incomplete ones (no marked answer,
+  pin not yet placed, …) are created and completed later in the editor. Atomic:
+  returns `{:ok, game}` or `{:error, changeset}` with nothing created.
+  """
+  def import_game(%Scope{} = scope, %{title: _, questions: questions} = parsed) do
+    Repo.transaction(fn ->
+      game =
+        case create_game(scope, Map.take(parsed, [:title, :intro_text, :outro_text])) do
+          {:ok, game} -> game
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+
+      for {attrs, position} <- Enum.with_index(questions, 1) do
+        attrs = Map.merge(attrs, %{game_id: game.id, position: position})
+
+        case %Question{} |> Question.changeset(attrs, scope, :draft) |> Repo.insert() do
+          {:ok, _question} -> :ok
+          {:error, changeset} -> Repo.rollback(changeset)
+        end
+      end
+
+      game
     end)
   end
 
