@@ -42,7 +42,7 @@ defmodule QuizWeb.GameImportLiveTest do
     assert has_element?(lv, "#copy-prompt[data-copy-from='ai-prompt']")
     assert lv |> element("#ai-prompt") |> render() =~ "quiz-text/v1"
     assert has_element?(lv, "#preview-empty")
-    assert has_element?(lv, "#create-quiz[disabled]")
+    refute has_element?(lv, "#create-quiz")
   end
 
   test "previews pasted text with what is still missing", %{conn: conn} do
@@ -54,9 +54,13 @@ defmodule QuizWeb.GameImportLiveTest do
     assert lv |> element("#preview-count") |> render() =~ "2 Fragen"
     assert lv |> element("#preview-uploads") |> render() =~ "2 Bilder"
     assert has_element?(lv, "#preview-question-1", "Fliegenpilz")
+    # Shown as the teams see it: no answer marked as correct.
+    refute lv |> element("#preview-question-1") |> render() =~ "hero-check-circle"
+    assert has_element?(lv, "#preview-question-1", "Bild folgt")
     assert has_element?(lv, "#preview-question-2", "Bild hochladen und Pin setzen")
     refute has_element?(lv, "#preview-warnings")
-    refute has_element?(lv, "#create-quiz[disabled]")
+    assert has_element?(lv, "#create-quiz[form='import-form']")
+    assert has_element?(lv, "#create-quiz-bottom[form='import-form']")
   end
 
   test "shows parser warnings with a copyable note for the AI", %{conn: conn} do
@@ -76,7 +80,7 @@ defmodule QuizWeb.GameImportLiveTest do
     lv |> form("#import-form", import: %{text: "Klar, ich helfe dir gern!"}) |> render_change()
 
     assert has_element?(lv, "#preview-error")
-    assert has_element?(lv, "#create-quiz[disabled]")
+    refute has_element?(lv, "#create-quiz")
   end
 
   test "creates a draft quiz and opens the question editor", %{conn: conn, scope: scope} do

@@ -10,12 +10,13 @@ defmodule QuizWeb.GameLive.Import do
 
   alias Quiz.Games
   alias Quiz.Games.{Question, TextFormat}
+  alias QuizWeb.QuestionLive.AnswerArea
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-6xl space-y-8">
+      <div class="mx-auto max-w-6xl space-y-10">
         <div>
           <div class="breadcrumbs text-xs">
             <ul>
@@ -35,144 +36,150 @@ defmodule QuizWeb.GameLive.Import do
           </p>
         </div>
 
-        <div class="grid gap-8 lg:grid-cols-2 lg:items-start">
-          <div class="space-y-6">
-            <section
-              id="ai-step-prompt"
-              class="rounded-box border border-base-200 bg-base-100 p-6 shadow-sm"
-            >
-              <.step_title number={1} title="Gib deiner KI diesen Prompt" />
-              <p class="mt-2 text-sm text-base-content/60">
-                Öffne einen neuen Chat mit dem Prompt. Die KI fragt dich nach Thema, Zielgruppe und
-                Anzahl Fragen und schlägt dir dann ein Quiz vor, das du mit ihr anpassen kannst.
-              </p>
+        <div class="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:gap-4">
+          <section
+            id="ai-step-prompt"
+            class="rounded-box border border-base-200 bg-base-100 p-6 shadow-sm"
+          >
+            <.step_title number={1} title="Gib deiner KI diesen Prompt" />
+            <p class="mt-2 text-sm text-base-content/60">
+              Öffne einen neuen Chat mit dem Prompt. Die KI fragt dich nach Thema, Zielgruppe und
+              Anzahl Fragen und schlägt dir dann ein Quiz vor, das du mit ihr anpassen kannst.
+            </p>
 
-              <div class="mt-5 flex flex-wrap gap-2">
-                <a
-                  id="open-chatgpt"
-                  href={"https://chatgpt.com/?q=" <> URI.encode_www_form(@prompt)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="btn btn-primary"
-                >
-                  In ChatGPT öffnen <.icon name="hero-arrow-top-right-on-square" class="size-4" />
-                </a>
-                <a
-                  id="open-claude"
-                  href={"https://claude.ai/new?q=" <> URI.encode_www_form(@prompt)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="btn btn-primary"
-                >
-                  In Claude öffnen <.icon name="hero-arrow-top-right-on-square" class="size-4" />
-                </a>
-                <.copy_button id="copy-prompt" from="ai-prompt" class="btn btn-soft">
-                  Prompt kopieren
-                </.copy_button>
-              </div>
-              <p class="mt-3 text-xs text-base-content/50">
-                Andere KI? Kopiere den Prompt und füge ihn in einen neuen Chat ein.
-              </p>
-
-              <details class="group mt-4">
-                <summary class="cursor-pointer text-sm font-medium text-base-content/60 transition hover:text-base-content">
-                  Prompt ansehen
-                </summary>
-                <textarea
-                  id="ai-prompt"
-                  readonly
-                  rows="12"
-                  class="mt-3 w-full rounded-field border border-base-300/70 bg-base-200/40 p-3 font-mono text-xs text-base-content/70"
-                >{@prompt}</textarea>
-              </details>
-            </section>
-
-            <section
-              id="ai-step-paste"
-              class="rounded-box border border-base-200 bg-base-100 p-6 shadow-sm"
-            >
-              <.step_title number={2} title="Füge die Antwort der KI hier ein" />
-              <p class="mt-2 text-sm text-base-content/60">
-                Wenn das Quiz passt, kopiere den Block mit dem Kopieren-Knopf der KI und füge ihn hier
-                ein. Es macht nichts, wenn etwas Text davor oder danach mitkommt.
-              </p>
-
-              <%!-- Visitors without an account post the text to
-                   GuestImportController (phx-trigger-action), which creates the
-                   guest account — a LiveView cannot write the session cookie. --%>
-              <.form
-                for={@form}
-                id="import-form"
-                action={~p"/erstellen"}
-                method="post"
-                phx-change="preview"
-                phx-submit="create"
-                phx-trigger-action={@trigger_submit}
-                class="mt-4"
+            <div class="mt-5 flex flex-wrap gap-2">
+              <a
+                id="open-chatgpt"
+                href={"https://chatgpt.com/?q=" <> URI.encode_www_form(@prompt)}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary"
               >
-                <.input
-                  field={@form[:text]}
-                  type="textarea"
-                  rows="12"
-                  phx-debounce="300"
-                  placeholder={placeholder()}
-                  class="font-mono !text-sm"
-                  aria-label="Antwort der KI"
-                />
+                In ChatGPT öffnen <.icon name="hero-arrow-top-right-on-square" class="size-4" />
+              </a>
+              <a
+                id="open-claude"
+                href={"https://claude.ai/new?q=" <> URI.encode_www_form(@prompt)}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary"
+              >
+                In Claude öffnen <.icon name="hero-arrow-top-right-on-square" class="size-4" />
+              </a>
+              <.copy_button id="copy-prompt" from="ai-prompt" class="btn btn-soft">
+                Prompt kopieren
+              </.copy_button>
+            </div>
+            <p class="mt-3 text-xs text-base-content/50">
+              Andere KI? Kopiere den Prompt und füge ihn in einen neuen Chat ein.
+            </p>
 
-                <div
-                  :if={@limit_reached}
-                  id="guest-limit"
-                  class="mt-2 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm"
-                >
-                  Als Gast kannst du höchstens {Games.guest_max_games()} Quizze haben.
-                  <.link
-                    navigate={~p"/users/register"}
-                    class="font-semibold text-primary hover:underline"
-                  >
-                    Erstelle ein Konto
-                  </.link>
-                  – deine Quizze bleiben dabei erhalten.
-                </div>
+            <details class="group mt-4">
+              <summary class="cursor-pointer text-sm font-medium text-base-content/60 transition hover:text-base-content">
+                Prompt ansehen
+              </summary>
+              <textarea
+                id="ai-prompt"
+                readonly
+                rows="12"
+                class="mt-3 w-full rounded-field border border-base-300/70 bg-base-200/40 p-3 font-mono text-xs text-base-content/70"
+              >{@prompt}</textarea>
+            </details>
+          </section>
 
-                <button
-                  :if={!@limit_reached}
-                  id="create-quiz"
-                  type="submit"
-                  disabled={not match?({:ok, _}, @result)}
-                  phx-disable-with="Quiz wird erstellt …"
-                  class="btn btn-primary btn-lg mt-2 w-full"
-                >
-                  Als Entwurf anlegen <span aria-hidden="true">→</span>
-                </button>
-                <p class="mt-2 text-center text-xs text-base-content/50">
-                  Du kannst danach alles im Editor anpassen und Bilder ergänzen.
-                </p>
-                <p
-                  :if={@anonymous or @guest}
-                  id="guest-notice"
-                  class="mt-3 rounded-field bg-base-200/60 px-3 py-2 text-center text-xs text-base-content/60"
-                >
-                  {if @anonymous,
-                    do: "Ohne Konto legen wir dir einen Gastzugang an.",
-                    else: "Du bist als Gast unterwegs."} Deine Quizze werden nach {Quiz.Accounts.guest_lifetime_days()} Tagen gelöscht –
-                  <.link
-                    navigate={~p"/users/register"}
-                    class="font-medium text-primary hover:underline"
-                  >
-                    mit einem Konto
-                  </.link>
-                  behältst du sie.
-                </p>
-              </.form>
-            </section>
+          <div class="flex items-center justify-center text-primary/40" aria-hidden="true">
+            <.icon name="hero-arrow-long-right" class="hidden size-8 md:block" />
+            <.icon name="hero-arrow-long-down" class="size-8 md:hidden" />
           </div>
 
-          <section id="import-preview" class="lg:sticky lg:top-6" aria-live="polite">
-            <.preview result={@result} />
+          <section
+            id="ai-step-paste"
+            class="rounded-box border border-base-200 bg-base-100 p-6 shadow-sm"
+          >
+            <.step_title number={2} title="Füge die Antwort der KI hier ein" />
+            <p class="mt-2 text-sm text-base-content/60">
+              Wenn das Quiz passt, kopiere den Block mit dem Kopieren-Knopf der KI und füge ihn hier
+              ein. Es macht nichts, wenn etwas Text davor oder danach mitkommt.
+            </p>
+
+            <%!-- Visitors without an account post the text to
+                 GuestImportController (phx-trigger-action), which creates the
+                 guest account — a LiveView cannot write the session cookie.
+                 The submit buttons sit with the preview below (form="import-form"). --%>
+            <.form
+              for={@form}
+              id="import-form"
+              action={~p"/erstellen"}
+              method="post"
+              phx-change="preview"
+              phx-submit="create"
+              phx-trigger-action={@trigger_submit}
+              class="mt-4"
+            >
+              <.input
+                field={@form[:text]}
+                type="textarea"
+                rows="9"
+                phx-debounce="300"
+                placeholder={placeholder()}
+                class="font-mono !text-sm"
+                aria-label="Antwort der KI"
+              />
+            </.form>
+
+            <p
+              :if={@anonymous or @guest}
+              id="guest-notice"
+              class="mt-1 rounded-field bg-base-200/60 px-3 py-2 text-xs text-base-content/60"
+            >
+              {if @anonymous,
+                do: "Ohne Konto legen wir dir einen Gastzugang an.",
+                else: "Du bist als Gast unterwegs."} Deine Quizze werden nach {Quiz.Accounts.guest_lifetime_days()} Tagen gelöscht –
+              <.link
+                navigate={~p"/users/register"}
+                class="font-medium text-primary hover:underline"
+              >
+                mit einem Konto
+              </.link>
+              behältst du sie.
+            </p>
+
+            <div
+              :if={@limit_reached}
+              id="guest-limit"
+              class="mt-2 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm"
+            >
+              Als Gast kannst du höchstens {Games.guest_max_games()} Quizze haben.
+              <.link
+                navigate={~p"/users/register"}
+                class="font-semibold text-primary hover:underline"
+              >
+                Erstelle ein Konto
+              </.link>
+              – deine Quizze bleiben dabei erhalten.
+            </div>
           </section>
         </div>
+
+        <section
+          id="import-preview"
+          phx-hook=".ScrollIntoView"
+          class="scroll-mt-6"
+          aria-live="polite"
+        >
+          <.preview result={@result} loading={@loading} limit_reached={@limit_reached} />
+        </section>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ScrollIntoView">
+        export default {
+          mounted() {
+            this.handleEvent("scroll-to-preview", () =>
+              this.el.scrollIntoView({ behavior: "smooth", block: "start" })
+            )
+          }
+        }
+      </script>
     </Layouts.app>
     """
   end
@@ -192,6 +199,41 @@ defmodule QuizWeb.GameLive.Import do
   end
 
   attr :result, :any, required: true
+  attr :loading, :boolean, required: true
+  attr :limit_reached, :boolean, required: true
+
+  defp preview(%{loading: true} = assigns) do
+    ~H"""
+    <div
+      id="preview-loading"
+      role="status"
+      class="flex min-h-[60vh] flex-col items-center justify-center gap-10 rounded-box border border-base-200 bg-base-100 px-6 py-16 shadow-sm"
+    >
+      <span class="sr-only">Dein Quiz wird vorbereitet</span>
+      <%!-- A teal-to-mimosa ring turning around a pulsing spark --%>
+      <div class="relative size-28" aria-hidden="true">
+        <div class="absolute inset-0 animate-spin rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,var(--color-secondary)_200deg,var(--color-primary)_360deg)] [animation-duration:1.1s] [mask:radial-gradient(farthest-side,transparent_calc(100%-7px),#000_calc(100%-6px))]">
+        </div>
+        <div class="absolute inset-4 rounded-full bg-secondary/25 animate-ping [animation-duration:1.8s]">
+        </div>
+        <div class="absolute inset-0 grid place-items-center">
+          <.icon name="hero-sparkles" class="size-10 text-primary animate-pulse" />
+        </div>
+      </div>
+      <%!-- Question cards taking shape one after the other --%>
+      <div class="w-full max-w-md space-y-3" aria-hidden="true">
+        <div
+          :for={{delay, width} <- [{"0ms", "w-11/12"}, {"200ms", "w-9/12"}, {"400ms", "w-10/12"}]}
+          class="flex items-center gap-3 rounded-box bg-base-200/70 p-3 animate-pulse"
+          style={"animation-delay: #{delay}"}
+        >
+          <span class="size-8 shrink-0 rounded-lg bg-primary/15"></span>
+          <span class={["h-3 rounded-full bg-base-300", width]}></span>
+        </div>
+      </div>
+    </div>
+    """
+  end
 
   defp preview(%{result: nil} = assigns) do
     ~H"""
@@ -204,7 +246,8 @@ defmodule QuizWeb.GameLive.Import do
       </span>
       <h2 class="mt-4 text-lg font-bold">Hier erscheint dein Quiz</h2>
       <p class="mt-1 text-sm text-base-content/55">
-        Sobald du die Antwort der KI einfügst, siehst du hier alle Fragen und was noch fehlt.
+        Sobald du die Antwort der KI einfügst, siehst du hier alle Fragen so, wie die Teams sie
+        sehen.
       </p>
     </div>
     """
@@ -234,25 +277,29 @@ defmodule QuizWeb.GameLive.Import do
       |> assign(:questions, questions)
       |> assign(:missing, Enum.map(questions, &missing_requirements/1))
       |> assign(:feedback, feedback_for_ai(parsed.warnings))
-
-    assigns = assign(assigns, :uploads_needed, Enum.count(assigns.questions, &needs_upload?/1))
+      |> assign(:uploads_needed, Enum.count(questions, &needs_upload?/1))
 
     ~H"""
-    <div class="space-y-4">
+    <div class="mx-auto max-w-3xl space-y-6">
       <div class="rounded-box border border-base-200 bg-base-100 p-6 shadow-sm">
-        <p class="text-xs font-medium uppercase tracking-wider text-base-content/45">Vorschau</p>
-        <h2 id="preview-title" class="mt-1 text-xl font-bold leading-tight">{@parsed.title}</h2>
-        <p class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-base-content/60">
-          <span id="preview-count">{question_count(length(@questions))}</span>
-          <span
-            :if={@uploads_needed > 0}
-            id="preview-uploads"
-            class="font-medium text-base-content/75"
-          >
-            <.icon name="hero-photo" class="size-4 align-[-3px]" />
-            {upload_count(@uploads_needed)} danach hochladen
-          </span>
-        </p>
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-xs font-medium uppercase tracking-wider text-base-content/45">Vorschau</p>
+            <h2 id="preview-title" class="mt-1 text-xl font-bold leading-tight">{@parsed.title}</h2>
+            <p class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-base-content/60">
+              <span id="preview-count">{question_count(length(@questions))}</span>
+              <span
+                :if={@uploads_needed > 0}
+                id="preview-uploads"
+                class="font-medium text-base-content/75"
+              >
+                <.icon name="hero-photo" class="size-4 align-[-3px]" />
+                {upload_count(@uploads_needed)} danach hochladen
+              </span>
+            </p>
+          </div>
+          <.create_button :if={!@limit_reached} id="create-quiz" />
+        </div>
       </div>
 
       <div
@@ -276,140 +323,91 @@ defmodule QuizWeb.GameLive.Import do
         </.copy_button>
       </div>
 
-      <ol id="preview-questions" class="space-y-3">
-        <li
+      <%!-- The same cards as the editor's «Ansehen» view: each question as the
+           teams will see it, without its solution. --%>
+      <div id="preview-questions" class="space-y-6">
+        <article
           :for={{{question, missing}, index} <- Enum.with_index(Enum.zip(@questions, @missing), 1)}
           id={"preview-question-#{index}"}
-          class="rounded-box border border-base-200 bg-base-100 p-5 shadow-sm"
+          class="rounded-box border border-base-300 bg-base-100 p-6 space-y-4"
         >
-          <div class="flex items-start gap-3">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-base-200 text-xs font-bold">
-              {index}
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-medium uppercase tracking-wider text-base-content/45">
-                {type_name(question.type)}
-              </p>
-              <p class="mt-0.5 font-semibold leading-snug">
-                {if question.prompt in [nil, ""], do: "(ohne Fragetext)", else: question.prompt}
-              </p>
+          <p class="font-mono text-xs uppercase tracking-wider text-base-content/60">
+            Frage {pad(index)} · {type_name(question.type)}
+          </p>
+          <h2 class="text-xl font-bold">
+            {if question.prompt in [nil, ""], do: "(ohne Fragetext)", else: question.prompt}
+          </h2>
+          <.rich_text html={question.description} />
+          <.image_placeholder
+            :if={question.type != :pin_on_image and question.image_hint not in [nil, ""]}
+            hint={question.image_hint}
+          />
+          <%!-- Its own form keeps radio groups apart and stops Enter from
+               submitting anything. --%>
+          <form id={"preview-answer-#{index}"} phx-submit="ignore_preview_answer">
+            <.preview_answer question={question} />
+          </form>
+          <p
+            :if={missing != []}
+            class="flex gap-2 rounded-field bg-warning/10 px-3 py-2 text-sm"
+          >
+            <.icon name="hero-pencil-square" class="size-4 shrink-0 mt-0.5 text-warning" />
+            <span>Im Editor ergänzen: {Enum.join(missing, ", ")}</span>
+          </p>
+        </article>
+      </div>
 
-              <.answers question={question} />
+      <div :if={!@limit_reached} class="flex justify-center">
+        <.create_button id="create-quiz-bottom" />
+      </div>
+    </div>
+    """
+  end
 
-              <p
-                :if={question.image_hint && question.type != :pin_on_image}
-                class="mt-3 flex gap-2 text-sm text-base-content/60"
-              >
-                <.icon name="hero-photo" class="size-4 shrink-0 mt-0.5" />
-                <span>Bild: {question.image_hint}</span>
-              </p>
+  attr :id, :string, required: true
 
-              <p
-                :if={question.solution_text}
-                class="mt-3 border-l-2 border-base-300 pl-3 text-sm text-base-content/60"
-              >
-                {question.solution_text}
-              </p>
+  defp create_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="submit"
+      form="import-form"
+      phx-disable-with="Quiz wird erstellt …"
+      class="btn btn-primary btn-lg"
+    >
+      Als Entwurf anlegen <span aria-hidden="true">→</span>
+    </button>
+    """
+  end
 
-              <p
-                :if={missing != []}
-                class="mt-3 flex gap-2 rounded-field bg-warning/10 px-3 py-2 text-sm"
-              >
-                <.icon name="hero-pencil-square" class="size-4 shrink-0 mt-0.5 text-warning" />
-                <span>Im Editor ergänzen: {Enum.join(missing, ", ")}</span>
-              </p>
-            </div>
-          </div>
-        </li>
-      </ol>
+  attr :hint, :string, required: true
+
+  defp image_placeholder(assigns) do
+    ~H"""
+    <div class="flex aspect-video max-w-md flex-col items-center justify-center gap-2 rounded-box border-2 border-dashed border-base-300 bg-base-200/60 p-6 text-center">
+      <.icon name="hero-photo" class="size-8 text-base-content/35" />
+      <p class="text-sm font-semibold text-base-content/60">Bild folgt</p>
+      <p class="text-xs text-base-content/50">{@hint}</p>
     </div>
     """
   end
 
   attr :question, Question, required: true
 
-  defp answers(%{question: %{type: type}} = assigns)
-       when type in [:single_choice, :multiple_choice] do
+  defp preview_answer(%{question: %{type: :pin_on_image}} = assigns) do
     ~H"""
-    <ul class="mt-3 space-y-1.5">
-      <li
-        :for={choice <- @question.data.choices}
-        class={[
-          "flex items-center gap-2 rounded-field px-3 py-1.5 text-sm",
-          if(choice.correct, do: "bg-success/10 font-medium", else: "bg-base-200/50")
-        ]}
-      >
-        <.icon
-          name={if(choice.correct, do: "hero-check-circle-solid", else: "hero-minus-small")}
-          class={[
-            "size-4 shrink-0",
-            if(choice.correct, do: "text-success", else: "text-base-content/30")
-          ]}
-        />
-        {choice.text}
-      </li>
-    </ul>
+    <.image_placeholder hint={@question.image_hint || "Bild für den Pin"} />
     """
   end
 
-  defp answers(%{question: %{type: :text_input}} = assigns) do
+  defp preview_answer(%{question: %{type: :number_range, data: %{number_range: nil}}} = assigns),
+    do: ~H""
+
+  defp preview_answer(assigns) do
     ~H"""
-    <p :if={@question.data.solutions != []} class="mt-3 text-sm">
-      <span class="text-base-content/55">Akzeptiert:</span>
-      <span :for={{solution, i} <- Enum.with_index(@question.data.solutions)} class="font-medium">
-        {if i > 0, do: " · "}{solution.text}
-      </span>
-    </p>
+    <AnswerArea.answer_area question={AnswerArea.prepare_question(@question)} />
     """
   end
-
-  defp answers(%{question: %{type: :sequence}} = assigns) do
-    ~H"""
-    <ol class="mt-3 list-decimal space-y-1 pl-5 text-sm marker:text-base-content/40">
-      <li :for={item <- @question.data.items}>{item.text}</li>
-    </ol>
-    """
-  end
-
-  defp answers(%{question: %{type: :matching}} = assigns) do
-    ~H"""
-    <ul class="mt-3 space-y-1 text-sm">
-      <li :for={pair <- @question.data.pairs} class="flex items-center gap-2">
-        <span>{pair.left_text}</span>
-        <.icon name="hero-arrow-long-right" class="size-4 text-base-content/40" />
-        <span class="font-medium">{pair.right_text}</span>
-      </li>
-    </ul>
-    """
-  end
-
-  defp answers(%{question: %{type: :number_range, data: %{number_range: %{} = range}}} = assigns) do
-    assigns = assign(assigns, :range, range)
-
-    ~H"""
-    <p class="mt-3 text-sm">
-      <span class="text-base-content/55">Skala {@range.min} bis {@range.max} ·</span>
-      <span class="font-medium">Lösung {@range.solution} ± {@range.tolerance}</span>
-    </p>
-    """
-  end
-
-  defp answers(%{question: %{type: :pin_on_image}} = assigns) do
-    ~H"""
-    <div class="mt-3 space-y-1 text-sm text-base-content/60">
-      <p :if={@question.image_hint} class="flex gap-2">
-        <.icon name="hero-photo" class="size-4 shrink-0 mt-0.5" />
-        <span>Bild: {@question.image_hint}</span>
-      </p>
-      <p :if={@question.pin_hint} class="flex gap-2">
-        <.icon name="hero-map-pin" class="size-4 shrink-0 mt-0.5" />
-        <span>Pin: {@question.pin_hint}</span>
-      </p>
-    </div>
-    """
-  end
-
-  defp answers(assigns), do: ~H""
 
   @impl true
   def mount(_params, _session, socket) do
@@ -431,19 +429,22 @@ defmodule QuizWeb.GameLive.Import do
        |> assign(:limit_reached, not anonymous and Games.guest_limit_reached?(scope))
        |> assign(:trigger_submit, false)
        |> assign(:form, to_form(%{"text" => ""}, as: :import))
-       |> assign(:result, nil)}
+       |> assign(result: nil, loading: false, pending: nil, preview_ref: nil)}
     end
   end
 
   @impl true
   def handle_event("preview", %{"import" => %{"text" => text}}, socket) do
-    {:noreply,
-     socket
-     |> assign(:form, to_form(%{"text" => text}, as: :import))
-     |> assign(:result, parse(text))}
+    socket = assign(socket, :form, to_form(%{"text" => text}, as: :import))
+    {:noreply, show_preview(socket, parse(text))}
   end
 
+  def handle_event("ignore_preview_answer", _params, socket), do: {:noreply, socket}
+
   # No account yet: hand the text to GuestImportController as a regular POST.
+  def handle_event("create", _params, %{assigns: %{loading: true}} = socket),
+    do: {:noreply, socket}
+
   def handle_event(
         "create",
         %{"import" => %{"text" => text}},
@@ -476,6 +477,40 @@ defmodule QuizWeb.GameLive.Import do
     end
   end
 
+  @impl true
+  def handle_info({:reveal_preview, ref}, %{assigns: %{preview_ref: ref}} = socket) do
+    {:noreply, assign(socket, result: socket.assigns.pending, loading: false, preview_ref: nil)}
+  end
+
+  # A reveal that was superseded (the text was cleared meanwhile).
+  def handle_info({:reveal_preview, _ref}, socket), do: {:noreply, socket}
+
+  # The first time a pasted quiz is recognised, the preview waits a moment
+  # behind a spinner, so it is clear that something is being made of the
+  # paste. Later edits update the preview right away.
+  defp show_preview(socket, {:ok, _} = result) do
+    cond do
+      socket.assigns.loading ->
+        assign(socket, :pending, result)
+
+      match?({:ok, _}, socket.assigns.result) or preview_delay() == 0 ->
+        assign(socket, :result, result)
+
+      true ->
+        ref = make_ref()
+        Process.send_after(self(), {:reveal_preview, ref}, preview_delay())
+
+        socket
+        |> assign(loading: true, pending: result, preview_ref: ref)
+        |> push_event("scroll-to-preview", %{})
+    end
+  end
+
+  defp show_preview(socket, result),
+    do: assign(socket, result: result, loading: false, pending: nil, preview_ref: nil)
+
+  defp preview_delay, do: Application.get_env(:quiz, :import_preview_delay, 1800)
+
   defp placeholder, do: "Format: quiz-text/v1\nQuiz: …\n\nFrage: …"
 
   defp parse(text) do
@@ -491,8 +526,33 @@ defmodule QuizWeb.GameLive.Import do
       %Question{}
       |> Question.changeset(Map.merge(attrs, %{game_id: 0, position: position}), scope, :draft)
       |> Ecto.Changeset.apply_changes()
+      |> with_preview_ids(position, attrs)
     end
   end
+
+  # Unsaved questions have no ids, but the answer areas key their DOM (and
+  # client-side hooks) by them. The question id changes with the content, so a
+  # hook-managed area is rebuilt when the pasted text changes.
+  defp with_preview_ids(%Question{data: data} = question, position, attrs) do
+    data =
+      if data do
+        %{
+          data
+          | choices: numbered(data.choices, "c"),
+            solutions: numbered(data.solutions, "s"),
+            items: numbered(data.items, "i"),
+            pairs: numbered(data.pairs, "p")
+        }
+      end
+
+    %{question | id: "import-#{position}-#{:erlang.phash2(attrs)}", data: data}
+  end
+
+  defp numbered(entries, prefix) do
+    for {entry, i} <- Enum.with_index(entries), do: %{entry | id: "#{prefix}#{i}"}
+  end
+
+  defp pad(n), do: n |> Integer.to_string() |> String.pad_leading(2, "0")
 
   defp missing_requirements(question) do
     case question.type do

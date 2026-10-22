@@ -47,3 +47,6 @@ config :quiz, Quiz.Accounts.GuestCleanup, enabled: false
 # Every test signs guests up from 127.0.0.1; the limit itself is tested with
 # its own setting.
 config :quiz, :guest_rate_limit, {10_000, :timer.hours(1)}
+
+# Show the AI import preview right away instead of after the spinner.
+config :quiz, :import_preview_delay, 0
