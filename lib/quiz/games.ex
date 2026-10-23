@@ -81,6 +81,7 @@ defmodule Quiz.Games do
     with :ok <- check_guest_limit(scope, attrs),
          {:ok, game = %Game{}} <- insert_game(scope, attrs, @max_join_code_attempts) do
       broadcast_game(scope, {:created, game})
+      if scope.user.guest, do: Quiz.Notifier.guest_created_game(game)
       {:ok, game}
     end
   end

@@ -48,5 +48,9 @@ config :quiz, Quiz.Accounts.GuestCleanup, enabled: false
 # its own setting.
 config :quiz, :guest_rate_limit, {10_000, :timer.hours(1)}
 
+# Notifications stay off (no topic); tests that set one get the stub instead
+# of ntfy.sh.
+config :quiz, Quiz.Notifier, req_options: [plug: {Req.Test, Quiz.Notifier}]
+
 # Show the AI import preview right away instead of after the spinner.
 config :quiz, :import_preview_delay, 0

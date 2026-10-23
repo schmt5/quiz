@@ -24,6 +24,12 @@ end
 # so it can be switched off quickly if it gets abused.
 config :quiz, :guest_mode, System.get_env("GUEST_MODE", "true") != "false"
 
+# Push a note to this ntfy.sh topic when a guest creates a quiz or someone
+# registers (see Quiz.Notifier). Unset means no notifications.
+if ntfy_topic = System.get_env("NTFY_TOPIC") do
+  config :quiz, Quiz.Notifier, topic: ntfy_topic
+end
+
 # Use Cloudflare R2 for uploads when credentials are present; otherwise fall
 # back to the local-disk adapter configured in config/config.exs. This keeps
 # the R2 path dormant until the bucket and tokens are provisioned.

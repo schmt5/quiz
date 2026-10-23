@@ -13,7 +13,9 @@ defmodule Quiz.Application do
         Quiz.Repo,
         {DNSCluster, query: Application.get_env(:quiz, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Quiz.PubSub},
-        Quiz.RateLimit
+        Quiz.RateLimit,
+        # Fire-and-forget work such as `Quiz.Notifier` pushes.
+        {Task.Supervisor, name: Quiz.TaskSupervisor}
       ] ++
         guest_cleanup() ++
         [

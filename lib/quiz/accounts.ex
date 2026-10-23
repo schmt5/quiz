@@ -49,6 +49,7 @@ defmodule Quiz.Accounts do
     %User{}
     |> User.registration_changeset(attrs)
     |> Repo.insert()
+    |> tap_ok(&Quiz.Notifier.user_registered/1)
   end
 
   ## Guests
@@ -96,7 +97,15 @@ defmodule Quiz.Accounts do
     |> User.registration_changeset(attrs)
     |> Ecto.Changeset.change(guest: false, expires_at: nil)
     |> Repo.update()
+    |> tap_ok(&Quiz.Notifier.guest_claimed/1)
   end
+
+  defp tap_ok({:ok, user} = result, fun) do
+    fun.(user)
+    result
+  end
+
+  defp tap_ok(error, _fun), do: error
 
   @doc """
   Guests whose expiry has passed, oldest first.
