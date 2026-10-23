@@ -72,15 +72,25 @@ defmodule QuizWeb.QuestionLive.Index do
                   style="position-anchor:--question-actions"
                 >
                   <li>
-                    <.link
-                      phx-click="delete"
-                      data-confirm="Diese Frage löschen?"
+                    <button
+                      id="delete-question"
+                      type="button"
                       class="text-error"
+                      onclick={open_modal("delete_question_modal", close_popover: "question-actions")}
                     >
                       <.icon name="hero-trash" class="size-5" /> Frage löschen
-                    </.link>
+                    </button>
                   </li>
                 </ul>
+                <.confirm_modal
+                  id="delete_question_modal"
+                  title="Frage löschen?"
+                  confirm="Frage löschen"
+                  event="delete"
+                >
+                  «{question_label(@selected_question)}» wird endgültig gelöscht. Das lässt sich nicht
+                  rückgängig machen.
+                </.confirm_modal>
               </div>
               <OpenRun.run_button game={@game} has_questions={@questions != []} />
             </div>
@@ -95,18 +105,6 @@ defmodule QuizWeb.QuestionLive.Index do
                 <button
                   type="button"
                   phx-click="set_mode"
-                  phx-value-mode="edit"
-                  class={[
-                    "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition",
-                    @mode == :edit && "bg-base-100 shadow-sm text-base-content",
-                    @mode != :edit && "text-base-content/60 hover:text-base-content"
-                  ]}
-                >
-                  <.icon name="hero-pencil-square" class="size-4" /> Bearbeiten
-                </button>
-                <button
-                  type="button"
-                  phx-click="set_mode"
                   phx-value-mode="view"
                   class={[
                     "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition",
@@ -115,6 +113,18 @@ defmodule QuizWeb.QuestionLive.Index do
                   ]}
                 >
                   <.icon name="hero-eye" class="size-4" /> Ansehen
+                </button>
+                <button
+                  type="button"
+                  phx-click="set_mode"
+                  phx-value-mode="edit"
+                  class={[
+                    "flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                    @mode == :edit && "bg-base-100 shadow-sm text-base-content",
+                    @mode != :edit && "text-base-content/60 hover:text-base-content"
+                  ]}
+                >
+                  <.icon name="hero-pencil-square" class="size-4" /> Bearbeiten
                 </button>
               </div>
             </div>
@@ -150,7 +160,7 @@ defmodule QuizWeb.QuestionLive.Index do
                   id={"questions-#{question.id}"}
                 >
                   <.link
-                    :if={!@locked}
+                    :if={@mode == :edit}
                     patch={~p"/games/#{@game}/questions/#{question}/edit"}
                     class={[
                       "block rounded-md px-3 py-2 transition border",
@@ -183,9 +193,11 @@ defmodule QuizWeb.QuestionLive.Index do
                       </span>
                     </div>
                   </.link>
-                  <div
-                    :if={@locked}
-                    class="block rounded-md px-3 py-2 border border-transparent"
+                  <%!-- In «Ansehen» every question is on the page: jump to it. --%>
+                  <a
+                    :if={@mode == :view}
+                    href={"#view-question-#{question.id}"}
+                    class="block rounded-md px-3 py-2 border border-transparent transition hover:bg-base-200/60"
                   >
                     <div class="flex items-center gap-2">
                       <span class="font-mono text-xs text-base-content/60">
@@ -201,7 +213,7 @@ defmodule QuizWeb.QuestionLive.Index do
                         {question_label(question)}
                       </span>
                     </div>
-                  </div>
+                  </a>
                 </li>
               </ul>
             </div>
@@ -243,7 +255,7 @@ defmodule QuizWeb.QuestionLive.Index do
             </div>
           </aside>
 
-          <section class="flex-1 min-w-0 h-full overflow-y-auto">
+          <section class="flex-1 min-w-0 h-full overflow-y-auto scroll-smooth">
             <OpenRun.confirm
               game={@game}
               questions={@questions}
@@ -251,7 +263,7 @@ defmodule QuizWeb.QuestionLive.Index do
               class="mb-6"
             />
             <div :if={@mode == :edit}>
-              <.type_picker :if={@live_action == :index} game={@game} />
+              <.type_picker :if={@live_action == :index} game={@game} insert_at={@insert_at} />
               <.question_form
                 :if={@live_action == :edit}
                 form={@form}
@@ -265,35 +277,39 @@ defmodule QuizWeb.QuestionLive.Index do
               />
             </div>
 
-            <div :if={@mode == :view} class="space-y-6 max-w-2xl">
+            <div :if={@mode == :view} class="space-y-3 max-w-2xl">
               <div
                 :if={@questions == []}
                 class="rounded-box border border-dashed border-base-300 p-6 text-center text-sm text-base-content/60"
               >
                 Noch keine Fragen in diesem Quiz.
               </div>
-              <article
-                :for={{q, idx} <- Enum.with_index(@questions)}
-                class="group relative rounded-box border border-base-300 bg-base-100 p-6 space-y-4"
-              >
-                <button
-                  :if={!@locked}
-                  type="button"
-                  phx-click="edit_question"
-                  phx-value-id={q.id}
-                  class="absolute top-3 right-3 btn btn-sm btn-square btn-soft opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
-                  aria-label="Frage bearbeiten"
+              <.insert_question_button :if={!@locked} at={0} />
+              <%= for {q, idx} <- Enum.with_index(@questions) do %>
+                <article
+                  id={"view-question-#{q.id}"}
+                  class="group relative scroll-mt-4 rounded-box border border-base-300 bg-base-100 p-6 space-y-4"
                 >
-                  <.icon name="hero-pencil-square" class="size-4" />
-                </button>
-                <p class="font-mono text-xs uppercase tracking-wider text-base-content/60">
-                  Frage {pad(idx + 1)}
-                </p>
-                <h2 class="text-xl font-bold">{q.prompt}</h2>
-                <.rich_text html={q.description} />
-                <.question_media question={q} class="max-w-md" />
-                <AnswerArea.answer_area question={AnswerArea.prepare_question(q)} />
-              </article>
+                  <button
+                    :if={!@locked}
+                    type="button"
+                    phx-click="edit_question"
+                    phx-value-id={q.id}
+                    class="absolute top-3 right-3 btn btn-sm btn-square btn-soft opacity-0 group-hover:opacity-100 focus:opacity-100 transition"
+                    aria-label="Frage bearbeiten"
+                  >
+                    <.icon name="hero-pencil-square" class="size-4" />
+                  </button>
+                  <p class="font-mono text-xs uppercase tracking-wider text-base-content/60">
+                    Frage {pad(idx + 1)}
+                  </p>
+                  <h2 class="text-xl font-bold">{q.prompt}</h2>
+                  <.rich_text html={q.description} />
+                  <.question_media question={q} class="max-w-md" />
+                  <AnswerArea.answer_area question={AnswerArea.prepare_question(q)} />
+                </article>
+                <.insert_question_button :if={!@locked} at={idx + 1} />
+              <% end %>
             </div>
           </section>
         </div>
@@ -302,13 +318,30 @@ defmodule QuizWeb.QuestionLive.Index do
     """
   end
 
+  attr :at, :integer, required: true, doc: "0-based index the new question goes to"
+
+  defp insert_question_button(assigns) do
+    ~H"""
+    <button
+      id={"insert-question-#{@at}"}
+      type="button"
+      phx-click="add_question_at"
+      phx-value-at={@at}
+      class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-box border-2 border-dashed border-base-300 py-2.5 text-sm font-medium text-base-content/50 transition hover:border-primary/40 hover:bg-base-200/50 hover:text-primary"
+    >
+      <.icon name="hero-plus" class="size-4" /> Frage hinzufügen
+    </button>
+    """
+  end
+
   attr :game, :map, required: true
+  attr :insert_at, :integer, default: nil
 
   defp type_picker(assigns) do
     ~H"""
     <div class="mx-auto max-w-3xl py-12 text-center">
       <p class="text-xs font-mono uppercase tracking-wider text-base-content/60">
-        Starte mit einer Frage
+        {if @insert_at, do: "Neue Frage an Position #{@insert_at + 1}", else: "Starte mit einer Frage"}
       </p>
       <h1 class="mt-3 text-3xl sm:text-4xl font-bold">
         Welche Art von Frage möchtest du hinzufügen?
@@ -1935,8 +1968,9 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:game, game)
      |> assign(:questions, questions)
      |> assign(:locked, locked)
-     |> assign(:mode, if(locked, do: :view, else: :edit))
+     |> assign(:mode, initial_mode(socket.assigns.live_action, locked, questions))
      |> OpenRun.assign_defaults()
+     |> assign(:insert_at, nil)
      |> assign(:selected_question, nil)
      |> assign(:question_type, nil)
      |> assign(:form, nil)
@@ -1995,9 +2029,10 @@ defmodule QuizWeb.QuestionLive.Index do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
-  defp apply_action(socket, :index, _params) do
+  defp apply_action(socket, :index, params) do
     socket
     |> assign(:page_title, "Fragen")
+    |> assign(:insert_at, parse_insert_at(params["at"], length(socket.assigns.questions)))
     |> assign(:selected_question, nil)
     |> assign(:question_type, nil)
     |> assign(:form, nil)
@@ -2013,6 +2048,30 @@ defmodule QuizWeb.QuestionLive.Index do
       authoring_action(socket, :edit, params)
     end
   end
+
+  # «Ansehen» is the default view of a quiz. A link to one question opens its
+  # form, and an empty quiz opens the type picker — there is nothing to look at.
+  defp initial_mode(_action, true = _locked, _questions), do: :view
+  defp initial_mode(:edit, _locked, _questions), do: :edit
+  defp initial_mode(_action, _locked, []), do: :edit
+  defp initial_mode(_action, _locked, _questions), do: :view
+
+  # «Frage hinzufügen» between two questions in «Ansehen» passes where the new
+  # question goes (`?at=`); without it the question is appended.
+  defp parse_insert_at(nil, _count), do: nil
+
+  defp parse_insert_at(at, count) do
+    case Integer.parse(at) do
+      {index, ""} when index >= 0 and index < count -> index
+      _ -> nil
+    end
+  end
+
+  defp create_question(%{assigns: %{insert_at: index}} = socket, type) when is_integer(index),
+    do: Games.create_question(socket.assigns.current_scope, socket.assigns.game, type, at: index)
+
+  defp create_question(socket, type),
+    do: Games.create_question(socket.assigns.current_scope, socket.assigns.game, type)
 
   defp authoring_action(socket, :edit, %{"id" => id}) do
     question = Games.get_question!(socket.assigns.current_scope, id)
@@ -2047,6 +2106,13 @@ defmodule QuizWeb.QuestionLive.Index do
     {:noreply, assign(socket, :mode, if(socket.assigns.locked, do: :view, else: :edit))}
   end
 
+  def handle_event("add_question_at", %{"at" => at}, socket) do
+    {:noreply,
+     socket
+     |> assign(:mode, :edit)
+     |> push_patch(to: ~p"/games/#{socket.assigns.game}/questions?#{[at: at]}")}
+  end
+
   def handle_event("edit_question", %{"id" => id}, socket) do
     {:noreply,
      socket
@@ -2062,7 +2128,7 @@ defmodule QuizWeb.QuestionLive.Index do
         {:noreply, put_flash(socket, :error, "Wähle einen Fragetyp.")}
 
       type ->
-        case Games.create_question(socket.assigns.current_scope, socket.assigns.game, type) do
+        case create_question(socket, type) do
           {:ok, question} ->
             {:noreply,
              socket

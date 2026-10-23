@@ -538,6 +538,101 @@ defmodule QuizWeb.CoreComponents do
   end
 
   @doc """
+  Asks to confirm an action in a dialog styled like the app instead of the
+  browser's native `confirm()`.
+
+  Same mechanics as `content_modal/1`: open it with `onclick={open_modal(id)}`;
+  «Abbrechen», Escape and the backdrop close it. The confirm button closes it
+  and then
+
+    * pushes `event` (with `value`) to the LiveView, or runs the `on_confirm`
+      JS commands instead, or
+    * on a page without LiveView, submits a form to `action` with `method`.
+
+  `variant` `:danger` (default) is for deleting and removing, `:primary` for
+  going ahead despite a warning.
+
+  ## Examples
+
+      <button type="button" onclick={open_modal("delete_question_modal")}>Löschen</button>
+      <.confirm_modal id="delete_question_modal" title="Frage löschen?"
+        confirm="Löschen" event="delete">
+        Die Frage wird endgültig gelöscht.
+      </.confirm_modal>
+  """
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :confirm, :string, required: true, doc: "the confirm button's label"
+  attr :event, :string, default: nil
+  attr :value, :map, default: %{}
+  attr :on_confirm, JS, default: nil, doc: "JS commands to run instead of pushing `event`"
+  attr :action, :string, default: nil, doc: "submit a form here instead (pages without LiveView)"
+  attr :method, :string, default: "post"
+  attr :variant, :atom, default: :danger, values: [:danger, :primary]
+  attr :icon, :string, default: "hero-trash"
+  slot :inner_block, required: true
+
+  def confirm_modal(assigns) do
+    ~H"""
+    <%!-- `open` is set by the browser: keep it when LiveView re-renders. --%>
+    <dialog id={@id} class="modal" phx-mounted={JS.ignore_attributes(["open"])}>
+      <div class="modal-box max-w-md">
+        <div class="flex items-start gap-4">
+          <span class={[
+            "flex size-11 shrink-0 items-center justify-center rounded-full",
+            if(@variant == :danger, do: "bg-error/10 text-error", else: "bg-warning/15 text-warning")
+          ]}>
+            <.icon name={@icon} class="size-5" />
+          </span>
+          <div class="min-w-0">
+            <h2 class="text-lg font-bold">{@title}</h2>
+            <div class="mt-1 text-sm text-base-content/70">{render_slot(@inner_block)}</div>
+          </div>
+        </div>
+        <div class="modal-action">
+          <%!-- A method="dialog" form closes the dialog when submitted. --%>
+          <form method="dialog">
+            <button id={"#{@id}-cancel"} class="btn btn-ghost">Abbrechen</button>
+          </form>
+          <.form :if={@action} for={%{}} action={@action} method={@method}>
+            <button id={"#{@id}-confirm"} class={confirm_button_class(@variant)}>
+              {@confirm}
+            </button>
+          </.form>
+          <form :if={!@action} method="dialog">
+            <button
+              id={"#{@id}-confirm"}
+              class={confirm_button_class(@variant)}
+              phx-click={@on_confirm || JS.push(@event, value: @value)}
+            >
+              {@confirm}
+            </button>
+          </form>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>schliessen</button></form>
+    </dialog>
+    """
+  end
+
+  defp confirm_button_class(:danger), do: "btn btn-error"
+  defp confirm_button_class(:primary), do: "btn btn-primary"
+
+  @doc """
+  The `onclick` that opens a `confirm_modal/1` (or any `<dialog>`) — after
+  closing the popover menu the trigger sits in, if given.
+  """
+  def open_modal(id, opts \\ []) do
+    close_popover =
+      case Keyword.get(opts, :close_popover) do
+        nil -> ""
+        popover -> "document.getElementById('#{popover}').hidePopover(); "
+      end
+
+    close_popover <> "document.getElementById('#{id}').showModal()"
+  end
+
+  @doc """
   Near-fullscreen presenter modal for host-only content such as a game's
   intro (rules/infos in the lobby) or outro (closing words at the end).
 

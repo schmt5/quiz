@@ -47,18 +47,28 @@ defmodule QuizWeb.CorrectionLive.Index do
               </span>
             </div>
             <div class="flex items-center gap-2">
+              <%!-- Asks first while some questions are still unchecked. --%>
               <button
+                id="publish-grading"
                 type="button"
-                phx-click="publish"
-                data-confirm={
-                  (@done_count < @gradable_count &&
-                     "Es sind noch nicht alle Fragen geprüft. Trotzdem veröffentlichen?") || nil
-                }
+                phx-click={@done_count >= @gradable_count && "publish"}
+                onclick={@done_count < @gradable_count && open_modal("publish_modal")}
                 disabled={@game.grading_published}
                 class="btn btn-primary btn-sm"
               >
                 <.icon name="hero-check-circle" class="size-4" /> Veröffentlichen
               </button>
+              <.confirm_modal
+                id="publish_modal"
+                title="Trotzdem veröffentlichen?"
+                confirm="Veröffentlichen"
+                event="publish"
+                variant={:primary}
+                icon="hero-exclamation-triangle"
+              >
+                Es sind noch nicht alle Fragen geprüft. Die Rangliste zeigt dann Punkte, die sich
+                noch ändern können.
+              </.confirm_modal>
               <.link navigate={~p"/games/#{@game}/leaderboard"} class="btn btn-ghost btn-sm">
                 <.icon name="hero-trophy" class="size-4" /> Rangliste
               </.link>

@@ -31,7 +31,7 @@ defmodule QuizWeb.RunLive.Stage do
         <div class="flex items-start justify-between gap-6">
           <div>
             <p class="font-display text-5xl sm:text-6xl font-extrabold leading-none">
-              along<span class="text-secondary">events</span>
+              wär <span class="text-secondary">weiss?</span>
             </p>
             <p class="mt-2 text-base-100/55 truncate max-w-xs sm:max-w-sm">{@game.title}</p>
           </div>
@@ -73,16 +73,26 @@ defmodule QuizWeb.RunLive.Stage do
               <span class="font-medium truncate">{participant.name}</span>
               <button
                 :if={@controls}
+                id={"remove-participant-#{participant.id}"}
                 type="button"
-                phx-click="remove_participant"
-                phx-value-id={participant.id}
-                data-confirm={"Team «#{participant.name}» wirklich entfernen?"}
+                onclick={open_modal("remove_participant_modal_#{participant.id}")}
                 title="Team entfernen"
                 aria-label={"Team #{participant.name} entfernen"}
                 class="ml-auto btn btn-ghost btn-xs btn-circle text-base-100/50 hover:text-base-100"
               >
                 <.icon name="hero-x-mark" class="size-4" />
               </button>
+              <.confirm_modal
+                :if={@controls}
+                id={"remove_participant_modal_#{participant.id}"}
+                title="Team entfernen?"
+                confirm="Team entfernen"
+                event="remove_participant"
+                value={%{id: to_string(participant.id)}}
+                icon="hero-user-minus"
+              >
+                «{participant.name}» wird aus dem Quiz entfernt.
+              </.confirm_modal>
             </li>
           </ul>
         </div>
@@ -300,14 +310,12 @@ defmodule QuizWeb.RunLive.Stage do
   end
 
   @doc """
-  Keyboard control for the operator's run views: → / Space / PageDown push a
-  `"shortcut"` event with `action: "next"`, ← / PageUp `"prev"` and S
-  `"stats"`; the view decides what that means in its current state. These are
-  also the keys presenter clickers send. ? opens the shortcut overview.
+  Keyboard control for the operator's run views: → pushes a `"shortcut"` event
+  with `action: "next"`, ← `"prev"` and S `"stats"`; the view decides what
+  that means in its current state. ? opens the shortcut overview.
 
   Keys are ignored while typing in a field, with a modifier held, on key
-  repeat and while a dialog is open; Space on a focused button keeps its
-  native click.
+  repeat and while a dialog is open.
   """
   def keyboard(assigns) do
     ~H"""
@@ -325,16 +333,9 @@ defmodule QuizWeb.RunLive.Stage do
         </form>
         <h2 class="text-xl font-extrabold text-primary">Tastenkürzel</h2>
         <dl class="mt-6 grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3 text-sm">
-          <dt class="flex flex-wrap gap-1">
-            <kbd class="kbd kbd-sm">→</kbd>
-            <kbd class="kbd kbd-sm">Leertaste</kbd>
-            <kbd class="kbd kbd-sm">Bild ↓</kbd>
-          </dt>
+          <dt><kbd class="kbd kbd-sm">→</kbd></dt>
           <dd>Nächster Schritt: auswerten, nächste Frage oder Lösung</dd>
-          <dt class="flex flex-wrap gap-1">
-            <kbd class="kbd kbd-sm">←</kbd>
-            <kbd class="kbd kbd-sm">Bild ↑</kbd>
-          </dt>
+          <dt><kbd class="kbd kbd-sm">←</kbd></dt>
           <dd>Einen Schritt zurück</dd>
           <dt><kbd class="kbd kbd-sm">S</kbd></dt>
           <dd>Statistik ein- und ausblenden</dd>
@@ -352,8 +353,8 @@ defmodule QuizWeb.RunLive.Stage do
       export default {
         mounted() {
           const ACTIONS = {
-            ArrowRight: "next", PageDown: "next", " ": "next",
-            ArrowLeft: "prev", PageUp: "prev",
+            ArrowRight: "next",
+            ArrowLeft: "prev",
             s: "stats", S: "stats",
           };
 
@@ -361,8 +362,6 @@ defmodule QuizWeb.RunLive.Stage do
             if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
             if (e.target.closest("input, textarea, select, [contenteditable]")) return;
             if (document.querySelector("dialog[open]")) return;
-            // Space on a focused button already clicks it; don't fire twice.
-            if (e.key === " " && e.target.closest("button, a, summary")) return;
 
             if (e.key === "?") {
               e.preventDefault();

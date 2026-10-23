@@ -12,6 +12,8 @@ defmodule QuizWeb.GameLive.Import do
   alias Quiz.Games.{Question, TextFormat}
   alias QuizWeb.QuestionLive.AnswerArea
 
+  @default_params %{"text" => "", "review_mode" => "per_question", "show_statistics" => "true"}
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -105,7 +107,8 @@ defmodule QuizWeb.GameLive.Import do
             <%!-- Visitors without an account post the text to
                  GuestImportController (phx-trigger-action), which creates the
                  guest account — a LiveView cannot write the session cookie.
-                 The submit buttons sit with the preview below (form="import-form"). --%>
+                 «Als Entwurf anlegen» below opens the options dialog, which sits
+                 inside this form so its choices are submitted with the text. --%>
             <.form
               for={@form}
               id="import-form"
@@ -125,6 +128,7 @@ defmodule QuizWeb.GameLive.Import do
                 class="font-mono !text-sm"
                 aria-label="Antwort der KI"
               />
+              <.options_dialog form={@form} />
             </.form>
 
             <p
@@ -144,20 +148,7 @@ defmodule QuizWeb.GameLive.Import do
               behältst du sie.
             </p>
 
-            <div
-              :if={@limit_reached}
-              id="guest-limit"
-              class="mt-2 rounded-box border border-warning/40 bg-warning/10 p-4 text-sm"
-            >
-              Als Gast kannst du höchstens {Games.guest_max_games()} Quizze haben.
-              <.link
-                navigate={~p"/users/register"}
-                class="font-semibold text-primary hover:underline"
-              >
-                Erstelle ein Konto
-              </.link>
-              – deine Quizze bleiben dabei erhalten.
-            </div>
+            <Layouts.guest_limit_note :if={@limit_reached} class="mt-3" />
           </section>
         </div>
 
@@ -300,6 +291,16 @@ defmodule QuizWeb.GameLive.Import do
           </div>
           <.create_button :if={!@limit_reached} id="create-quiz" />
         </div>
+        <p
+          id="manual-editing-info"
+          class="mt-4 flex items-start gap-2 rounded-field bg-base-200/60 px-3 py-2 text-sm text-base-content/70"
+        >
+          <.icon name="hero-pencil-square" class="mt-0.5 size-4 shrink-0 text-primary" />
+          <span>
+            Sobald der Entwurf steht, kannst du jede Frage von Hand bearbeiten, ergänzen, umstellen
+            oder löschen.
+          </span>
+        </p>
       </div>
 
       <div
@@ -370,13 +371,146 @@ defmodule QuizWeb.GameLive.Import do
     ~H"""
     <button
       id={@id}
-      type="submit"
-      form="import-form"
-      phx-disable-with="Quiz wird erstellt …"
+      type="button"
+      onclick={open_modal("import_options_modal")}
       class="btn btn-primary btn-lg"
     >
       Als Entwurf anlegen <span aria-hidden="true">→</span>
     </button>
+    """
+  end
+
+  attr :form, Phoenix.HTML.Form, required: true
+
+  # The two choices that matter before the first run, asked after «Als Entwurf
+  # anlegen». It lives inside the import form, so it cannot use method="dialog"
+  # forms (no nested forms): closing goes through the dialog element directly.
+  defp options_dialog(assigns) do
+    ~H"""
+    <%!-- Keep the browser-set `open` across re-renders (choosing an option
+         triggers phx-change), or the dialog would close on every click. --%>
+    <dialog
+      id="import_options_modal"
+      class="modal"
+      phx-mounted={JS.ignore_attributes(["open"])}
+    >
+      <div class="modal-box max-w-2xl overflow-hidden p-0">
+        <div class="p-6 sm:p-8">
+          <p class="text-xs font-semibold uppercase tracking-widest text-primary/70">
+            Fast geschafft
+          </p>
+          <h2 class="mt-1 text-2xl font-bold">Wie soll dein Quiz ablaufen?</h2>
+          <p class="mt-1 text-sm text-base-content/60">Beides kannst du später jederzeit ändern.</p>
+
+          <fieldset class="mt-7">
+            <legend class="text-sm font-semibold">Wann zeigst du die Musterlösung?</legend>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <.option_card
+                id="review-mode-per-question"
+                field={@form[:review_mode]}
+                value="per_question"
+                icon="hero-chat-bubble-left-right"
+                title="Nach jeder Frage"
+                recommended
+              >
+                Du löst jede Frage gleich auf und besprichst sie mit den Teams.
+              </.option_card>
+              <.option_card
+                id="review-mode-end"
+                field={@form[:review_mode]}
+                value="end"
+                icon="hero-flag"
+                title="Am Ende des Quiz"
+              >
+                Erst alle Fragen spielen, dann gemeinsam alle Lösungen durchgehen.
+              </.option_card>
+            </div>
+          </fieldset>
+
+          <fieldset class="mt-7">
+            <legend class="text-sm font-semibold">Statistik in der Besprechung</legend>
+            <label class="mt-3 flex cursor-pointer items-center gap-4 rounded-box border-2 border-base-300 p-4 transition hover:border-primary/40 has-checked:border-primary has-checked:bg-primary/5">
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary/40 text-primary">
+                <.icon name="hero-chart-bar" class="size-5" />
+              </span>
+              <span class="flex-1">
+                <span class="block font-semibold">Antwortverteilung zeigen</span>
+                <span class="block text-sm text-base-content/60">
+                  Bei der Auflösung sehen alle, wie die Teams geantwortet haben – ein guter
+                  Einstieg in die Diskussion.
+                </span>
+              </span>
+              <input type="hidden" name={@form[:show_statistics].name} value="false" />
+              <input
+                id="show-statistics"
+                type="checkbox"
+                name={@form[:show_statistics].name}
+                value="true"
+                checked={@form[:show_statistics].value == "true"}
+                class="toggle toggle-primary"
+              />
+            </label>
+          </fieldset>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 border-t border-base-200 bg-base-200/50 px-6 py-4 sm:px-8">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            onclick="document.getElementById('import_options_modal').close()"
+          >
+            Zurück
+          </button>
+          <button
+            id="confirm-create-quiz"
+            type="submit"
+            phx-disable-with="Quiz wird erstellt …"
+            class="btn btn-primary"
+          >
+            Quiz erstellen <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-backdrop" onclick="this.closest('dialog').close()"></div>
+    </dialog>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :value, :string, required: true
+  attr :icon, :string, required: true
+  attr :title, :string, required: true
+  attr :recommended, :boolean, default: false
+  slot :inner_block, required: true
+
+  defp option_card(assigns) do
+    ~H"""
+    <label
+      for={@id}
+      class="group relative flex cursor-pointer flex-col gap-2 rounded-box border-2 border-base-300 bg-base-100 p-4 transition hover:border-primary/40 has-checked:border-primary has-checked:bg-primary/5"
+    >
+      <input
+        id={@id}
+        type="radio"
+        name={@field.name}
+        value={@value}
+        checked={@field.value == @value}
+        class="sr-only"
+      />
+      <div class="flex items-center gap-2">
+        <span class="flex size-10 items-center justify-center rounded-xl bg-base-200 text-base-content/60 transition group-has-checked:bg-primary group-has-checked:text-primary-content">
+          <.icon name={@icon} class="size-5" />
+        </span>
+        <span :if={@recommended} class="badge badge-soft badge-primary badge-sm">Empfohlen</span>
+        <.icon
+          name="hero-check-circle-solid"
+          class="ml-auto size-6 text-primary opacity-0 transition group-has-checked:opacity-100"
+        />
+      </div>
+      <span class="font-semibold">{@title}</span>
+      <span class="text-sm text-base-content/60">{render_slot(@inner_block)}</span>
+    </label>
     """
   end
 
@@ -428,14 +562,14 @@ defmodule QuizWeb.GameLive.Import do
        |> assign(:guest, not anonymous and Quiz.Accounts.guest?(scope.user))
        |> assign(:limit_reached, not anonymous and Games.guest_limit_reached?(scope))
        |> assign(:trigger_submit, false)
-       |> assign(:form, to_form(%{"text" => ""}, as: :import))
+       |> assign(:form, to_form(@default_params, as: :import))
        |> assign(result: nil, loading: false, pending: nil, preview_ref: nil)}
     end
   end
 
   @impl true
-  def handle_event("preview", %{"import" => %{"text" => text}}, socket) do
-    socket = assign(socket, :form, to_form(%{"text" => text}, as: :import))
+  def handle_event("preview", %{"import" => %{"text" => text} = params}, socket) do
+    socket = assign(socket, :form, to_form(Map.merge(@default_params, params), as: :import))
     {:noreply, show_preview(socket, parse(text))}
   end
 
@@ -456,11 +590,11 @@ defmodule QuizWeb.GameLive.Import do
     end
   end
 
-  def handle_event("create", %{"import" => %{"text" => text}}, socket) do
+  def handle_event("create", %{"import" => %{"text" => text} = params}, socket) do
     scope = socket.assigns.current_scope
 
     with {:ok, parsed} <- parse(text),
-         {:ok, game} <- Games.import_game(scope, parsed) do
+         {:ok, game} <- Games.import_game(scope, parsed, settings_from_params(params)) do
       # Open the first question rather than the editor's "add a question" view.
       [first | _] = Games.list_questions_for_game(scope, game)
 
@@ -510,6 +644,17 @@ defmodule QuizWeb.GameLive.Import do
     do: assign(socket, result: result, loading: false, pending: nil, preview_ref: nil)
 
   defp preview_delay, do: Application.get_env(:quiz, :import_preview_delay, 1800)
+
+  @doc """
+  The quiz settings chosen in the options dialog, for `Quiz.Games.import_game/3`.
+  Defaults to solutions after every question and the answer statistics shown.
+  """
+  def settings_from_params(params) do
+    %{
+      review_mode: if(params["review_mode"] == "end", do: :end, else: :per_question),
+      show_statistics: params["show_statistics"] != "false"
+    }
+  end
 
   defp placeholder, do: "Format: quiz-text/v1\nQuiz: …\n\nFrage: …"
 

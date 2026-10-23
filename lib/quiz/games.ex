@@ -316,11 +316,18 @@ defmodule Quiz.Games do
   Questions are validated in `:draft` mode, so incomplete ones (no marked answer,
   pin not yet placed, …) are created and completed later in the editor. Atomic:
   returns `{:ok, game}` or `{:error, changeset}` with nothing created.
+
+  `settings` may set the quiz's `:review_mode` and `:show_statistics`.
   """
-  def import_game(%Scope{} = scope, %{title: _, questions: questions} = parsed) do
+  def import_game(%Scope{} = scope, %{title: _, questions: questions} = parsed, settings \\ %{}) do
+    attrs =
+      parsed
+      |> Map.take([:title, :intro_text, :outro_text])
+      |> Map.merge(Map.take(settings, [:review_mode, :show_statistics]))
+
     Repo.transaction(fn ->
       game =
-        case create_game(scope, Map.take(parsed, [:title, :intro_text, :outro_text])) do
+        case create_game(scope, attrs) do
           {:ok, game} -> game
           {:error, changeset} -> Repo.rollback(changeset)
         end
@@ -397,6 +404,29 @@ defmodule Quiz.Games do
       broadcast_question(scope, {:created, question})
       {:ok, question}
     end
+  end
+
+  @doc """
+  Like `create_question/3`, but places the new question at `index` (0-based)
+  among the game's questions instead of appending it; the questions from there
+  on move one down.
+  """
+  def create_question(%Scope{} = scope, %Game{} = game, type, at: index)
+      when is_integer(index) do
+    Repo.transaction(fn ->
+      with {:ok, question} <- create_question(scope, game, type),
+           ordered_ids =
+             scope
+             |> list_questions_for_game(game)
+             |> Enum.map(& &1.id)
+             |> List.delete(question.id)
+             |> List.insert_at(index, question.id),
+           :ok <- reposition_questions(scope, game, ordered_ids) do
+        get_question!(scope, question.id)
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   defp next_question_position(%Scope{} = scope, %Game{} = game) do

@@ -36,8 +36,14 @@
         </.link>
 
         <.link
+          id="home-new-quiz"
           navigate={~p"/games/new"}
-          class="group rounded-box bg-primary p-6 text-primary-content transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          class={[
+            "group rounded-box bg-primary p-6 text-primary-content transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+            @limit_reached && "pointer-events-none opacity-40"
+          ]}
+          aria-disabled={@limit_reached && "true"}
+          tabindex={@limit_reached && "-1"}
         >
           <div class="flex items-center justify-between">
             <span class="flex size-11 items-center justify-center rounded-xl bg-primary-content/15">
@@ -58,7 +64,12 @@
       <.link
         id="home-ai-import"
         navigate={~p"/erstellen"}
-        class="group flex items-center gap-4 rounded-box border border-base-300/70 p-5 transition hover:border-primary/30 hover:bg-base-200/60"
+        class={[
+          "group flex items-center gap-4 rounded-box border border-base-300/70 p-5 transition hover:border-primary/30 hover:bg-base-200/60",
+          @limit_reached && "pointer-events-none opacity-40"
+        ]}
+        aria-disabled={@limit_reached && "true"}
+        tabindex={@limit_reached && "-1"}
       >
         <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary/40 text-primary">
           <.icon name="hero-sparkles" class="size-6" />
@@ -75,6 +86,8 @@
         />
       </.link>
 
+      <Layouts.guest_limit_note :if={@limit_reached} class="-mt-4" />
+
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-base-200 pt-6 text-sm">
         <.link
           :if={!Quiz.Accounts.guest?(@current_scope.user)}
@@ -83,18 +96,35 @@
         >
           <.icon name="hero-cog-6-tooth" class="size-4" /> Einstellungen
         </.link>
-        <%!-- A guest has no password: once logged out, its quizzes are gone. --%>
         <.link
+          :if={!Quiz.Accounts.guest?(@current_scope.user)}
           href={~p"/users/log-out"}
           method="delete"
-          data-confirm={
-            Quiz.Accounts.guest?(@current_scope.user) &&
-              "Als Gast hast du kein Passwort: Nach dem Abmelden kommst du nicht mehr an deine Quizze. Trotzdem abmelden?"
-          }
           class="inline-flex items-center gap-2 text-base-content/60 transition hover:text-base-content"
         >
           <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Abmelden
         </.link>
+        <%!-- A guest has no password: once logged out, its quizzes are gone. --%>
+        <button
+          :if={Quiz.Accounts.guest?(@current_scope.user)}
+          id="guest-logout"
+          type="button"
+          onclick={open_modal("guest_logout_modal")}
+          class="inline-flex cursor-pointer items-center gap-2 text-base-content/60 transition hover:text-base-content"
+        >
+          <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Abmelden
+        </button>
+        <.confirm_modal
+          :if={Quiz.Accounts.guest?(@current_scope.user)}
+          id="guest_logout_modal"
+          title="Als Gast abmelden?"
+          confirm="Trotzdem abmelden"
+          action={~p"/users/log-out"}
+          method="delete"
+          icon="hero-arrow-right-start-on-rectangle"
+        >
+          Als Gast hast du kein Passwort: Nach dem Abmelden kommst du nicht mehr an deine Quizze.
+        </.confirm_modal>
       </div>
     </div>
   <% else %>

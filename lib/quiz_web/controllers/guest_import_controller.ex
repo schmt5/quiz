@@ -12,7 +12,7 @@ defmodule QuizWeb.GuestImportController do
   alias Quiz.Games.TextFormat
   alias QuizWeb.UserAuth
 
-  def create(conn, %{"import" => %{"text" => text}}) do
+  def create(conn, %{"import" => %{"text" => text} = params}) do
     cond do
       conn.assigns.current_scope ->
         # Already signed in (e.g. a second tab): the LiveView path handles this.
@@ -24,16 +24,16 @@ defmodule QuizWeb.GuestImportController do
         |> redirect(to: ~p"/users/log-in")
 
       true ->
-        create_guest_quiz(conn, text)
+        create_guest_quiz(conn, text, QuizWeb.GameLive.Import.settings_from_params(params))
     end
   end
 
-  defp create_guest_quiz(conn, text) do
+  defp create_guest_quiz(conn, text, settings) do
     {limit, window} = Application.get_env(:quiz, :guest_rate_limit, {10, :timer.hours(1)})
 
     with :ok <- RateLimit.hit({:guest, client_ip(conn)}, limit, window),
          {:ok, parsed} <- TextFormat.parse(text),
-         {:ok, {user, game, first}} <- import_as_guest(parsed) do
+         {:ok, {user, game, first}} <- import_as_guest(parsed, settings) do
       conn
       |> put_flash(:info, "Quiz erstellt. Prüfe die Fragen und ergänze, was noch fehlt.")
       |> put_session(:user_return_to, ~p"/games/#{game}/questions/#{first}/edit")
@@ -59,11 +59,11 @@ defmodule QuizWeb.GuestImportController do
 
   # The guest only exists together with its quiz: if the import fails, so does
   # the account.
-  defp import_as_guest(parsed) do
+  defp import_as_guest(parsed, settings) do
     Repo.transaction(fn ->
       with {:ok, user} <- Accounts.create_guest(),
            scope = Scope.for_user(user),
-           {:ok, game} <- Games.import_game(scope, parsed) do
+           {:ok, game} <- Games.import_game(scope, parsed, settings) do
         [first | _] = Games.list_questions_for_game(scope, game)
         {user, game, first}
       else

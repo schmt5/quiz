@@ -73,8 +73,10 @@ defmodule QuizWeb.RunLive.HostTest do
       {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
       assert html =~ "Schlechter Name"
 
+      assert has_element?(lv, "#remove_participant_modal_#{participant.id}", "Schlechter Name")
+
       lv
-      |> element("#participant-#{participant.id} button[phx-click=remove_participant]")
+      |> element("#remove_participant_modal_#{participant.id}-confirm")
       |> render_click()
 
       refute render(lv) =~ "Schlechter Name"

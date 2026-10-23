@@ -71,8 +71,14 @@ defmodule QuizWeb.GameLive.Show do
                   <.icon name="hero-pencil-square" class="size-5" /> Quiz bearbeiten
                 </.link>
               </li>
-              <li>
-                <button type="button" phx-click="duplicate">
+              <li class={@limit_reached && "menu-disabled"}>
+                <button
+                  id="duplicate-quiz"
+                  type="button"
+                  phx-click="duplicate"
+                  disabled={@limit_reached}
+                  title={@limit_reached && "Als Gast kannst du keine weiteren Quizze erstellen"}
+                >
                   <.icon name="hero-document-duplicate" class="size-5" /> Quiz duplizieren
                 </button>
               </li>
@@ -192,6 +198,7 @@ defmodule QuizWeb.GameLive.Show do
      |> assign(:page_title, game.title)
      |> assign(:game, game)
      |> OpenRun.assign_defaults()
+     |> assign(:limit_reached, Games.guest_limit_reached?(socket.assigns.current_scope))
      |> assign_questions(Games.list_questions_for_game(socket.assigns.current_scope, game))}
   end
 

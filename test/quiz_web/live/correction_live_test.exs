@@ -34,6 +34,19 @@ defmodule QuizWeb.CorrectionLiveTest do
   describe "overview" do
     setup :running_game_with_answers
 
+    test "asks before publishing while questions are unchecked", %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/correction")
+
+      # The button only opens the dialog; nothing is published yet.
+      assert has_element?(lv, "#publish-grading[onclick*='publish_modal']")
+      refute has_element?(lv, "#publish-grading[phx-click]")
+      refute Quiz.Repo.get!(Quiz.Games.Game, game.id).grading_published
+
+      lv |> element("#publish_modal-confirm") |> render_click()
+
+      assert Quiz.Repo.get!(Quiz.Games.Game, game.id).grading_published
+    end
+
     test "lists the question and links into it", %{conn: conn, game: game} do
       {:ok, _lv, html} = live(conn, ~p"/games/#{game}/correction")
 

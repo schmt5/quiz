@@ -95,7 +95,7 @@ defmodule QuizWeb.RunLive.Review do
   @impl true
   def handle_event("toggle_stats", _params, socket), do: {:noreply, toggle_stats(socket)}
 
-  # Keyboard / presenter clicker (see `Stage.keyboard/1`): step through the
+  # Keyboard shortcuts (see `Stage.keyboard/1`): step through the
   # questions like the Zurück / Weiter links, and on to the leaderboard.
   def handle_event("shortcut", %{"action" => action}, socket) do
     %{game: game, prev_position: prev, next_position: next} = socket.assigns

@@ -34,6 +34,27 @@ defmodule QuizWeb.GameLiveTest do
       assert has_element?(index_live, "#guest-banner a[href='/users/register']")
     end
 
+    test "disables creating once a guest holds the most quizzes" do
+      guest = Quiz.AccountsFixtures.guest_fixture()
+      scope = Quiz.Accounts.Scope.for_user(guest)
+      games = for _ <- 1..Quiz.Games.guest_max_games(), do: game_fixture(scope)
+      conn = log_in_user(build_conn(), guest)
+
+      {:ok, index_live, _html} = live(conn, ~p"/games")
+
+      assert has_element?(index_live, "#import-quiz.btn-disabled[aria-disabled='true']")
+      assert has_element?(index_live, "#new-quiz.btn-disabled[aria-disabled='true']")
+      assert has_element?(index_live, "#guest-limit a[href='/users/register']", "kostenlos")
+
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{hd(games)}")
+      assert has_element?(show_live, "#duplicate-quiz[disabled]")
+
+      # Deleting one frees a slot again.
+      index_live |> element("#delete_game_modal_#{hd(games).id}-confirm") |> render_click()
+      refute has_element?(index_live, "#new-quiz.btn-disabled")
+      refute has_element?(index_live, "#guest-limit")
+    end
+
     test "shows no guest banner to registered quizmasters", %{conn: conn} do
       {:ok, index_live, _html} = live(conn, ~p"/games")
 
@@ -161,7 +182,15 @@ defmodule QuizWeb.GameLiveTest do
     test "deletes game in listing", %{conn: conn, game: game} do
       {:ok, index_live, _html} = live(conn, ~p"/games")
 
-      assert index_live |> element("#games-#{game.id} a", "Löschen") |> render_click()
+      # «Löschen» only opens the confirmation dialog.
+      assert has_element?(
+               index_live,
+               "#delete-game-#{game.id}[onclick*='delete_game_modal_#{game.id}']"
+             )
+
+      assert has_element?(index_live, "#delete_game_modal_#{game.id}", game.title)
+
+      index_live |> element("#delete_game_modal_#{game.id}-confirm") |> render_click()
       refute has_element?(index_live, "#games-#{game.id}")
     end
   end

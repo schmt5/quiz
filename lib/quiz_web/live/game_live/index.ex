@@ -27,13 +27,28 @@ defmodule QuizWeb.GameLive.Index do
               {count_label(@games_count)}
             </p>
           </div>
-          <div class="flex flex-wrap justify-end gap-2">
-            <.link id="import-quiz" navigate={~p"/erstellen"} class="btn btn-soft btn-primary">
-              <.icon name="hero-sparkles" class="size-5" /> Mit KI erstellen
-            </.link>
-            <.link navigate={~p"/games/new"} class="btn btn-primary">
-              <.icon name="hero-plus" class="size-5" /> Neues Quiz
-            </.link>
+          <div class="flex flex-col items-end gap-2">
+            <div class="flex flex-wrap justify-end gap-2">
+              <.link
+                id="import-quiz"
+                navigate={~p"/erstellen"}
+                class={["btn btn-soft btn-primary", @limit_reached && "btn-disabled"]}
+                aria-disabled={@limit_reached && "true"}
+                tabindex={@limit_reached && "-1"}
+              >
+                <.icon name="hero-sparkles" class="size-5" /> Mit KI erstellen
+              </.link>
+              <.link
+                id="new-quiz"
+                navigate={~p"/games/new"}
+                class={["btn btn-primary", @limit_reached && "btn-disabled"]}
+                aria-disabled={@limit_reached && "true"}
+                tabindex={@limit_reached && "-1"}
+              >
+                <.icon name="hero-plus" class="size-5" /> Neues Quiz
+              </.link>
+            </div>
+            <Layouts.guest_limit_note :if={@limit_reached} class="max-w-sm" />
           </div>
         </div>
 
@@ -92,15 +107,28 @@ defmodule QuizWeb.GameLive.Index do
                   </.link>
                 </li>
                 <li>
-                  <.link
-                    phx-click={JS.push("delete", value: %{id: game.id}) |> hide("##{id}")}
-                    data-confirm="Dieses Quiz wirklich löschen?"
+                  <button
+                    id={"delete-game-#{game.id}"}
+                    type="button"
+                    onclick={
+                      open_modal("delete_game_modal_#{game.id}",
+                        close_popover: "game-menu-#{game.id}"
+                      )
+                    }
                     class="text-error"
                   >
                     <.icon name="hero-trash" class="size-4" /> Löschen
-                  </.link>
+                  </button>
                 </li>
               </ul>
+              <.confirm_modal
+                id={"delete_game_modal_#{game.id}"}
+                title="Quiz löschen?"
+                confirm="Quiz löschen"
+                on_confirm={JS.push("delete", value: %{id: game.id}) |> hide("##{id}")}
+              >
+                «{game.title}» wird mit allen Fragen, Teams und Antworten endgültig gelöscht.
+              </.confirm_modal>
             </div>
 
             <.link navigate={~p"/games/#{game}"} class="mt-3 flex-1">
@@ -172,7 +200,7 @@ defmodule QuizWeb.GameLive.Index do
     {:ok,
      socket
      |> assign(:page_title, "Quizze")
-     |> assign(:games_count, length(games))
+     |> assign_counts(games)
      |> stream(:games, games)}
   end
 
@@ -183,7 +211,7 @@ defmodule QuizWeb.GameLive.Index do
 
     {:noreply,
      socket
-     |> update(:games_count, &max(&1 - 1, 0))
+     |> assign_counts(list_games(socket.assigns.current_scope))
      |> stream_delete(:games, game)}
   end
 
@@ -194,8 +222,14 @@ defmodule QuizWeb.GameLive.Index do
 
     {:noreply,
      socket
-     |> assign(:games_count, length(games))
+     |> assign_counts(games)
      |> stream(:games, games, reset: true)}
+  end
+
+  defp assign_counts(socket, games) do
+    socket
+    |> assign(:games_count, length(games))
+    |> assign(:limit_reached, Games.guest_limit_reached?(socket.assigns.current_scope))
   end
 
   defp list_games(current_scope) do

@@ -269,16 +269,26 @@ defmodule QuizWeb.RunLive.Host do
             <.icon name="hero-user-group" class="size-4 text-base-content/50" />
             <span class="text-sm font-medium truncate">{participant.name}</span>
             <button
+              id={"remove-participant-#{participant.id}"}
               type="button"
-              phx-click="remove_participant"
-              phx-value-id={participant.id}
-              data-confirm={"Team «#{participant.name}» wirklich entfernen? Bereits gegebene Antworten werden gelöscht."}
+              onclick={open_modal("remove_participant_modal_#{participant.id}")}
               title="Team entfernen"
               aria-label={"Team #{participant.name} entfernen"}
               class="ml-auto btn btn-ghost btn-xs btn-circle text-base-content/40 hover:text-error"
             >
               <.icon name="hero-x-mark" class="size-4" />
             </button>
+            <.confirm_modal
+              id={"remove_participant_modal_#{participant.id}"}
+              title="Team entfernen?"
+              confirm="Team entfernen"
+              event="remove_participant"
+              value={%{id: to_string(participant.id)}}
+              icon="hero-user-minus"
+            >
+              «{participant.name}» wird aus dem Quiz entfernt. Bereits gegebene Antworten werden
+              gelöscht.
+            </.confirm_modal>
           </li>
         </ul>
 
@@ -417,7 +427,7 @@ defmodule QuizWeb.RunLive.Host do
   def handle_event("retreat", _params, socket), do: {:noreply, retreat(socket)}
   def handle_event("reveal", _params, socket), do: {:noreply, reveal(socket)}
 
-  # Keyboard / presenter clicker (see `Stage.keyboard/1`).
+  # Keyboard shortcuts (see `Stage.keyboard/1`).
   def handle_event("shortcut", %{"action" => action}, socket) do
     {:noreply, shortcut(action, socket)}
   end

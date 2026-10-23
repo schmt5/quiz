@@ -68,22 +68,51 @@ defmodule QuizWeb.Layouts do
       :if={@current_scope && Quiz.Accounts.guest?(@current_scope.user)}
       id="guest-banner"
       class={[
-        "flex flex-wrap items-center justify-between gap-3 rounded-box border border-info/30 bg-info/5 px-4 py-3 text-sm",
+        "flex flex-wrap items-center justify-between gap-4 rounded-box border border-info/30 bg-info/5 px-4 py-3 text-sm",
         @class
       ]}
     >
-      <p class="flex items-center gap-2">
-        <.icon name="hero-clock" class="size-5 shrink-0 text-info" />
-        <span>
-          Du bist als Gast unterwegs. Deine Quizze werden am
-          <strong>{Calendar.strftime(@current_scope.user.expires_at, "%d.%m.%Y")}</strong>
-          gelöscht.
-        </span>
-      </p>
+      <div class="flex items-start gap-3">
+        <.icon name="hero-user-circle" class="mt-0.5 size-5 shrink-0 text-info" />
+        <div>
+          <p class="font-semibold">Du bist als Gast unterwegs:</p>
+          <ul class="mt-1 list-disc space-y-0.5 pl-5 text-base-content/75">
+            <li>
+              Deine Quizze werden am
+              <strong>{Calendar.strftime(@current_scope.user.expires_at, "%d.%m.%Y")}</strong>
+              gelöscht.
+            </li>
+            <li>Du kannst höchstens {Quiz.Games.guest_max_games()} Quizze erstellen.</li>
+            <li>Deine Quizze sind nur in diesem Browser verfügbar.</li>
+          </ul>
+        </div>
+      </div>
       <.link navigate={~p"/users/register"} class="btn btn-primary btn-sm">
         Konto erstellen und Quizze behalten
       </.link>
     </div>
+    """
+  end
+
+  @doc """
+  Shown under the (disabled) create actions once a guest holds the most quizzes
+  a guest may have: registering, free of charge, lifts the limit.
+  """
+  attr :id, :string, default: "guest-limit"
+  attr :class, :any, default: nil
+
+  def guest_limit_note(assigns) do
+    ~H"""
+    <p id={@id} class={["flex items-start gap-2 text-sm text-base-content/70", @class]}>
+      <.icon name="hero-lock-closed" class="mt-0.5 size-4 shrink-0 text-warning" />
+      <span>
+        Als Gast kannst du höchstens {Quiz.Games.guest_max_games()} Quizze erstellen.
+        <.link navigate={~p"/users/register"} class="font-semibold text-primary hover:underline">
+          Registriere dich kostenlos
+        </.link>
+        für mehr – deine Quizze bleiben erhalten.
+      </span>
+    </p>
     """
   end
 

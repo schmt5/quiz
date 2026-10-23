@@ -81,11 +81,24 @@ defmodule QuizWeb.QuestionLiveTest do
     setup [:create_game_and_question]
 
     test "lists existing questions in the sidebar", %{conn: conn, game: game, question: question} do
-      {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions")
+      {:ok, live, html} = live(conn, ~p"/games/#{game}/questions")
 
       assert html =~ question.prompt
-      # type picker should still be visible when no selection
+      # «Ansehen» is the default: the questions themselves, no type picker.
+      assert has_element?(live, "#view-question-#{question.id}")
+      refute html =~ "Welche Art von Frage möchtest du hinzufügen?"
+    end
+
+    test "opens an empty quiz on the type picker", %{conn: conn, scope: scope} do
+      {:ok, _live, html} = live(conn, ~p"/games/#{game_fixture(scope)}/questions")
+
       assert html =~ "Welche Art von Frage möchtest du hinzufügen?"
+    end
+
+    test "a link to one question opens its form", %{conn: conn, game: game, question: question} do
+      {:ok, _live, html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      assert html =~ "Antwortoptionen"
     end
 
     test "patching to /edit shows the form for that question", %{
@@ -94,6 +107,7 @@ defmodule QuizWeb.QuestionLiveTest do
       question: question
     } do
       {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-mode="edit"]|) |> render_click()
 
       live
       |> element(~s|#questions-#{question.id} a|)
@@ -119,23 +133,23 @@ defmodule QuizWeb.QuestionLiveTest do
       q1: q1,
       q2: q2
     } do
-      {:ok, live, html} = live(conn, ~p"/games/#{game}/questions")
+      {:ok, live, view_html} = live(conn, ~p"/games/#{game}/questions")
 
-      # Edit mode by default: type picker visible, no participant radios.
-      assert html =~ "Welche Art von Frage möchtest du hinzufügen?"
-
-      view_html = live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
-
-      # Type picker gone; every question's prompt rendered participant-style.
+      # «Ansehen» by default: every question's prompt rendered participant-style.
       refute view_html =~ "Welche Art von Frage möchtest du hinzufügen?"
       assert view_html =~ q1.prompt
       assert view_html =~ q2.prompt
       # single_choice fixture renders selectable radio inputs.
       assert view_html =~ ~s|type="radio"|
 
-      # Switching back restores edit mode.
+      # «Bearbeiten» shows the type picker instead.
       edit_html = live |> element(~s|button[phx-value-mode="edit"]|) |> render_click()
       assert edit_html =~ "Welche Art von Frage möchtest du hinzufügen?"
+
+      # Switching back restores «Ansehen».
+      back_html = live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
+      assert back_html =~ q1.prompt
+      refute back_html =~ "Welche Art von Frage möchtest du hinzufügen?"
     end
 
     test "clicking a card's edit button opens that question's form in edit mode", %{
@@ -156,6 +170,48 @@ defmodule QuizWeb.QuestionLiveTest do
       # Back in edit mode: the form for q2 is shown, not the participant stack.
       assert html =~ "Fragetext"
       assert html =~ q2.prompt
+    end
+
+    test "the question list jumps to a question on the page", %{
+      conn: conn,
+      game: game,
+      q1: q1,
+      q2: q2
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
+
+      for q <- [q1, q2] do
+        assert has_element?(live, "#questions-#{q.id} a[href='#view-question-#{q.id}']")
+        assert has_element?(live, "#view-question-#{q.id}")
+      end
+    end
+
+    test "offers to add a question before, between and after the questions", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      q1: q1,
+      q2: q2
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-mode="view"]|) |> render_click()
+
+      for at <- 0..2, do: assert(has_element?(live, "#insert-question-#{at}", "Frage hinzufügen"))
+
+      live |> element("#insert-question-1") |> render_click()
+      assert_patched(live, ~p"/games/#{game}/questions?at=1")
+      assert render(live) =~ "Neue Frage an Position 2"
+
+      live
+      |> element(~s|button[phx-click="create"][phx-value-type="text_input"]|)
+      |> render_click()
+
+      assert [first, new, last] = Quiz.Games.list_questions_for_game(scope, game)
+      assert {first.id, last.id} == {q1.id, q2.id}
+      assert new.type == :text_input
+      assert Enum.map([first, new, last], & &1.position) == [1, 2, 3]
+      assert_patched(live, ~p"/games/#{game}/questions/#{new}/edit")
     end
   end
 
@@ -245,6 +301,7 @@ defmodule QuizWeb.QuestionLiveTest do
       existing = question_fixture(scope, %{game_id: game.id, position: 7})
 
       {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-mode="edit"]|) |> render_click()
       live |> element(~s|button[phx-value-type="single_choice"]|) |> render_click()
 
       created =
@@ -584,7 +641,12 @@ defmodule QuizWeb.QuestionLiveTest do
     } do
       {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
 
-      live |> element(~s|#question-actions a[phx-click="delete"]|) |> render_click()
+      # The menu item only opens the confirmation dialog; nothing is deleted yet.
+      assert has_element?(live, "#delete-question[onclick*='delete_question_modal']")
+      refute has_element?(live, "[data-confirm]")
+      assert has_element?(live, "#delete_question_modal", question.prompt)
+
+      live |> element("#delete_question_modal-confirm") |> render_click()
 
       assert_patched(live, ~p"/games/#{game}/questions")
       html = render(live)

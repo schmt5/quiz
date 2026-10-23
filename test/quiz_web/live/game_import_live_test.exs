@@ -59,8 +59,10 @@ defmodule QuizWeb.GameImportLiveTest do
     assert has_element?(lv, "#preview-question-1", "Bild folgt")
     assert has_element?(lv, "#preview-question-2", "Bild hochladen und Pin setzen")
     refute has_element?(lv, "#preview-warnings")
-    assert has_element?(lv, "#create-quiz[form='import-form']")
-    assert has_element?(lv, "#create-quiz-bottom[form='import-form']")
+    # «Als Entwurf anlegen» opens the options dialog first.
+    assert has_element?(lv, "#create-quiz[onclick*='import_options_modal']")
+    assert has_element?(lv, "#create-quiz-bottom[onclick*='import_options_modal']")
+    assert has_element?(lv, "#manual-editing-info", "von Hand bearbeiten")
   end
 
   test "shows parser warnings with a copyable note for the AI", %{conn: conn} do
@@ -157,6 +159,63 @@ defmodule QuizWeb.GameImportLiveTest do
 
       assert has_element?(lv, "#guest-limit a[href='/users/register']")
       refute has_element?(lv, "#create-quiz")
+    end
+  end
+
+  describe "options dialog" do
+    test "asks only for the review mode and the statistics, with sensible defaults", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/erstellen")
+
+      assert has_element?(lv, "#import_options_modal #review-mode-per-question[checked]")
+      refute has_element?(lv, "#import_options_modal #review-mode-end[checked]")
+      assert has_element?(lv, "#import_options_modal #show-statistics[checked]")
+      assert has_element?(lv, "#import_options_modal #confirm-create-quiz[type='submit']")
+
+      # Nothing else is asked here.
+      refute has_element?(lv, "#import_options_modal textarea")
+      refute has_element?(lv, "#import_options_modal input[type='file']")
+    end
+
+    test "creates the quiz with the defaults", %{conn: conn, scope: scope} do
+      {:ok, lv, _html} = live(conn, ~p"/erstellen")
+
+      lv |> form("#import-form", import: %{text: @quiz}) |> render_submit()
+
+      [game] = Games.list_games(scope)
+      assert game.review_mode == :per_question
+      assert game.show_statistics
+    end
+
+    test "creates the quiz with the chosen settings", %{conn: conn, scope: scope} do
+      {:ok, lv, _html} = live(conn, ~p"/erstellen")
+
+      lv
+      |> form("#import-form",
+        import: %{text: @quiz, review_mode: "end", show_statistics: "false"}
+      )
+      |> render_submit()
+
+      [game] = Games.list_games(scope)
+      assert game.review_mode == :end
+      refute game.show_statistics
+    end
+
+    test "a visitor's choices reach the guest's quiz" do
+      conn = build_conn()
+      {:ok, lv, _html} = live(conn, ~p"/erstellen")
+
+      form =
+        form(lv, "#import-form",
+          import: %{text: @quiz, review_mode: "end", show_statistics: "false"}
+        )
+
+      render_submit(form)
+      conn = follow_trigger_action(form, conn)
+
+      {user, _} = Quiz.Accounts.get_user_by_session_token(get_session(conn, :user_token))
+      [game] = Games.list_games(Quiz.Accounts.Scope.for_user(user))
+      assert game.review_mode == :end
+      refute game.show_statistics
     end
   end
 end
