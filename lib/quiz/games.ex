@@ -296,6 +296,7 @@ defmodule Quiz.Games do
           data: question.data,
           media_image_key: question.media_image_key,
           media_video_key: question.media_video_key,
+          media_image_reveal: question.media_image_reveal,
           solution_image_key: question.solution_image_key,
           solution_video_key: question.solution_video_key,
           solution_text: question.solution_text,

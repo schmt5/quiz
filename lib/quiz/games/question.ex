@@ -20,6 +20,9 @@ defmodule Quiz.Games.Question do
     field :description, :string
     field :media_image_key, :string
     field :media_video_key, :string
+    # The media image starts covered by tiles that are uncovered one by one
+    # while the question is open (see `QuizWeb.CoreComponents.question_media/1`).
+    field :media_image_reveal, :boolean, default: false
     field :solution_image_key, :string
     field :solution_video_key, :string
     field :solution_text, :string
@@ -62,6 +65,7 @@ defmodule Quiz.Games.Question do
         :description,
         :media_image_key,
         :media_video_key,
+        :media_image_reveal,
         :solution_image_key,
         :solution_video_key,
         :solution_text,

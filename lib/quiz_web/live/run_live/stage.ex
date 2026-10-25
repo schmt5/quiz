@@ -162,7 +162,7 @@ defmodule QuizWeb.RunLive.Stage do
         {@question.prompt}
       </h2>
       <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
-      <.question_media question={@question} zoomable={@controls} />
+      <.question_media question={@question} zoomable={@controls} reveal={!@revealing} />
 
       <%!-- Collecting answers: live answered count. --%>
       <div

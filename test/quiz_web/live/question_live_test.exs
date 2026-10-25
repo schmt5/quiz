@@ -355,6 +355,15 @@ defmodule QuizWeb.QuestionLiveTest do
       assert html =~ ~s|name="question[data][pin][image_key]"|
     end
 
+    test "a pin_on_image question offers no extra image or video", %{conn: conn, game: game} do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions")
+      live |> element(~s|button[phx-value-type="pin_on_image"]|) |> render_click()
+
+      refute has_element?(live, "#media-tab-image")
+      refute has_element?(live, "#media-tab-reveal")
+      refute has_element?(live, "#media-tab-video")
+    end
+
     test "uploading a background image autosaves the pin_on_image question", %{
       conn: conn,
       scope: scope,
@@ -801,8 +810,24 @@ defmodule QuizWeb.QuestionLiveTest do
 
       assert html =~ "Bild oder Video"
       assert html =~ "media-tab-image"
+      assert html =~ "media-tab-reveal"
       assert html =~ "media-tab-video"
       assert html =~ ~s|name="question[media_image_key]"|
+    end
+
+    test "the reveal tab marks the image to be uncovered tile by tile", %{
+      conn: conn,
+      scope: scope,
+      game: game,
+      question: question
+    } do
+      {:ok, live, _html} = live(conn, ~p"/games/#{game}/questions/#{question}/edit")
+
+      live |> element("#media-tab-reveal") |> render_click()
+      assert Quiz.Games.get_question!(scope, question.id).media_image_reveal
+
+      live |> element("#media-tab-image") |> render_click()
+      refute Quiz.Games.get_question!(scope, question.id).media_image_reveal
     end
 
     test "uploading an image autosaves the media_image_key", %{

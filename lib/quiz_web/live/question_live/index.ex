@@ -911,7 +911,9 @@ defmodule QuizWeb.QuestionLive.Index do
 
         <% media_key = media_image_key(@form) %>
         <% video_key = media_video_key(@form) %>
-        <div class="space-y-3">
+        <%!-- Pin-on-image questions already carry their own image (the pin
+              background), so they get no extra medium. --%>
+        <div :if={@question_type != :pin_on_image} class="space-y-3">
           <div class="flex items-center justify-between gap-4">
             <span class="block text-sm font-semibold">
               Bild oder Video <span class="font-normal text-base-content/50">(optional)</span>
@@ -931,6 +933,19 @@ defmodule QuizWeb.QuestionLive.Index do
               </button>
               <button
                 type="button"
+                id="media-tab-reveal"
+                phx-click="media_tab"
+                phx-value-tab="reveal"
+                title="Das Bild ist zuerst verdeckt und wird Feld für Feld aufgedeckt"
+                class={[
+                  "btn btn-sm join-item",
+                  (@media_tab == :reveal && "btn-primary") || "btn-soft"
+                ]}
+              >
+                <.icon name="hero-squares-2x2" class="size-4" /> Bild aufdecken
+              </button>
+              <button
+                type="button"
                 id="media-tab-video"
                 phx-click="media_tab"
                 phx-value-tab="video"
@@ -946,7 +961,7 @@ defmodule QuizWeb.QuestionLive.Index do
 
           <.author_hint
             :if={
-              @question_type != :pin_on_image and present?(@selected_question.image_hint) and
+              present?(@selected_question.image_hint) and
                 is_nil(media_key) and is_nil(video_key)
             }
             id="image-hint"
@@ -956,7 +971,20 @@ defmodule QuizWeb.QuestionLive.Index do
             search
           />
 
-          <div :if={@media_tab == :image} class="space-y-3">
+          <p :if={@media_tab == :reveal} class="text-xs text-base-content/60">
+            Das Bild ist zu Beginn verdeckt und wird während der Frage nach und nach Feld für
+            Feld aufgedeckt – bei der Auflösung ist es ganz zu sehen.
+          </p>
+
+          <%!-- Set by the media tab (image vs. reveal); round-trips the
+                persisted flag through autosaves. --%>
+          <input
+            type="hidden"
+            name="question[media_image_reveal]"
+            value={to_string(@form[:media_image_reveal].value == true)}
+          />
+
+          <div :if={@media_tab in [:image, :reveal]} class="space-y-3">
             <div
               class="rounded-box border border-dashed border-base-300 p-4"
               phx-drop-target={@uploads.media_image.ref}
@@ -2465,7 +2493,7 @@ defmodule QuizWeb.QuestionLive.Index do
     |> assign(:media_video_uploaded_key, nil)
     |> assign(:solution_uploaded_key, nil)
     |> assign(:solution_video_uploaded_key, nil)
-    |> assign(:media_tab, if(question.media_video_key, do: :video, else: :image))
+    |> assign(:media_tab, media_tab(question))
     |> assign(:solution_tab, if(question.solution_video_key, do: :video, else: :image))
   end
 
@@ -2563,10 +2591,24 @@ defmodule QuizWeb.QuestionLive.Index do
      |> autosave(question_params)}
   end
 
-  # Pure UI: switching the media tab never clears anything — exclusivity is
-  # resolved at write time in the changeset the moment the other medium is set.
-  def handle_event("media_tab", %{"tab" => tab}, socket) when tab in ["image", "video"] do
-    {:noreply, assign(socket, :media_tab, String.to_existing_atom(tab))}
+  # Switching the media tab never clears a medium — exclusivity is resolved at
+  # write time in the changeset the moment the other medium is set. Image and
+  # reveal share the image upload and differ only in `media_image_reveal`, so
+  # picking either of them persists that flag right away.
+  def handle_event("media_tab", %{"tab" => "video"}, socket) do
+    {:noreply, assign(socket, :media_tab, :video)}
+  end
+
+  def handle_event("media_tab", %{"tab" => tab}, socket) when tab in ["image", "reveal"] do
+    params =
+      (socket.assigns.pending_params || base_media_params(socket))
+      |> Map.put("media_image_reveal", to_string(tab == "reveal"))
+
+    {:noreply,
+     socket
+     |> assign(:media_tab, String.to_existing_atom(tab))
+     |> assign(:pending_params, params)
+     |> autosave(params)}
   end
 
   def handle_event("solution_tab", %{"tab" => tab}, socket) when tab in ["image", "video"] do
@@ -3099,6 +3141,10 @@ defmodule QuizWeb.QuestionLive.Index do
   end
 
   defp present?(value), do: value not in [nil, ""]
+
+  defp media_tab(%{media_video_key: key}) when is_binary(key), do: :video
+  defp media_tab(%{media_image_reveal: true}), do: :reveal
+  defp media_tab(_question), do: :image
 
   defp media_image_key(form), do: media_key(form, :media_image_key)
   defp media_video_key(form), do: media_key(form, :media_video_key)

@@ -74,7 +74,7 @@ defmodule QuizWeb.PlayLive.Play do
               {@question.prompt}
             </h1>
             <.rich_text :if={@question.description not in [nil, ""]} html={@question.description} />
-            <.question_media question={@question} class="mt-4" />
+            <.question_media question={@question} class="mt-4" reveal={!@game.revealing} />
           </div>
 
           <%!-- Reveal phase (per_question mode): the question is closed. Lock the

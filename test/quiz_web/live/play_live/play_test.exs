@@ -233,6 +233,15 @@ defmodule QuizWeb.PlayLive.PlayTest do
       refute has_element?(lv, "dialog.modal")
     end
 
+    test "a reveal image starts covered by tiles", %{conn: conn} do
+      %{game: game, token: token} =
+        start_running_game(%{media_image_key: "uploads/1/media.png", media_image_reveal: true})
+
+      lv = connect_and_restore(conn, game, token)
+
+      assert has_element?(lv, "[id^=reveal-media-] [data-tiles]")
+    end
+
     test "renders the uploaded video for a video question", %{conn: conn} do
       %{game: game, token: token} =
         start_running_game(%{media_video_key: "uploads/1/clip.mp4"})

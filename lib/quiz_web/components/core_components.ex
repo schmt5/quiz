@@ -788,10 +788,19 @@ defmodule QuizWeb.CoreComponents do
   `preload="none"` keeps a room full of participant devices from all fetching
   the file the moment the question opens.
 
+  An image flagged `media_image_reveal` starts covered by a grid of tiles that
+  are uncovered one by one while the question is open — pass `reveal` where
+  the question is being asked. Without it (the editor, the solution reveal) the
+  image shows in full. The tile order is seeded by the question id, so the
+  presenter screen and every phone uncover the same tiles in the same order.
+
+  `:pin_on_image` questions render no media: their image is the pin background.
+
   ## Examples
 
       <.question_media question={@question} />
       <.question_media question={@question} zoomable />
+      <.question_media question={@question} reveal={!@revealing} />
 
   Pass `zoomable` on the presenter screens to make the image enlarge on click;
   it stays off by default so the participant view remains a plain image.
@@ -799,18 +808,87 @@ defmodule QuizWeb.CoreComponents do
   attr :question, Quiz.Games.Question, required: true
   attr :class, :any, default: nil
   attr :zoomable, :boolean, default: false
+  attr :reveal, :boolean, default: false
+
+  def question_media(%{question: %{type: :pin_on_image}} = assigns), do: ~H""
 
   def question_media(assigns) do
     # Computed once so the plain and the zoomable image branch cannot drift apart.
     assigns =
-      assign(assigns, :img_class, [
+      assigns
+      |> assign(:img_class, [
         "w-full max-h-[45vh] rounded-box object-contain object-left",
         assigns.class
       ])
+      |> assign(
+        :revealing?,
+        assigns.reveal and assigns.question.media_image_reveal == true and
+          is_binary(assigns.question.media_image_key)
+      )
 
     ~H"""
+    <%!-- Tile reveal: the tiles are built and uncovered by the hook, which owns
+          the subtree (phx-update="ignore") so re-renders never restart it. The
+          wrapper shrinks to the image so the grid covers exactly its box. --%>
+    <div
+      :if={@revealing?}
+      id={"reveal-media-#{@question.id}"}
+      phx-hook=".TileReveal"
+      phx-update="ignore"
+      data-seed={@question.id}
+      class={["relative w-fit max-w-full overflow-hidden rounded-box", @class]}
+    >
+      <img
+        src={Quiz.Storage.url(@question.media_image_key)}
+        alt=""
+        class="block max-h-[45vh] w-auto max-w-full"
+      />
+      <div data-tiles class="absolute inset-0 grid grid-cols-6 grid-rows-4" aria-hidden="true"></div>
+    </div>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".TileReveal">
+      // 24 tiles, one every ~1.25 s: the whole image is visible after ~30 s.
+      const COLS = 6, ROWS = 4, STEP_MS = 1250, FIRST_MS = 1500
+
+      // Small seeded PRNG (mulberry32) so every screen shuffles identically.
+      const random = seed => () => {
+        seed = (seed + 0x6d2b79f5) | 0
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      }
+
+      export default {
+        mounted() {
+          const grid = this.el.querySelector("[data-tiles]")
+          const tiles = Array.from({ length: COLS * ROWS }, () => {
+            const tile = document.createElement("div")
+            tile.className =
+              "bg-primary ring-1 ring-inset ring-primary-content/15 " +
+              "transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none"
+            grid.appendChild(tile)
+            return tile
+          })
+
+          const rand = random(Number(this.el.dataset.seed) || 1)
+          for (let i = tiles.length - 1; i > 0; i--) {
+            const j = Math.floor(rand() * (i + 1))
+            ;[tiles[i], tiles[j]] = [tiles[j], tiles[i]]
+          }
+
+          this.timers = tiles.map((tile, i) =>
+            setTimeout(() => {
+              tile.style.opacity = "0"
+              tile.style.transform = "scale(0.85)"
+            }, FIRST_MS + i * STEP_MS)
+          )
+        },
+        destroyed() {
+          this.timers?.forEach(clearTimeout)
+        }
+      }
+    </script>
     <img
-      :if={@question.media_image_key && !@zoomable}
+      :if={@question.media_image_key && !@zoomable && !@revealing?}
       src={Quiz.Storage.url(@question.media_image_key)}
       alt=""
       class={@img_class}
@@ -818,7 +896,7 @@ defmodule QuizWeb.CoreComponents do
     <%!-- w-full on the trigger button: the thumbnail is w-full itself and would
           otherwise resolve against the button's shrink-to-fit width. --%>
     <.zoomable_image
-      :if={@question.media_image_key && @zoomable}
+      :if={@question.media_image_key && @zoomable && !@revealing?}
       id={"zoom-media-#{@question.id}"}
       src={Quiz.Storage.url(@question.media_image_key)}
       alt=""
