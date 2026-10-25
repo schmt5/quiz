@@ -23,36 +23,116 @@ defmodule QuizWeb.RunLive.Host do
       controls
     >
       <:actions>
-        <button
-          type="button"
-          phx-click="start"
-          disabled={@participants == []}
-          class="btn btn-secondary btn-lg"
-        >
-          <.icon name="hero-play" /> Quiz starten
-        </button>
-        <.enrollment_toggle
-          :if={!@game.enrollment_locked}
-          game={@game}
-          class="btn-lg text-base-100"
-        />
-        <.enrollment_toggle :if={@game.enrollment_locked} game={@game} class="btn-lg" />
-        <button
-          :if={Game.intro?(@game)}
-          type="button"
-          onclick="intro_modal.showModal()"
-          title="Infos & Spielregeln"
-          aria-label="Infos & Spielregeln"
-          class="btn btn-ghost btn-circle btn-lg text-base-100"
-        >
-          <.icon name="hero-information-circle" class="size-8" />
-        </button>
-        <.screen_link game={@game} class="btn-lg text-base-100" />
-        <.link navigate={~p"/games/#{@game}"} class="btn btn-ghost btn-sm text-base-100/70">
-          <.icon name="hero-arrow-left" class="size-4" /> Zurück zum Quiz
-        </.link>
+        <div class="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            popovertarget="lobby-settings"
+            style="anchor-name:--lobby-settings"
+            title="Einstellungen"
+            aria-label="Einstellungen"
+            class="btn btn-ghost btn-circle btn-lg text-base-100"
+          >
+            <.icon name="hero-cog-6-tooth" class="size-7" />
+          </button>
+          <ul
+            id="lobby-settings"
+            popover
+            style="position-anchor:--lobby-settings"
+            class="dropdown dropdown-top dropdown-end menu w-80 gap-1 rounded-box bg-base-100 p-2 !text-base-content shadow-lg"
+          >
+            <li>
+              <button
+                id="lobby-toggle-enrollment"
+                type="button"
+                phx-click="toggle_enrollment"
+                onclick="document.getElementById('lobby-settings').hidePopover()"
+                class="items-start"
+              >
+                <.icon
+                  name={if @game.enrollment_locked, do: "hero-lock-open", else: "hero-lock-closed"}
+                  class="mt-0.5 size-5"
+                />
+                <.menu_text
+                  title={
+                    if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"
+                  }
+                  description={
+                    if @game.enrollment_locked,
+                      do: "Neue Teams können wieder beitreten.",
+                      else: "Keine neuen Teams mehr zulassen."
+                  }
+                />
+              </button>
+            </li>
+            <li :if={Game.intro?(@game)}>
+              <button
+                id="lobby-intro"
+                type="button"
+                onclick="document.getElementById('lobby-settings').hidePopover(); intro_modal.showModal()"
+                class="items-start"
+              >
+                <.icon name="hero-information-circle" class="mt-0.5 size-5" />
+                <.menu_text
+                  title="Info und Spielregeln"
+                  description="Zeigt die Einleitung des Quiz gross an, zum Vorlesen vor dem Start."
+                />
+              </button>
+            </li>
+            <li>
+              <.link
+                id="open-screen"
+                href={~p"/games/#{@game}/screen"}
+                target="_blank"
+                onclick="document.getElementById('lobby-settings').hidePopover()"
+                class="items-start"
+              >
+                <.icon name="hero-tv" class="mt-0.5 size-5" />
+                <.menu_text
+                  title="Präsentation im neuen Fenster öffnen"
+                  description="Für den Beamer: Ziehe das neue Fenster auf den zweiten Bildschirm."
+                />
+              </.link>
+            </li>
+            <li>
+              <.link
+                id="lobby-edit-quiz"
+                navigate={~p"/games/#{@game}/questions"}
+                class="items-start"
+              >
+                <.icon name="hero-pencil-square" class="mt-0.5 size-5" />
+                <.menu_text
+                  title="Zurück zum Quiz bearbeiten"
+                  description="Fragen und Einstellungen ändern. Angemeldete Teams bleiben dabei."
+                />
+              </.link>
+            </li>
+          </ul>
+
+          <button
+            id="start-run"
+            type="button"
+            phx-click={@participants != [] && "start"}
+            onclick={@participants == [] && open_modal("start_without_teams_modal")}
+            class="btn btn-secondary btn-lg"
+          >
+            <.icon name="hero-play" /> Quiz starten
+          </button>
+        </div>
       </:actions>
     </Stage.lobby>
+
+    <.confirm_modal
+      :if={@game.status == :open}
+      id="start_without_teams_modal"
+      title="Noch keine Teams angemeldet"
+      confirm="Ja, trotzdem starten"
+      event="start"
+      variant={:primary}
+      icon="hero-user-group"
+    >
+      Bisher ist noch kein Team beigetreten. Teams können auch nach dem Start noch mitmachen,
+      solange die Anmeldung offen ist.
+    </.confirm_modal>
 
     <.content_modal
       :if={@game.status == :open and Game.intro?(@game)}
@@ -87,24 +167,28 @@ defmodule QuizWeb.RunLive.Host do
             <.screen_link game={@game} />
             <.enrollment_toggle game={@game} compact />
 
+            <%!-- Always «Zurück» / «Weiter», whatever the step does; the
+                 tooltip names it. --%>
             <button
+              id="retreat"
               type="button"
               phx-click="retreat"
               disabled={@q_number <= 1}
               title="Vorherige Frage (←)"
               class="btn btn-ghost"
             >
-              <.icon name="hero-arrow-left" /> Vorherige Frage
+              <.icon name="hero-arrow-left" /> Zurück
             </button>
 
             <button
               :if={@game.review_mode == :per_question and not @game.revealing}
+              id="reveal"
               type="button"
               phx-click="reveal"
               title="Auswerten (→)"
               class="btn btn-primary"
             >
-              <.icon name="hero-light-bulb" /> Auswerten
+              Weiter <.icon name="hero-arrow-right" />
             </button>
 
             <span
@@ -119,14 +203,10 @@ defmodule QuizWeb.RunLive.Host do
               id="advance"
               type="button"
               phx-click="advance"
-              title={if(@q_number >= @q_total, do: "Quiz beenden", else: "Nächste Frage (→)")}
+              title={if(@q_number >= @q_total, do: "Quiz beenden (→)", else: "Nächste Frage (→)")}
               class={["btn btn-primary", @finish_hint && "ring-4 ring-secondary"]}
             >
-              <%= if @q_number >= @q_total and @q_total > 0 do %>
-                <.icon name="hero-flag" /> Quiz beenden
-              <% else %>
-                Nächste Frage <.icon name="hero-arrow-right" />
-              <% end %>
+              Weiter <.icon name="hero-arrow-right" />
             </button>
           </div>
 
@@ -327,6 +407,18 @@ defmodule QuizWeb.RunLive.Host do
     >
       {render_slot(@inner_block)}
     </button>
+    """
+  end
+
+  attr :title, :string, required: true
+  attr :description, :string, required: true
+
+  defp menu_text(assigns) do
+    ~H"""
+    <span class="flex flex-col gap-0.5">
+      <span class="font-semibold">{@title}</span>
+      <span class="text-sm text-base-content/70">{@description}</span>
+    </span>
     """
   end
 

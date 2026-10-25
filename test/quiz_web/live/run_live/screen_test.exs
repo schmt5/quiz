@@ -66,7 +66,7 @@ defmodule QuizWeb.RunLive.ScreenTest do
       assert html =~ "Frage 1 / 2"
       assert has_element?(screen, "#answered-count")
 
-      host |> element("button", "Auswerten") |> render_click()
+      host |> element("#reveal") |> render_click()
       refute has_element?(screen, "#answered-count")
       assert has_element?(screen, ~s|#stats-panel[class*="grid-rows-[0fr]"]|)
       refute has_element?(screen, "#show-stats")
@@ -74,7 +74,7 @@ defmodule QuizWeb.RunLive.ScreenTest do
       host |> element("#show-stats") |> render_click()
       assert has_element?(screen, ~s|#stats-panel[class*="grid-rows-[1fr]"]|)
 
-      host |> element("button", "Nächste Frage") |> render_click()
+      host |> element("#advance") |> render_click()
       html = render(screen)
       assert html =~ "Hauptstadt von Frankreich?"
       assert html =~ "Frage 2 / 2"

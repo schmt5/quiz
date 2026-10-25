@@ -84,6 +84,51 @@ defmodule QuizWeb.RunLive.HostTest do
     end
   end
 
+  describe "starting from the lobby" do
+    setup %{scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
+      %{game: game}
+    end
+
+    test "without teams, «Quiz starten» asks first", %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      refute has_element?(lv, "#start-run[disabled]")
+      refute has_element?(lv, "#start-run[phx-click]")
+      assert has_element?(lv, "#start-run[onclick*='start_without_teams_modal']")
+      assert has_element?(lv, "#start_without_teams_modal-confirm", "Ja, trotzdem starten")
+
+      lv |> element("#start_without_teams_modal-confirm") |> render_click()
+      assert Quiz.Repo.reload(game).status == :running
+    end
+
+    test "with teams, «Quiz starten» starts right away", %{conn: conn, game: game} do
+      {:ok, _participant, _token} = Play.enroll(game, "Team A")
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      refute has_element?(lv, "#start-run[onclick]")
+      lv |> element("#start-run") |> render_click()
+      assert Quiz.Repo.reload(game).status == :running
+    end
+
+    test "the settings menu holds the other lobby actions", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{status: :open, intro_text: "Handys weg."})
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      assert has_element?(lv, "#lobby-settings #lobby-toggle-enrollment", "Anmeldung sperren")
+      assert has_element?(lv, "#lobby-settings #lobby-intro", "Info und Spielregeln")
+      assert has_element?(lv, "#lobby-settings #open-screen[target='_blank']")
+
+      assert has_element?(
+               lv,
+               "#lobby-settings #lobby-edit-quiz[href='/games/#{game.id}/questions']"
+             )
+
+      assert has_element?(lv, "#lobby-settings li", "Keine neuen Teams mehr zulassen")
+    end
+  end
+
   describe "locking enrollment from the lobby" do
     test "the toggle closes and re-opens the doors, flipping label and DB flag",
          %{conn: conn, scope: scope} do
@@ -280,9 +325,10 @@ defmodule QuizWeb.RunLive.HostTest do
 
     test "while collecting answers, offers Auswerten and hides the solution",
          %{conn: conn, game: game} do
-      {:ok, _lv, html} = live(conn, ~p"/games/#{game}/run")
+      {:ok, lv, html} = live(conn, ~p"/games/#{game}/run")
 
-      assert html =~ "Auswerten"
+      assert has_element?(lv, "#reveal[title^='Auswerten']", "Weiter")
+      assert has_element?(lv, "#retreat", "Zurück")
       assert html =~ "Teams haben geantwortet"
       refute html =~ "Akzeptierte Antwort"
     end
@@ -291,7 +337,7 @@ defmodule QuizWeb.RunLive.HostTest do
          %{conn: conn, scope: scope, game: game} do
       {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
 
-      html = lv |> element("button", "Auswerten") |> render_click()
+      html = lv |> element("#reveal") |> render_click()
 
       # The persisted reveal flips the run into the revealing sub-phase.
       assert Quiz.Games.get_game!(scope, game.id).revealing
@@ -300,8 +346,8 @@ defmodule QuizWeb.RunLive.HostTest do
       # ("Quiz beenden" here, since this is the only/last question).
       assert html =~ "Akzeptierte Antwort"
       assert html =~ "Paris"
-      assert html =~ "Quiz beenden"
-      refute html =~ "Auswerten"
+      assert has_element?(lv, "#advance[title^='Quiz beenden']", "Weiter")
+      refute has_element?(lv, "#reveal")
       refute html =~ "Teams haben geantwortet"
       # Stats stay behind the toggle, as on the end-review screen.
       assert html =~ "Statistik einblenden"
@@ -341,7 +387,7 @@ defmodule QuizWeb.RunLive.HostTest do
          %{conn: conn, game: game} do
       {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
 
-      html = lv |> element("button", "Auswerten") |> render_click()
+      html = lv |> element("#reveal") |> render_click()
 
       assert html =~ "Lissabon"
       assert html =~ "Oslo"
@@ -378,7 +424,7 @@ defmodule QuizWeb.RunLive.HostTest do
       {:ok, running} = Play.start_run(scope, game)
       {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
 
-      lv |> element("button", "Auswerten") |> render_click()
+      lv |> element("#reveal") |> render_click()
     end
 
     test "an explanation image and text are shown on reveal", %{
@@ -412,7 +458,7 @@ defmodule QuizWeb.RunLive.HostTest do
 
       {:ok, running} = Play.start_run(scope, game)
       {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
-      lv |> element("button", "Auswerten") |> render_click()
+      lv |> element("#reveal") |> render_click()
 
       assert has_element?(lv, "dialog#zoom-solution-#{question.id}")
     end
@@ -427,7 +473,7 @@ defmodule QuizWeb.RunLive.HostTest do
 
       {:ok, running} = Play.start_run(scope, game)
       {:ok, lv, _html} = live(conn, ~p"/games/#{running}/run")
-      lv |> element("button", "Auswerten") |> render_click()
+      lv |> element("#reveal") |> render_click()
 
       assert has_element?(lv, "dialog#zoom-pin-#{question.id}")
     end
@@ -516,8 +562,8 @@ defmodule QuizWeb.RunLive.HostTest do
       assert has_element?(lv, "#participants-roster", "Bergfreunde")
       refute has_element?(lv, "#options-preview")
 
-      lv |> element("button", "Auswerten") |> render_click()
-      lv |> element("button", "Nächste Frage") |> render_click()
+      lv |> element("#reveal") |> render_click()
+      lv |> element("#advance") |> render_click()
 
       assert has_element?(lv, "#participants-roster", "Bergfreunde")
 
@@ -528,7 +574,7 @@ defmodule QuizWeb.RunLive.HostTest do
     test "Auswerten marks the correct option in the preview", %{conn: conn, game: game} do
       {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
 
-      lv |> element("button", "Auswerten") |> render_click()
+      lv |> element("#reveal") |> render_click()
 
       assert has_element?(lv, "#options-preview li:nth-child(2) .hero-check-circle-solid")
       refute has_element?(lv, "#options-preview li:nth-child(1) .hero-check-circle-solid")
@@ -537,8 +583,8 @@ defmodule QuizWeb.RunLive.HostTest do
     test "sequence items are not shown in their solution order", %{conn: conn, game: game} do
       {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
 
-      lv |> element("button", "Auswerten") |> render_click()
-      lv |> element("button", "Nächste Frage") |> render_click()
+      lv |> element("#reveal") |> render_click()
+      lv |> element("#advance") |> render_click()
 
       shown =
         lv
