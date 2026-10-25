@@ -31,7 +31,7 @@ defmodule QuizWeb.RunLive.Stage do
         <div class="flex items-start justify-between gap-6">
           <div>
             <p class="font-display text-5xl sm:text-6xl font-extrabold leading-none">
-              wär <span class="text-secondary">weiss?</span>
+              wär<span class="text-secondary">weiss</span>
             </p>
             <p class="mt-2 text-base-100/55 truncate max-w-xs sm:max-w-sm">{@game.title}</p>
           </div>
