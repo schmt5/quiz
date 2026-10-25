@@ -101,7 +101,6 @@ defmodule QuizWeb.GameLive.Show do
           game={@game}
           questions={@questions}
           incomplete={@incomplete_questions}
-          class="mb-6"
         />
 
         <div class="rounded-box bg-base-200 p-6">
@@ -188,7 +187,7 @@ defmodule QuizWeb.GameLive.Show do
       Games.subscribe_questions(socket.assigns.current_scope)
       # Runtime status transitions (open/start/advance/finish) are broadcast on
       # the run topic, not the Games user topic. Without this, @game.status goes
-      # stale and the status-gated action buttons (e.g. "Durchführung eröffnen")
+      # stale and the status-gated action buttons (e.g. "Quiz starten")
       # keep showing — letting a click regress a live :running row back to :open.
       Quiz.Play.subscribe(game)
     end

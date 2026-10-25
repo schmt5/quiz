@@ -117,6 +117,27 @@ defmodule QuizWeb.QuestionReviewLiveTest do
     assert has_element?(lv, "#show-statistics[checked]")
   end
 
+  test "the settings point out unfinished questions", %{conn: conn, game: game} do
+    {:ok, lv, _html} = live(conn, ~p"/games/#{game}/durchsicht?ablauf")
+
+    assert has_element?(lv, "#review-unfinished", "1 Frage ist noch nicht spielbar")
+  end
+
+  test "«Ansehen» marks unfinished questions with a way to complete them", %{
+    conn: conn,
+    scope: scope,
+    game: game
+  } do
+    [done, _, pin] = Games.list_questions_for_game(scope, game)
+    {:ok, lv, _html} = live(conn, ~p"/games/#{game}/questions")
+
+    refute has_element?(lv, "#view-question-#{done.id}-incomplete")
+    assert has_element?(lv, "#view-question-#{pin.id}-incomplete", "Noch nicht spielbar")
+
+    lv |> element("#view-question-#{pin.id}-incomplete button") |> render_click()
+    assert_patch(lv, ~p"/games/#{game}/questions/#{pin}/edit")
+  end
+
   test "saving the settings opens the quiz in «Ansehen» without a notice", %{
     conn: conn,
     scope: scope,

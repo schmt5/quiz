@@ -368,7 +368,7 @@ defmodule QuizWeb.GameLiveTest do
     } do
       {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
 
-      show_live |> element("button", "Durchführung eröffnen") |> render_click()
+      show_live |> element("#open-run") |> render_click()
       assert has_element?(show_live, "#incomplete-confirm", "1 Frage ist noch nicht fertig")
 
       assert {:error, {:live_redirect, %{to: path}}} =
@@ -382,6 +382,27 @@ defmodule QuizWeb.GameLiveTest do
       assert has_element?(show_live, "#question-#{unfinished.id}", "Wird übersprungen")
     end
 
+    test "shows the list as a dialog that opens again after closing", %{
+      conn: conn,
+      game: game
+    } do
+      {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
+
+      show_live |> element("#open-run") |> render_click()
+      assert has_element?(show_live, "dialog#incomplete-confirm[phx-hook]")
+
+      show_live |> element("#incomplete-confirm-cancel") |> render_click()
+      refute has_element?(show_live, "#incomplete-confirm")
+
+      # Esc or the backdrop report the close from the browser.
+      show_live |> element("#open-run") |> render_click()
+      render_hook(show_live, "dismiss_incomplete", %{})
+      refute has_element?(show_live, "#incomplete-confirm")
+
+      show_live |> element("#open-run") |> render_click()
+      assert has_element?(show_live, "#incomplete-confirm")
+    end
+
     test "offers no skipping when no question is ready", %{
       conn: conn,
       scope: scope,
@@ -392,7 +413,7 @@ defmodule QuizWeb.GameLiveTest do
       _ = done
 
       {:ok, show_live, _html} = live(conn, ~p"/games/#{game}")
-      show_live |> element("button", "Durchführung eröffnen") |> render_click()
+      show_live |> element("#open-run") |> render_click()
 
       assert has_element?(show_live, "#incomplete-confirm", "Noch keine Frage ist spielbereit")
       refute has_element?(show_live, "#open-run-skipping")

@@ -84,6 +84,23 @@ defmodule QuizWeb.QuestionLive.Index do
               </label>
             </fieldset>
 
+            <% unfinished = Enum.count(@questions, &incomplete?/1) %>
+            <div
+              :if={unfinished > 0}
+              id="review-unfinished"
+              class="flex items-start gap-3 rounded-box border border-warning/50 bg-warning/10 p-4 text-base"
+            >
+              <.icon name="hero-exclamation-triangle" class="mt-0.5 size-5 shrink-0 text-warning" />
+              <p>
+                <span class="font-semibold">
+                  {if unfinished == 1,
+                    do: "1 Frage ist noch nicht spielbar.",
+                    else: "#{unfinished} Fragen sind noch nicht spielbar."}
+                </span>
+                Du kannst sie in der Übersicht ergänzen – sonst werden sie beim Start übersprungen.
+              </p>
+            </div>
+
             <div class="flex items-center justify-between gap-3">
               <.link
                 :if={@questions != []}
@@ -494,6 +511,14 @@ defmodule QuizWeb.QuestionLive.Index do
                       ]}>
                         {question_label(question)}
                       </span>
+                      <span
+                        :if={incomplete?(question)}
+                        class="tooltip tooltip-left ml-auto shrink-0 text-warning"
+                        data-tip="Unvollständig – kann noch nicht gespielt werden"
+                        aria-label="Unvollständig"
+                      >
+                        <.icon name="hero-exclamation-triangle" class="size-4" />
+                      </span>
                     </div>
                   </a>
                 </li>
@@ -542,7 +567,6 @@ defmodule QuizWeb.QuestionLive.Index do
               game={@game}
               questions={@questions}
               incomplete={@incomplete_questions}
-              class="mb-6"
             />
             <div :if={@mode == :edit}>
               <.type_picker :if={@live_action == :index} game={@game} insert_at={@insert_at} />
@@ -588,7 +612,35 @@ defmodule QuizWeb.QuestionLive.Index do
                   <h2 class="text-xl font-bold">{q.prompt}</h2>
                   <.rich_text html={q.description} />
                   <.question_media question={q} class="max-w-md" />
-                  <AnswerArea.answer_area question={AnswerArea.prepare_question(q)} />
+                  <%!-- A pin question without its image has nothing to tap on yet;
+                       the note below says what is missing. --%>
+                  <AnswerArea.answer_area
+                    :if={!(q.type == :pin_on_image and Question.image_missing?(q))}
+                    question={AnswerArea.prepare_question(q)}
+                  />
+                  <div
+                    :if={incomplete?(q)}
+                    id={"view-question-#{q.id}-incomplete"}
+                    class="flex flex-col gap-3 rounded-box border border-warning/50 bg-warning/10 p-4 sm:flex-row sm:items-center"
+                  >
+                    <.icon
+                      name="hero-exclamation-triangle"
+                      class="size-5 shrink-0 text-warning"
+                    />
+                    <p class="flex-1 text-base">
+                      <span class="font-semibold">Noch nicht spielbar – es fehlt:</span>
+                      {Enum.join(Question.missing_requirements(q), ", ")}
+                    </p>
+                    <button
+                      :if={!@locked}
+                      type="button"
+                      phx-click="edit_question"
+                      phx-value-id={q.id}
+                      class="btn btn-sm btn-warning shrink-0"
+                    >
+                      <.icon name="hero-pencil-square" class="size-4" /> Ergänzen
+                    </button>
+                  </div>
                 </article>
                 <.insert_question_button :if={!@locked} at={idx + 1} />
               <% end %>

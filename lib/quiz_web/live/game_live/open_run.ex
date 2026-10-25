@@ -1,8 +1,8 @@
 defmodule QuizWeb.GameLive.OpenRun do
   @moduledoc """
-  «Durchführung eröffnen» as used on the quiz page and in the question editor:
+  «Quiz starten» (opening the run) as used on the quiz page and in the question editor:
   the header button, the confirmation shown when some questions are still
-  unfinished («Ohne diese eröffnen»), and the events behind them.
+  unfinished («Ohne diese starten»), and the events behind them.
 
   A LiveView using it calls `assign_defaults/1` in `mount/3`, renders
   `run_button/1` and `confirm/1`, and hands the events in `events/0` to
@@ -43,75 +43,95 @@ defmodule QuizWeb.GameLive.OpenRun do
       id="open-run"
       type="button"
       phx-click="open_run"
-      class="btn btn-primary btn-sm"
+      class="btn btn-primary shadow-md shadow-primary/25 transition hover:-translate-y-px hover:shadow-lg hover:shadow-primary/30"
     >
-      <.icon name="hero-play" class="size-4" /> Durchführung eröffnen
+      <.icon name="hero-play-solid" class="size-5" /> Quiz starten
     </button>
     """
   end
 
   @doc """
-  Lists the unfinished questions after «Durchführung eröffnen» and offers to
-  open without them — unless none would be left to play.
+  Lists the unfinished questions after «Quiz starten» and offers to start
+  without them — unless none would be left to play. A modal dialog, so it is
+  seen wherever the page is scrolled to; closing it (also with Esc or the
+  backdrop) clears `:incomplete_questions`, so the next click opens it again.
   """
   attr :game, :map, required: true
   attr :questions, :list, required: true, doc: "all of the game's questions"
   attr :incomplete, :list, required: true
-  attr :class, :any, default: nil
 
   def confirm(assigns) do
     ~H"""
-    <div
+    <dialog
       :if={@incomplete != []}
       id="incomplete-confirm"
-      class={["rounded-box border border-warning/40 bg-warning/10 p-5", @class]}
+      class="modal"
+      phx-hook=".IncompleteDialog"
+      aria-labelledby="incomplete-confirm-title"
     >
-      <h3 class="flex items-center gap-2 font-bold">
-        <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
-        {incomplete_title(length(@incomplete))}
-      </h3>
-      <ul class="mt-3 space-y-2 text-sm">
-        <li :for={question <- @incomplete}>
-          <.link
-            navigate={~p"/games/#{@game}/questions/#{question}/edit"}
-            class="font-medium hover:underline"
-          >
-            {question_label(question)}
-          </.link>
-          <span class="text-base-content/60">
-            – es fehlt {Enum.join(Question.missing_requirements(question), ", ")}
+      <div class="modal-box max-w-lg">
+        <div class="flex items-start gap-4">
+          <span class="flex size-11 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning">
+            <.icon name="hero-exclamation-triangle" class="size-5" />
           </span>
-        </li>
-      </ul>
-
-      <%= if length(@incomplete) < length(@questions) do %>
-        <p class="mt-4 text-sm text-base-content/70">
-          Du kannst trotzdem eröffnen – diese Fragen werden dann in der Durchführung
-          übersprungen. Beim nächsten Eröffnen sind sie wieder dabei, sobald sie fertig sind.
-        </p>
-        <div class="mt-4 flex flex-wrap gap-2">
+          <div class="min-w-0">
+            <h2 id="incomplete-confirm-title" class="text-lg font-bold">
+              {incomplete_title(length(@incomplete))}
+            </h2>
+            <ul class="mt-3 space-y-2 text-base">
+              <li :for={question <- @incomplete}>
+                <.link
+                  navigate={~p"/games/#{@game}/questions/#{question}/edit"}
+                  class="font-semibold text-primary hover:underline"
+                >
+                  {question_label(question)}
+                </.link>
+                <span class="text-base-content/80">
+                  – es fehlt {Enum.join(Question.missing_requirements(question), ", ")}
+                </span>
+              </li>
+            </ul>
+            <p class="mt-4 text-base text-base-content/80">
+              {if length(@incomplete) < length(@questions),
+                do:
+                  "Du kannst trotzdem starten – diese Fragen werden dann übersprungen. Beim nächsten Start sind sie wieder dabei, sobald sie fertig sind.",
+                else:
+                  "Noch keine Frage ist spielbereit. Ergänze zuerst mindestens eine, dann kannst du starten."}
+            </p>
+          </div>
+        </div>
+        <div class="modal-action">
           <button
+            id="incomplete-confirm-cancel"
+            type="button"
+            phx-click="dismiss_incomplete"
+            class="btn btn-ghost"
+          >
+            {if length(@incomplete) < length(@questions), do: "Abbrechen", else: "Schliessen"}
+          </button>
+          <button
+            :if={length(@incomplete) < length(@questions)}
             id="open-run-skipping"
             type="button"
             phx-click="open_run_skipping"
-            class="btn btn-primary btn-sm"
+            class="btn btn-primary"
           >
-            <.icon name="hero-play" class="size-4" /> Ohne diese eröffnen
-          </button>
-          <button type="button" phx-click="dismiss_incomplete" class="btn btn-ghost btn-sm">
-            Abbrechen
+            <.icon name="hero-play" class="size-4" /> Ohne diese starten
           </button>
         </div>
-      <% else %>
-        <p class="mt-4 text-sm text-base-content/70">
-          Noch keine Frage ist spielbereit. Ergänze zuerst mindestens eine, dann kannst du
-          eröffnen.
-        </p>
-        <button type="button" phx-click="dismiss_incomplete" class="btn btn-ghost btn-sm mt-3">
-          Schliessen
-        </button>
-      <% end %>
-    </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>schliessen</button></form>
+    </dialog>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".IncompleteDialog">
+      export default {
+        mounted() {
+          // Esc and the backdrop close the dialog in the browser only: tell the
+          // server, or a second «Quiz starten» would change nothing to show.
+          this.el.addEventListener("close", () => this.pushEvent("dismiss_incomplete", {}))
+          this.el.showModal()
+        }
+      }
+    </script>
     """
   end
 
@@ -133,7 +153,7 @@ defmodule QuizWeb.GameLive.OpenRun do
         {:noreply, assign(socket, :incomplete_questions, questions)}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Durchführung konnte nicht eröffnet werden.")}
+        {:noreply, put_flash(socket, :error, "Das Quiz konnte nicht gestartet werden.")}
     end
   end
 
