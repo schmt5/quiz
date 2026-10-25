@@ -232,29 +232,47 @@ defmodule QuizWeb.RunLive.Stage do
   @doc """
   The closing screen once the last question is done. Projected to the room, so
   it addresses the guests, not the quizmaster: it announces the solution
-  walkthrough only where there is one (`review_mode: :end`).
+  walkthrough only where there is one (`review_mode: :end`). The host passes
+  its next steps as `:actions`.
   """
   attr :game, :map, required: true
   attr :has_questions, :boolean, required: true
+  slot :actions
 
   def finished(assigns) do
     ~H"""
-    <div id="finished-stage" class="text-center space-y-4">
-      <.icon name="hero-flag" class="size-16 text-primary" />
-      <p class="text-3xl font-bold">Quiz beendet!</p>
-      <p
-        :if={@has_questions && @game.review_mode == :end}
-        id="finished-review-hint"
-        class="text-lg text-base-content/60"
-      >
-        Gleich gehen wir die Lösungen gemeinsam durch – danach gibt's die Rangliste.
-      </p>
-      <p
-        :if={!(@has_questions && @game.review_mode == :end)}
-        class="text-lg text-base-content/60"
-      >
-        Danke fürs Mitspielen! Die Rangliste folgt in Kürze.
-      </p>
+    <div id="finished-stage" class="flex w-full max-w-2xl flex-col items-center gap-8 text-center">
+      <div class="relative" aria-hidden="true">
+        <div class="absolute -inset-6 rounded-full bg-secondary/40 blur-2xl motion-safe:animate-pulse">
+        </div>
+        <div class="relative flex size-28 items-center justify-center rounded-full bg-primary text-secondary shadow-xl ring-8 ring-secondary/40">
+          <.icon name="hero-trophy-solid" class="size-14" />
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <p class="text-sm font-bold uppercase tracking-[0.22em] text-primary/70">
+          {@game.title}
+        </p>
+        <h2 class="font-display text-5xl font-extrabold leading-none text-primary sm:text-6xl">
+          Quiz beendet!
+        </h2>
+        <p
+          :if={@has_questions && @game.review_mode == :end}
+          id="finished-review-hint"
+          class="text-xl text-base-content/75"
+        >
+          Gleich gehen wir die Lösungen gemeinsam durch – danach gibt's die Rangliste.
+        </p>
+        <p
+          :if={!(@has_questions && @game.review_mode == :end)}
+          class="text-xl text-base-content/75"
+        >
+          Danke fürs Mitspielen! Die Rangliste folgt in Kürze.
+        </p>
+      </div>
+
+      <div :if={@actions != []} class="w-full">{render_slot(@actions)}</div>
     </div>
     """
   end

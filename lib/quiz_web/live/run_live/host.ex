@@ -24,89 +24,7 @@ defmodule QuizWeb.RunLive.Host do
     >
       <:actions>
         <div class="ml-auto flex items-center gap-3">
-          <button
-            type="button"
-            popovertarget="lobby-settings"
-            style="anchor-name:--lobby-settings"
-            title="Einstellungen"
-            aria-label="Einstellungen"
-            class="btn btn-ghost btn-circle btn-lg text-base-100"
-          >
-            <.icon name="hero-cog-6-tooth" class="size-7" />
-          </button>
-          <ul
-            id="lobby-settings"
-            popover
-            style="position-anchor:--lobby-settings"
-            class="dropdown dropdown-top dropdown-end menu w-80 gap-1 rounded-box bg-base-100 p-2 !text-base-content shadow-lg"
-          >
-            <li>
-              <button
-                id="lobby-toggle-enrollment"
-                type="button"
-                phx-click="toggle_enrollment"
-                onclick="document.getElementById('lobby-settings').hidePopover()"
-                class="items-start"
-              >
-                <.icon
-                  name={if @game.enrollment_locked, do: "hero-lock-open", else: "hero-lock-closed"}
-                  class="mt-0.5 size-5"
-                />
-                <.menu_text
-                  title={
-                    if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"
-                  }
-                  description={
-                    if @game.enrollment_locked,
-                      do: "Neue Teams können wieder beitreten.",
-                      else: "Keine neuen Teams mehr zulassen."
-                  }
-                />
-              </button>
-            </li>
-            <li :if={Game.intro?(@game)}>
-              <button
-                id="lobby-intro"
-                type="button"
-                onclick="document.getElementById('lobby-settings').hidePopover(); intro_modal.showModal()"
-                class="items-start"
-              >
-                <.icon name="hero-information-circle" class="mt-0.5 size-5" />
-                <.menu_text
-                  title="Info und Spielregeln"
-                  description="Zeigt die Einleitung des Quiz gross an, zum Vorlesen vor dem Start."
-                />
-              </button>
-            </li>
-            <li>
-              <.link
-                id="open-screen"
-                href={~p"/games/#{@game}/screen"}
-                target="_blank"
-                onclick="document.getElementById('lobby-settings').hidePopover()"
-                class="items-start"
-              >
-                <.icon name="hero-tv" class="mt-0.5 size-5" />
-                <.menu_text
-                  title="Präsentation im neuen Fenster öffnen"
-                  description="Für den Beamer: Ziehe das neue Fenster auf den zweiten Bildschirm."
-                />
-              </.link>
-            </li>
-            <li>
-              <.link
-                id="lobby-edit-quiz"
-                navigate={~p"/games/#{@game}/questions"}
-                class="items-start"
-              >
-                <.icon name="hero-pencil-square" class="mt-0.5 size-5" />
-                <.menu_text
-                  title="Zurück zum Quiz bearbeiten"
-                  description="Fragen und Einstellungen ändern. Angemeldete Teams bleiben dabei."
-                />
-              </.link>
-            </li>
-          </ul>
+          <.settings_menu id="lobby-settings" game={@game} lobby />
 
           <button
             id="start-run"
@@ -155,6 +73,13 @@ defmodule QuizWeb.RunLive.Host do
           <div class="flex items-center gap-4 min-w-0">
             <Stage.brand />
             <h1 class="text-lg font-bold truncate">{@game.title}</h1>
+            <span
+              :if={@game.status == :running and @game.enrollment_locked}
+              id="enrollment-locked"
+              class="badge badge-warning gap-1 shrink-0"
+            >
+              <.icon name="hero-lock-closed" class="size-3.5" /> Anmeldung gesperrt
+            </span>
           </div>
 
           <%!-- `per_question` mode inserts a reveal step: "Auswerten" closes the
@@ -163,9 +88,7 @@ defmodule QuizWeb.RunLive.Host do
                sends the room back one question (disabled on the first) so teams can
                re-see and re-enter what they submitted. --%>
           <div :if={@game.status == :running} class="flex items-center gap-2 shrink-0">
-            <Stage.shortcuts_button />
-            <.screen_link game={@game} />
-            <.enrollment_toggle game={@game} compact />
+            <.settings_menu id="run-settings" game={@game} />
 
             <%!-- Always «Zurück» / «Weiter», whatever the step does; the
                  tooltip names it. --%>
@@ -226,27 +149,6 @@ defmodule QuizWeb.RunLive.Host do
             >
               <.icon name="hero-information-circle" class="size-6" />
             </button>
-            <.link
-              :if={@review_position && @game.review_mode == :end}
-              navigate={~p"/games/#{@game}/review/#{@review_position}"}
-              title="Lösungen besprechen (→)"
-              class="btn btn-ghost"
-            >
-              <.icon name="hero-light-bulb" /> Lösungen besprechen
-            </.link>
-            <.link
-              :if={!@game.grading_published}
-              navigate={~p"/games/#{@game}/correction"}
-              class="btn btn-primary"
-            >
-              <.icon name="hero-check-circle" /> Korrigieren & veröffentlichen
-            </.link>
-            <.link
-              navigate={~p"/games/#{@game}/leaderboard"}
-              class={["btn", (@game.grading_published && "btn-primary") || "btn-ghost"]}
-            >
-              <.icon name="hero-trophy" /> Zur Rangliste
-            </.link>
           </div>
         </div>
 
@@ -273,11 +175,64 @@ defmodule QuizWeb.RunLive.Host do
             <p :if={!@question} class="text-lg text-base-content/60">Keine Frage verfügbar.</p>
           </div>
 
+          <%!-- The next steps in the middle: the ranking straight away when
+               nothing needs correcting by hand (no free-text questions),
+               otherwise the correction first. --%>
           <Stage.finished
             :if={@game.status in [:finished, :closed]}
             game={@game}
             has_questions={@review_position != nil}
-          />
+          >
+            <:actions>
+              <div class="flex flex-col items-center gap-4 rounded-box border border-base-300 bg-base-200/50 p-6">
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                  <.link
+                    :if={@review_position && @game.review_mode == :end}
+                    id="finished-walkthrough"
+                    navigate={~p"/games/#{@game}/review/#{@review_position}"}
+                    title="Lösungen besprechen (→)"
+                    class="btn btn-primary btn-lg"
+                  >
+                    <.icon name="hero-light-bulb" /> Lösungen besprechen
+                  </.link>
+                  <.link
+                    :if={@needs_correction and not @game.grading_published}
+                    id="finished-correction"
+                    navigate={~p"/games/#{@game}/correction"}
+                    class={[
+                      "btn btn-lg",
+                      if(@review_position && @game.review_mode == :end,
+                        do: "btn-soft",
+                        else: "btn-primary"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-check-circle" /> Korrigieren & veröffentlichen
+                  </.link>
+                  <button
+                    :if={not @needs_correction or @game.grading_published}
+                    id="show-leaderboard"
+                    type="button"
+                    phx-click="show_leaderboard"
+                    phx-disable-with="Rangliste wird geladen …"
+                    class="btn btn-secondary btn-xl px-8 shadow-lg shadow-secondary/30 transition hover:-translate-y-0.5 hover:shadow-xl"
+                  >
+                    <.icon name="hero-trophy-solid" /> Rangliste anzeigen
+                  </button>
+                </div>
+                <p class="text-base text-base-content/75">
+                  <%= cond do %>
+                    <% @needs_correction and not @game.grading_published -> %>
+                      Die Texteingaben musst du noch kurz prüfen – danach ist die Rangliste bereit.
+                    <% @game.grading_published -> %>
+                      Die Rangliste ist veröffentlicht.
+                    <% true -> %>
+                      Alle Antworten wurden automatisch korrigiert – die Rangliste ist bereit.
+                  <% end %>
+                </p>
+              </div>
+            </:actions>
+          </Stage.finished>
         </div>
       </div>
 
@@ -442,39 +397,126 @@ defmodule QuizWeb.RunLive.Host do
     """
   end
 
-  # Operator lever to stop / resume new enrollments (see `Play.enroll/2`). Shown
-  # in both the lobby and the running header; `compact` renders it icon-only for
-  # the tight running toolbar. The colour flips to `btn-warning` while locked so
-  # the current state is obvious at a glance, and the label states the *action*.
+  # The operator's secondary actions behind a cog, each with a short
+  # description: in the lobby next to «Quiz starten», while running next to
+  # «Zurück»/«Weiter». A dot on the cog keeps a locked enrollment (see
+  # `Play.enroll/2`) visible while the menu is closed.
+  attr :id, :string, required: true
   attr :game, Game, required: true
-  attr :compact, :boolean, default: false
-  attr :class, :string, default: nil
+  attr :lobby, :boolean, default: false, doc: "on the lobby's dark panel, with its extra actions"
 
-  defp enrollment_toggle(assigns) do
+  defp settings_menu(assigns) do
     ~H"""
     <button
+      id={"#{@id}-toggle"}
       type="button"
-      phx-click="toggle_enrollment"
-      title={
-        if @game.enrollment_locked,
-          do: "Anmeldung wieder öffnen",
-          else: "Keine neuen Teams mehr zulassen"
-      }
-      aria-label={if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"}
+      popovertarget={@id}
+      style={"anchor-name:--#{@id}"}
+      title="Einstellungen"
+      aria-label="Einstellungen"
       class={[
-        "btn",
-        if(@game.enrollment_locked, do: "btn-warning", else: "btn-ghost"),
-        @compact && "btn-circle",
-        @class
+        "btn btn-ghost btn-circle relative",
+        if(@lobby, do: "btn-lg text-base-100", else: "")
       ]}
     >
-      <.icon name={if @game.enrollment_locked, do: "hero-lock-closed", else: "hero-lock-open"} />
-      <span :if={!@compact}>
-        {if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"}
+      <.icon name="hero-cog-6-tooth" class={if(@lobby, do: "size-7", else: "size-6")} />
+      <span
+        :if={@game.enrollment_locked}
+        class="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-warning ring-2 ring-base-100"
+        aria-hidden="true"
+      >
       </span>
     </button>
+    <%!-- The lobby's text colour reaches in here through a `:nth-child` rule,
+         hence the forced text colour. --%>
+    <ul
+      id={@id}
+      popover
+      style={"position-anchor:--#{@id}"}
+      class={[
+        "dropdown dropdown-end menu w-80 gap-1 rounded-box bg-base-100 p-2 !text-base-content shadow-lg",
+        @lobby && "dropdown-top"
+      ]}
+    >
+      <li>
+        <button
+          id={"#{@id}-enrollment"}
+          type="button"
+          phx-click="toggle_enrollment"
+          onclick={hide_popover(@id)}
+          class="items-start"
+        >
+          <.icon
+            name={if @game.enrollment_locked, do: "hero-lock-open", else: "hero-lock-closed"}
+            class="mt-0.5 size-5"
+          />
+          <.menu_text
+            title={if @game.enrollment_locked, do: "Anmeldung öffnen", else: "Anmeldung sperren"}
+            description={
+              if @game.enrollment_locked,
+                do: "Neue Teams können wieder beitreten.",
+                else: "Keine neuen Teams mehr zulassen."
+            }
+          />
+        </button>
+      </li>
+      <li :if={@lobby and Game.intro?(@game)}>
+        <button
+          id={"#{@id}-intro"}
+          type="button"
+          onclick={hide_popover(@id) <> "; intro_modal.showModal()"}
+          class="items-start"
+        >
+          <.icon name="hero-information-circle" class="mt-0.5 size-5" />
+          <.menu_text
+            title="Info und Spielregeln"
+            description="Zeigt die Einleitung des Quiz gross an, zum Vorlesen vor dem Start."
+          />
+        </button>
+      </li>
+      <li>
+        <.link
+          id="open-screen"
+          href={~p"/games/#{@game}/screen"}
+          target="_blank"
+          onclick={hide_popover(@id)}
+          class="items-start"
+        >
+          <.icon name="hero-tv" class="mt-0.5 size-5" />
+          <.menu_text
+            title="Präsentation im neuen Fenster öffnen"
+            description="Für den Beamer: Ziehe das neue Fenster auf den zweiten Bildschirm."
+          />
+        </.link>
+      </li>
+      <li :if={!@lobby}>
+        <button
+          id="open-shortcuts"
+          type="button"
+          onclick={hide_popover(@id) <> "; shortcuts_modal.showModal()"}
+          class="items-start"
+        >
+          <.icon name="hero-command-line" class="mt-0.5 size-5" />
+          <.menu_text
+            title="Tastenkürzel"
+            description="Mit ← und → durchs Quiz, S für die Statistik. Taste ? zeigt die Übersicht."
+          />
+        </button>
+      </li>
+      <li :if={@lobby}>
+        <.link id={"#{@id}-edit-quiz"} navigate={~p"/games/#{@game}/questions"} class="items-start">
+          <.icon name="hero-pencil-square" class="mt-0.5 size-5" />
+          <.menu_text
+            title="Zurück zum Quiz bearbeiten"
+            description="Fragen und Einstellungen ändern. Angemeldete Teams bleiben dabei."
+          />
+        </.link>
+      </li>
+    </ul>
     """
   end
+
+  defp hide_popover(id), do: "document.getElementById('#{id}').hidePopover()"
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -495,7 +537,7 @@ defmodule QuizWeb.RunLive.Host do
      |> assign(:game, game)
      |> assign(:qr_svg, Stage.qr_svg(game))
      |> assign(:participants, Play.list_participants(game))
-     |> assign(:review_position, first_review_position(socket.assigns.current_scope, game))
+     |> assign_run_questions()
      |> assign(:sidebar_tab, :options)
      |> assign(:options, nil)
      |> load_question()}
@@ -512,6 +554,25 @@ defmodule QuizWeb.RunLive.Host do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Das Quiz konnte nicht gestartet werden.")}
+    end
+  end
+
+  # Publishes the grading first if nothing is left to correct by hand, so the
+  # ranking is there rather than «Korrektur in Bearbeitung».
+  def handle_event("show_leaderboard", _params, socket) do
+    %{current_scope: scope, game: game} = socket.assigns
+
+    if socket.assigns.needs_correction and not game.grading_published do
+      {:noreply, push_navigate(socket, to: ~p"/games/#{game}/correction")}
+    else
+      case Play.publish_grading(scope, game) do
+        {:ok, game} ->
+          {:noreply, push_navigate(socket, to: ~p"/games/#{game}/leaderboard")}
+
+        {:error, _} ->
+          {:noreply,
+           put_flash(socket, :error, "Die Rangliste konnte nicht veröffentlicht werden.")}
+      end
     end
   end
 
@@ -724,13 +785,22 @@ defmodule QuizWeb.RunLive.Host do
     assign(socket, :answered_count, Play.count_answers(game, game.current_position))
   end
 
-  # Position of the first question, where the solution walkthrough starts, or nil
-  # when the quiz has no questions (then there is nothing to review).
-  defp first_review_position(scope, game) do
-    case Games.list_run_questions(scope, game) do
-      [] -> nil
-      [first | _] -> first.position
-    end
+  # `review_position`: the first question's position, where the solution
+  # walkthrough starts, or nil when the quiz has no questions (then there is
+  # nothing to review). `needs_correction`: whether a free-text answer has to be
+  # checked by hand before the ranking — every other type is graded on submit.
+  defp assign_run_questions(socket) do
+    questions = Games.list_run_questions(socket.assigns.current_scope, socket.assigns.game)
+
+    review_position =
+      case questions do
+        [] -> nil
+        [first | _] -> first.position
+      end
+
+    socket
+    |> assign(:review_position, review_position)
+    |> assign(:needs_correction, Enum.any?(questions, &(&1.type == :text_input)))
   end
 
   # Back on the run screen after the quiz (e.g. "Besprechung beenden" in the

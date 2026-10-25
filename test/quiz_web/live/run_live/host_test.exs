@@ -31,7 +31,7 @@ defmodule QuizWeb.RunLive.HostTest do
       assert has_element?(lv, "#finished-stage")
       refute has_element?(lv, "#finished-review-hint")
       refute html =~ "Lösungen besprechen"
-      assert html =~ ~p"/games/#{game}/leaderboard"
+      assert has_element?(lv, "#finished-stage #show-leaderboard")
     end
 
     test "per_question mode skips the end-of-game walkthrough link", %{conn: conn, scope: scope} do
@@ -45,7 +45,34 @@ defmodule QuizWeb.RunLive.HostTest do
       # No walkthrough in this mode, so the guests aren't promised one.
       refute has_element?(lv, "#finished-review-hint")
       refute html =~ "Lösungen besprechen"
-      assert html =~ ~p"/games/#{game}/leaderboard"
+      assert has_element?(lv, "#finished-stage #show-leaderboard")
+    end
+
+    test "with only auto-graded questions, «Rangliste anzeigen» publishes and opens it",
+         %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{review_mode: :per_question})
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
+      game = set_game_status(game, :finished)
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+      refute has_element?(lv, "#finished-correction")
+
+      assert {:error, {:live_redirect, %{to: path}}} =
+               lv |> element("#show-leaderboard") |> render_click()
+
+      assert path == ~p"/games/#{game}/leaderboard"
+      assert Quiz.Repo.reload(game).grading_published
+    end
+
+    test "with free-text questions, the correction comes first", %{conn: conn, scope: scope} do
+      game = game_fixture(scope, %{review_mode: :per_question})
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :text_input})
+      game = set_game_status(game, :finished)
+
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      assert has_element?(lv, "#finished-correction[href='/games/#{game.id}/correction']")
+      refute has_element?(lv, "#show-leaderboard")
     end
 
     test "survives the grading being published while the host screen stays open",
@@ -116,13 +143,13 @@ defmodule QuizWeb.RunLive.HostTest do
       game = game_fixture(scope, %{status: :open, intro_text: "Handys weg."})
       {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
 
-      assert has_element?(lv, "#lobby-settings #lobby-toggle-enrollment", "Anmeldung sperren")
-      assert has_element?(lv, "#lobby-settings #lobby-intro", "Info und Spielregeln")
+      assert has_element?(lv, "#lobby-settings #lobby-settings-enrollment", "Anmeldung sperren")
+      assert has_element?(lv, "#lobby-settings #lobby-settings-intro", "Info und Spielregeln")
       assert has_element?(lv, "#lobby-settings #open-screen[target='_blank']")
 
       assert has_element?(
                lv,
-               "#lobby-settings #lobby-edit-quiz[href='/games/#{game.id}/questions']"
+               "#lobby-settings #lobby-settings-edit-quiz[href='/games/#{game.id}/questions']"
              )
 
       assert has_element?(lv, "#lobby-settings li", "Keine neuen Teams mehr zulassen")
@@ -160,6 +187,34 @@ defmodule QuizWeb.RunLive.HostTest do
 
       lv |> element("button[phx-click=toggle_enrollment]") |> render_click()
       assert Quiz.Repo.reload(running).enrollment_locked
+    end
+  end
+
+  describe "settings menu while running" do
+    setup %{scope: scope} do
+      game = game_fixture(scope, %{status: :open})
+      question_fixture(scope, %{game_id: game.id, position: 1, type: :single_choice})
+      {:ok, running} = Play.start_run(scope, game)
+      %{game: running}
+    end
+
+    test "holds every action besides «Zurück» and «Weiter»", %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+
+      assert has_element?(lv, "#run-settings #run-settings-enrollment", "Anmeldung sperren")
+      assert has_element?(lv, "#run-settings #open-screen[target='_blank']")
+      assert has_element?(lv, "#run-settings #open-shortcuts", "Tastenkürzel")
+      refute has_element?(lv, "#run-settings-edit-quiz")
+    end
+
+    test "a locked enrollment stays visible outside the menu", %{conn: conn, game: game} do
+      {:ok, lv, _html} = live(conn, ~p"/games/#{game}/run")
+      refute has_element?(lv, "#enrollment-locked")
+
+      lv |> element("#run-settings-enrollment") |> render_click()
+
+      assert has_element?(lv, "#enrollment-locked", "Anmeldung gesperrt")
+      assert has_element?(lv, "#run-settings-toggle .bg-warning")
     end
   end
 
