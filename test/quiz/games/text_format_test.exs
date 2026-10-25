@@ -6,10 +6,10 @@ defmodule Quiz.Games.TextFormatTest do
   alias Quiz.Games
   alias Quiz.Games.{Question, TextFormat}
 
-  # The example inside the AI prompt is the format's reference: it has to parse
+  # The example inside the AI guide is the format's reference: it has to parse
   # cleanly, otherwise the AI is taught something the app rejects.
   defp prompt_example do
-    prompt = File.read!(Application.app_dir(:quiz, "priv/prompts/quiz_erstellen.md"))
+    prompt = File.read!(Application.app_dir(:quiz, "priv/prompts/ki-anleitung.md"))
     [example] = Regex.run(~r/```\n(Format:.*?)```/s, prompt, capture: :all_but_first)
     example
   end
@@ -20,6 +20,16 @@ defmodule Quiz.Games.TextFormatTest do
   end
 
   defp question(text, position \\ 1), do: Enum.at(parse!(text).questions, position - 1)
+
+  test "the prompt links to the AI guide in this repository" do
+    [path] =
+      Regex.run(~r{raw\.githubusercontent\.com/schmt5/quiz/main/(\S+)}, TextFormat.prompt(),
+        capture: :all_but_first
+      )
+
+    assert path == "priv/prompts/ki-anleitung.md"
+    assert File.exists?(Application.app_dir(:quiz, path))
+  end
 
   describe "parse/1 with the prompt example" do
     test "reads every question type without warnings" do

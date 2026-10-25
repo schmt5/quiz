@@ -33,10 +33,9 @@ defmodule QuizWeb.GuestImportController do
 
     with :ok <- RateLimit.hit({:guest, client_ip(conn)}, limit, window),
          {:ok, parsed} <- TextFormat.parse(text),
-         {:ok, {user, game, first}} <- import_as_guest(parsed, settings) do
+         {:ok, {user, game}} <- import_as_guest(parsed, settings) do
       conn
-      |> put_flash(:info, "Quiz erstellt. Prüfe die Fragen und ergänze, was noch fehlt.")
-      |> put_session(:user_return_to, ~p"/games/#{game}/questions/#{first}/edit")
+      |> put_session(:user_return_to, ~p"/games/#{game}/durchsicht")
       |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
     else
       {:error, :rate_limited} ->
@@ -45,7 +44,7 @@ defmodule QuizWeb.GuestImportController do
           :error,
           "Von deinem Netzwerk wurden gerade viele Gastzugänge erstellt. Versuch es später nochmals oder erstelle ein Konto."
         )
-        |> redirect(to: ~p"/erstellen")
+        |> redirect(to: ~p"/erstellen?schritt=3")
 
       _error ->
         conn
@@ -53,7 +52,7 @@ defmodule QuizWeb.GuestImportController do
           :error,
           "Das Quiz konnte nicht angelegt werden. Bitte füge die Antwort der KI nochmals ein."
         )
-        |> redirect(to: ~p"/erstellen")
+        |> redirect(to: ~p"/erstellen?schritt=3")
     end
   end
 
@@ -64,8 +63,7 @@ defmodule QuizWeb.GuestImportController do
       with {:ok, user} <- Accounts.create_guest(),
            scope = Scope.for_user(user),
            {:ok, game} <- Games.import_game(scope, parsed, settings) do
-        [first | _] = Games.list_questions_for_game(scope, game)
-        {user, game, first}
+        {user, game}
       else
         {:error, reason} -> Repo.rollback(reason)
       end

@@ -5,14 +5,296 @@ defmodule QuizWeb.QuestionLive.Index do
   alias Quiz.Games.Question
   alias Quiz.Games.Question.NumberRange
   alias Quiz.Games.Question.Pin
+  alias QuizWeb.AiWizard
   alias QuizWeb.GameLive.OpenRun
-  alias QuizWeb.QuestionLive.AnswerArea
+  alias QuizWeb.QuestionLive.{AnswerArea, SolutionArea}
 
   @valid_types ~w(single_choice multiple_choice text_input sequence pin_on_image matching number_range)
 
   @run_locked_message "Dieses Quiz ist abgeschlossen – Fragen können nicht mehr bearbeitet werden."
 
   @impl true
+  # The last steps of «Quiz mit KI erstellen» (`QuizWeb.GameLive.Import`): the
+  # freshly imported questions one at a time (`?frage=`), each to accept,
+  # discard or adjust in the usual form, then the run settings (`?ablauf`).
+  def render(%{live_action: :review} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <div class="mx-auto max-w-3xl space-y-8">
+        <AiWizard.steps current={if @review_step == :settings, do: 5, else: 4} />
+
+        <section :if={@review_step == :settings} id="review-settings" class="space-y-8">
+          <AiWizard.step_heading title="Wie soll dein Quiz ablaufen?">
+            Beides kannst du später in den Einstellungen des Quiz ändern.
+          </AiWizard.step_heading>
+
+          <.form
+            for={@settings_form}
+            id="settings-form"
+            phx-submit="save_settings"
+            class="space-y-8 rounded-box border border-base-200 bg-base-100 p-6 shadow-sm sm:p-8"
+          >
+            <fieldset>
+              <legend class="text-lg font-semibold">Wann zeigst du die Musterlösung?</legend>
+              <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                <AiWizard.option_card
+                  id="review-mode-per-question"
+                  field={@settings_form[:review_mode]}
+                  value="per_question"
+                  icon="hero-chat-bubble-left-right"
+                  title="Nach jeder Frage"
+                  recommended
+                >
+                  Du löst jede Frage gleich auf und besprichst sie mit den Teams.
+                </AiWizard.option_card>
+                <AiWizard.option_card
+                  id="review-mode-end"
+                  field={@settings_form[:review_mode]}
+                  value="end"
+                  icon="hero-flag"
+                  title="Am Ende des Quiz"
+                >
+                  Erst alle Fragen spielen, dann gemeinsam alle Lösungen durchgehen.
+                </AiWizard.option_card>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend class="text-lg font-semibold">Statistik in der Besprechung</legend>
+              <label class="mt-3 flex cursor-pointer items-center gap-4 rounded-box border-2 border-base-300 p-4 transition hover:border-primary/40 has-checked:border-primary has-checked:bg-primary/5">
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary/40 text-primary">
+                  <.icon name="hero-chart-bar" class="size-5" />
+                </span>
+                <span class="flex-1">
+                  <span class="block text-lg font-semibold">Antwortverteilung zeigen</span>
+                  <span class="block text-base text-base-content/80">
+                    Bei der Auflösung sehen alle, wie die Teams geantwortet haben – ein guter
+                    Einstieg in die Diskussion.
+                  </span>
+                </span>
+                <input type="hidden" name={@settings_form[:show_statistics].name} value="false" />
+                <input
+                  id="show-statistics"
+                  type="checkbox"
+                  name={@settings_form[:show_statistics].name}
+                  value="true"
+                  checked={to_string(@settings_form[:show_statistics].value) == "true"}
+                  class="toggle toggle-primary"
+                />
+              </label>
+            </fieldset>
+
+            <div class="flex items-center justify-between gap-3">
+              <.link
+                :if={@questions != []}
+                patch={review_path(@game, length(@questions))}
+                class="btn btn-ghost btn-lg"
+              >
+                <.icon name="hero-arrow-left" class="size-4" /> Zurück
+              </.link>
+              <button
+                id="finish-review"
+                type="submit"
+                phx-disable-with="Wird gespeichert …"
+                class="btn btn-primary btn-lg ml-auto"
+              >
+                Fertig – Quiz ansehen <.icon name="hero-arrow-right" class="size-4" />
+              </button>
+            </div>
+          </.form>
+        </section>
+
+        <section :if={@review_step == :question} id="review-question-step" class="space-y-6">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between gap-4 text-base">
+              <p id="review-progress" class="font-semibold">
+                Frage {@review_index} von {length(@questions)}
+              </p>
+              <p class="truncate text-base-content/70">{@game.title}</p>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-base-200" aria-hidden="true">
+              <div
+                class="h-full rounded-full bg-primary transition-all duration-500"
+                style={"width: #{round(@review_index / length(@questions) * 100)}%"}
+              >
+              </div>
+            </div>
+          </div>
+
+          <AiWizard.step_heading :if={!@review_editing} title="Passt diese Frage?">
+            So sehen die Teams die Frage, darunter die Lösung. Nimm sie an, passe sie an oder
+            verwirf sie.
+          </AiWizard.step_heading>
+          <AiWizard.step_heading :if={@review_editing} title="Frage anpassen">
+            Deine Änderungen werden laufend gespeichert.
+          </AiWizard.step_heading>
+
+          <article
+            :if={!@review_editing}
+            id="review-question"
+            class="space-y-5 rounded-box border border-base-300 bg-base-100 p-6 shadow-sm"
+          >
+            <% question = @selected_question %>
+            <% image_missing = Question.image_missing?(question) %>
+            <p class="font-mono text-xs uppercase tracking-wider text-base-content/70">
+              Frage {pad(@review_index)} · {Keyword.fetch!(
+                Quiz.Games.TextFormat.type_names(),
+                question.type
+              )}
+            </p>
+            <h2 class="text-xl font-bold">{question.prompt}</h2>
+            <.rich_text html={question.description} />
+            <.question_media question={question} class="max-w-md" />
+
+            <div
+              :if={image_missing}
+              id="review-image-missing"
+              class="flex flex-col gap-4 rounded-box border-2 border-dashed border-base-300 bg-base-200/60 p-5 sm:flex-row sm:items-center"
+            >
+              <span class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-base-100 text-primary">
+                <.icon name="hero-photo" class="size-6" />
+              </span>
+              <div class="min-w-0 flex-1 space-y-1 text-base">
+                <p class="font-semibold">
+                  {if question.type == :pin_on_image,
+                    do: "Für diese Frage brauchst du ein Bild",
+                    else: "Die KI schlägt ein Bild vor (optional)"}
+                </p>
+                <p :if={present?(question.image_hint)} class="text-base-content/80">
+                  {question.image_hint}
+                </p>
+                <p
+                  :if={question.type == :pin_on_image and present?(question.pin_hint)}
+                  class="text-base-content/80"
+                >
+                  Die Teams tippen auf: {question.pin_hint}
+                </p>
+              </div>
+              <button
+                id="review-upload-image"
+                type="button"
+                phx-click="review_edit"
+                class="btn btn-primary shrink-0"
+              >
+                <.icon name="hero-arrow-up-tray" class="size-4" /> Bild hochladen
+              </button>
+            </div>
+
+            <AnswerArea.answer_area
+              :if={!(question.type == :pin_on_image and image_missing)}
+              question={AnswerArea.prepare_question(question)}
+            />
+
+            <div
+              :if={!(question.type == :pin_on_image and image_missing)}
+              id="review-solution"
+              class="space-y-4 border-t border-base-200 pt-5"
+            >
+              <p class="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-sm font-semibold text-base-content">
+                <.icon name="hero-eye-slash" class="size-4 text-success" />
+                Lösung – sehen die Teams erst bei der Auflösung
+              </p>
+              <SolutionArea.solution_area question={question} />
+              <SolutionArea.solution_explanation question={question} />
+            </div>
+
+            <%!-- A missing pin image is asked for above already. --%>
+            <% missing =
+              if image_missing,
+                do: Question.missing_requirements(question) -- ["ein Bild mit markiertem Ziel"],
+                else: Question.missing_requirements(question) %>
+            <div
+              :if={missing != []}
+              id="review-missing"
+              class="flex items-start gap-3 rounded-box border border-warning/50 bg-warning/10 p-4 text-base"
+            >
+              <.icon name="hero-exclamation-triangle" class="mt-0.5 size-5 shrink-0 text-warning" />
+              <p>
+                <span class="font-semibold">Noch nicht spielbar – es fehlt:</span>
+                {Enum.join(missing, ", ")}. Über «Anpassen» kannst du das ergänzen.
+              </p>
+            </div>
+          </article>
+
+          <div :if={@review_editing} id="review-editing" class="space-y-4">
+            <p
+              :if={@save_status}
+              class="flex items-center gap-1 text-base text-error"
+              role="alert"
+            >
+              <.icon name="hero-exclamation-triangle" class="size-4 shrink-0" />
+              {@save_status}
+            </p>
+            <.question_form
+              form={@form}
+              game={@game}
+              live_action={@live_action}
+              question_type={@question_type}
+              selected_question={@selected_question}
+              uploads={@uploads}
+              media_tab={@media_tab}
+              solution_tab={@solution_tab}
+            />
+          </div>
+
+          <div :if={@review_editing} class="flex justify-end">
+            <button
+              id="review-done"
+              type="button"
+              phx-click="review_done"
+              class="btn btn-primary btn-lg"
+            >
+              <.icon name="hero-check" class="size-5" /> Fertig angepasst
+            </button>
+          </div>
+
+          <div
+            :if={!@review_editing}
+            class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div class="flex items-center gap-2">
+              <.link
+                :if={@review_index > 1}
+                id="review-previous"
+                patch={review_path(@game, @review_index - 1)}
+                class="btn btn-ghost btn-lg"
+                aria-label="Vorherige Frage"
+              >
+                <.icon name="hero-arrow-left" class="size-4" />
+              </.link>
+              <button
+                id="review-discard"
+                type="button"
+                phx-click="review_discard"
+                class="btn btn-ghost btn-lg text-error"
+              >
+                <.icon name="hero-trash" class="size-5" /> Verwerfen
+              </button>
+            </div>
+            <div class="flex gap-3">
+              <button
+                id="review-edit"
+                type="button"
+                phx-click="review_edit"
+                class="btn btn-soft btn-lg flex-1 sm:flex-none"
+              >
+                <.icon name="hero-pencil-square" class="size-5" /> Anpassen
+              </button>
+              <.link
+                id="review-accept"
+                patch={review_path(@game, @review_index + 1)}
+                class="btn btn-primary btn-lg flex-1 sm:flex-none"
+              >
+                Annehmen <.icon name="hero-arrow-right" class="size-4" />
+              </.link>
+            </div>
+          </div>
+        </section>
+      </div>
+    </Layouts.app>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
@@ -1971,6 +2253,7 @@ defmodule QuizWeb.QuestionLive.Index do
      |> assign(:mode, initial_mode(socket.assigns.live_action, locked, questions))
      |> OpenRun.assign_defaults()
      |> assign(:insert_at, nil)
+     |> assign(review_step: :question, review_index: 1, review_editing: false)
      |> assign(:selected_question, nil)
      |> assign(:question_type, nil)
      |> assign(:form, nil)
@@ -2049,6 +2332,47 @@ defmodule QuizWeb.QuestionLive.Index do
     end
   end
 
+  defp apply_action(socket, :review, params) do
+    game = socket.assigns.game
+    count = length(socket.assigns.questions)
+
+    cond do
+      socket.assigns.locked ->
+        push_navigate(socket, to: ~p"/games/#{game}/questions")
+
+      Map.has_key?(params, "ablauf") ->
+        socket
+        |> assign(:page_title, "Ablauf festlegen")
+        |> assign(:review_step, :settings)
+        |> assign(:review_editing, false)
+        |> assign(
+          :settings_form,
+          to_form(
+            %{"review_mode" => game.review_mode, "show_statistics" => game.show_statistics},
+            as: :settings
+          )
+        )
+
+      true ->
+        case Integer.parse(params["frage"] || "1") do
+          {index, ""} when index in 1..count//1 ->
+            question = Enum.at(socket.assigns.questions, index - 1)
+
+            socket
+            |> authoring_action(:edit, %{"id" => question.id})
+            |> assign(:page_title, "Fragen prüfen")
+            |> assign(:review_step, :question)
+            |> assign(:review_index, index)
+            |> assign(:review_editing, false)
+
+          _past_the_last ->
+            push_patch(socket, to: ~p"/games/#{game}/durchsicht?ablauf")
+        end
+    end
+  end
+
+  defp review_path(game, index), do: ~p"/games/#{game}/durchsicht?#{[frage: index]}"
+
   # «Ansehen» is the default view of a quiz. A link to one question opens its
   # form, and an empty quiz opens the type picker — there is nothing to look at.
   defp initial_mode(_action, true = _locked, _questions), do: :view
@@ -2097,6 +2421,42 @@ defmodule QuizWeb.QuestionLive.Index do
   def handle_event(event, params, socket)
       when event in ["open_run", "open_run_skipping", "dismiss_incomplete"],
       do: OpenRun.handle_event(event, params, socket)
+
+  def handle_event("review_edit", _params, socket),
+    do: {:noreply, assign(socket, :review_editing, true)}
+
+  def handle_event("review_done", _params, socket),
+    do: {:noreply, assign(socket, :review_editing, false)}
+
+  # The list shrinks by one, so the same position now holds the next question.
+  def handle_event("review_discard", _params, socket) do
+    %{current_scope: scope, game: game, selected_question: question} = socket.assigns
+
+    case Games.delete_question(scope, question) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:questions, Games.list_questions_for_game(scope, game))
+         |> push_patch(to: review_path(game, socket.assigns.review_index))}
+
+      {:error, :run_locked} ->
+        {:noreply, push_navigate(socket, to: ~p"/games/#{game}/questions")}
+    end
+  end
+
+  def handle_event("save_settings", %{"settings" => params}, socket) do
+    %{current_scope: scope, game: game} = socket.assigns
+    settings = QuizWeb.GameLive.Import.settings_from_params(params)
+
+    case Games.update_game(scope, game, settings) do
+      {:ok, game} ->
+        {:noreply, push_navigate(socket, to: ~p"/games/#{game}/questions")}
+
+      {:error, _changeset} ->
+        {:noreply,
+         put_flash(socket, :error, "Die Einstellungen konnten nicht gespeichert werden.")}
+    end
+  end
 
   def handle_event("set_mode", %{"mode" => "view"}, socket) do
     {:noreply, assign(socket, :mode, :view)}
@@ -2290,6 +2650,9 @@ defmodule QuizWeb.QuestionLive.Index do
         end
     end
   end
+
+  defp save_question(socket, :review, question_params),
+    do: {:noreply, autosave(socket, question_params)}
 
   defp save_question(socket, :edit, question_params) do
     question_params = inject_uploaded_key(socket, question_params)

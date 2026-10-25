@@ -1,7 +1,7 @@
 defmodule Quiz.Games.TextFormat do
   @moduledoc """
-  The plain-text quiz format (`quiz-text/v1`): what AI chats produce from the
-  prompt in `priv/prompts/quiz_erstellen.md`, and what a quiz is exported as.
+  The plain-text quiz format (`quiz-text/v1`): what AI chats produce following
+  the guide in `priv/prompts/ki-anleitung.md`, and what a quiz is exported as.
 
       Format: quiz-text/v1
       Quiz: Pilze der Schweiz
@@ -127,8 +127,10 @@ defmodule Quiz.Games.TextFormat do
   def version, do: @version
 
   @doc """
-  The prompt to hand an AI chat: it interviews the author and answers with a
-  quiz in this format.
+  The short prompt to hand an AI chat. It points the chat to the guide in
+  `priv/prompts/ki-anleitung.md` on GitHub (so the guide only reaches chats once
+  it is pushed to `main`), which has the chat interview the author and answer
+  with a quiz in this format.
   """
   def prompt, do: @prompt
 

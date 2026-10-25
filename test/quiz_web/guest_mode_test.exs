@@ -43,7 +43,7 @@ defmodule QuizWeb.GuestModeTest do
     assert get_session(post_as.(), :user_token)
 
     conn = post_as.()
-    assert redirected_to(conn) == ~p"/erstellen"
+    assert redirected_to(conn) == ~p"/erstellen?schritt=3"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "viele Gastzugänge"
     refute get_session(conn, :user_token)
   end
