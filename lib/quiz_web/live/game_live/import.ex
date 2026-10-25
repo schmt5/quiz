@@ -57,8 +57,8 @@ defmodule QuizWeb.GameLive.Import do
             </.chat_step>
             <.chat_step number={3}>
               Die KI fragt dich nach <strong>Thema</strong>, <strong>Zielgruppe</strong>
-              und <strong>Anzahl Fragen</strong>. Passt es, schlägt sie dir auch eine Frage vor, bei
-              der die Teams auf ein Bild tippen.
+              und <strong>Anzahl Fragen</strong>. Zudem fragt sie, ob du auch Fragen mit
+              Bildern möchtest – die Bilder lädst du danach selbst hoch.
             </.chat_step>
             <.chat_step number={4}>
               Am Schluss zeigt sie dir das Quiz in einem Block. Kopiere ihn mit dem
